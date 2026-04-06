@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { background: #f5f7fb; color: #0b1f3a; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+
+.btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-semibold transition; }
+.btn-primary { @apply btn bg-rink text-white hover:bg-blue-900; }
+.btn-ghost { @apply btn border border-rink text-rink hover:bg-ice; }
+.card { @apply rounded-xl bg-white shadow p-5; }
+.input { @apply w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rink; }
