@@ -6,7 +6,10 @@ export async function GET(req: Request, { params }: { params: { token: string } 
   const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    // Remember where they were going so we can send them back after sign-in.
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("next", `/join/${params.token}`);
+    return NextResponse.redirect(loginUrl);
   }
   const { data: comp } = await supabase
     .from("competitions").select("*").eq("invite_token", params.token).single();

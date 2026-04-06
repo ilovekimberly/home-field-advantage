@@ -1,13 +1,21 @@
 "use client";
+import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "/";
+
   async function signInWithGoogle() {
     const supabase = createSupabaseBrowserClient();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    // Pass `next` to the callback via a query param so we can redirect there
+    // after Google hands control back to us.
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${siteUrl}/auth/callback` },
+      options: {
+        redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
     });
   }
 
