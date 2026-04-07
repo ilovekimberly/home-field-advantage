@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
+import InvitePanel from "./InvitePanel";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
@@ -95,12 +96,13 @@ export default async function CompetitionPage({ params }: { params: { id: string
             <div>{opponentProfile?.display_name ?? <span className="italic text-slate-400">awaiting opponent…</span>}</div>
           </div>
         </div>
-        {!comp.opponent_id && (
-          <div className="mt-4 rounded-lg bg-ice p-3 text-sm">
-            Share this invite link with your friend:&nbsp;
-            <code className="bg-white px-2 py-1 rounded">
-              {process.env.NEXT_PUBLIC_SITE_URL}/join/{comp.invite_token}
-            </code>
+        {!comp.opponent_id && isCreator && (
+          <div className="mt-4">
+            <InvitePanel
+              competitionId={comp.id}
+              inviteToken={comp.invite_token}
+              siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
+            />
           </div>
         )}
       </div>

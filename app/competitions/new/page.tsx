@@ -41,12 +41,17 @@ export default function NewCompetitionPage() {
       .select()
       .single();
     if (error) { setError(error.message); setBusy(false); return; }
+    // Send invite email if an address was provided.
     if (inviteEmail) {
-      await supabase.from("invites").insert({
-        competition_id: data.id,
-        invited_email: inviteEmail,
-        invited_by: user.id,
+      const inviteRes = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ competitionId: data.id, toEmail: inviteEmail }),
       });
+      if (!inviteRes.ok) {
+        // Don't block navigation — email failure shouldn't stop the user.
+        console.error("Invite email failed:", await inviteRes.json().catch(() => ({})));
+      }
     }
     router.push(`/competitions/${data.id}`);
   }
@@ -81,7 +86,9 @@ export default function NewCompetitionPage() {
         </label>
 
         {error && <div className="text-red-600 text-sm">{error}</div>}
-        <button className="btn-primary w-full" disabled={busy}>{busy ? "Creating..." : "Create competition"}</button>
+        <button className="btn-primary w-full" disabled={busy}>
+          {busy ? (inviteEmail ? "Creating & sending invite…" : "Creating…") : "Create competition"}
+        </button>
       </form>
     </div>
   );
