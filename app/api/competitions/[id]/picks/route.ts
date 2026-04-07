@@ -66,6 +66,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const game = games.find((g) => g.id === gameId);
   if (!game) return NextResponse.json({ error: "game not in tonight's slate" }, { status: 400 });
 
+  // Reject picks on games that have already started.
+  if (new Date(game.startTimeUTC) <= new Date()) {
+    return NextResponse.json({ error: "game has already started" }, { status: 409 });
+  }
+
   let result = "pending";
   if (isFinal(game.gameState)) {
     const w = winnerAbbrev(game);

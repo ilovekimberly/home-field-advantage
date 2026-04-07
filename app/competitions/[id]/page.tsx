@@ -5,6 +5,7 @@ import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
 import InvitePanel from "./InvitePanel";
+import DeferBanner from "./DeferBanner";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
@@ -28,21 +29,20 @@ export default async function CompetitionPage({ params }: { params: { id: string
     );
   }
 
-  // Look up profiles
+  // Profiles
   const ids = [comp.creator_id, comp.opponent_id].filter(Boolean);
   const { data: profiles } = await supabase.from("profiles").select("*").in("id", ids);
   const creatorProfile = profiles?.find((p) => p.id === comp.creator_id);
   const opponentProfile = profiles?.find((p) => p.id === comp.opponent_id);
 
-  // The "active" date for picking. For daily comps it's the start_date.
-  // For weekly/season we use today (clamped to the comp window).
+  // Active date
   const today = todayISO();
   const activeDate =
     comp.duration === "daily" ? comp.start_date :
     today < comp.start_date ? comp.start_date :
     today > comp.end_date ? comp.end_date : today;
 
-  // Pull schedule + existing picks for the active date
+  // Schedule + picks
   let games: Awaited<ReturnType<typeof fetchNHLScheduleForDate>> = [];
   try { games = await fetchNHLScheduleForDate(activeDate); } catch {}
 
@@ -50,7 +50,7 @@ export default async function CompetitionPage({ params }: { params: { id: string
     .from("picks").select("*").eq("competition_id", comp.id);
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
 
-  // Compute prior records for who-picks-first
+  // Prior records
   const recordA = { wins: 0, losses: 0, pushes: 0 };
   const recordB = { wins: 0, losses: 0, pushes: 0 };
   for (const p of allPicks ?? []) {
@@ -61,25 +61,51 @@ export default async function CompetitionPage({ params }: { params: { id: string
     else if (p.result === "push") rec.pushes++;
   }
 
-  // Previous date's first picker (for tiebreaker fallback)
+  // Previous date's first picker (tiebreaker)
   const prevDates = Array.from(new Set((allPicks ?? [])
     .filter((p) => p.game_date < activeDate)
     .map((p) => p.game_date))).sort();
   const prevDate = prevDates[prevDates.length - 1];
   let previousFirstPicker: Player | null = null;
   if (prevDate) {
-    const firstPickRow = (allPicks ?? [])
+    const fp = (allPicks ?? [])
       .filter((p) => p.game_date === prevDate)
       .sort((a, b) => a.pick_index - b.pick_index)[0];
-    if (firstPickRow) {
-      previousFirstPicker = firstPickRow.picker_id === comp.creator_id ? "A" : "B";
-    }
+    if (fp) previousFirstPicker = fp.picker_id === comp.creator_id ? "A" : "B";
   }
 
-  const firstPicker = whoPicksFirst(recordA, recordB, previousFirstPicker, "A");
-  // For now we don't ask the better-record player to defer; default to no defer.
-  // (TODO: surface a deferral toggle in the UI before any pick is made.)
-  const draft = generateDraftOrder({ numGames: games.length, firstPicker, deferred: false });
+  const firstPickerSlot = whoPicksFirst(recordA, recordB, previousFirstPicker, "A");
+  const firstPickerUserId = firstPickerSlot === "A" ? comp.creator_id : comp.opponent_id;
+
+  // Fetch today's defer choice (if any)
+  const { data: deferRow } = await supabase
+    .from("draft_defers")
+    .select("deferred")
+    .eq("competition_id", comp.id)
+    .eq("game_date", activeDate)
+    .maybeSingle();
+
+  // If no choice has been made yet and it's a weekly/season comp with >3 games,
+  // show the DeferBanner to the first picker before any picks are made.
+  const deferChoiceMade = deferRow !== null;
+  const deferred = deferRow?.deferred ?? false;
+  const showDeferBanner =
+    !deferChoiceMade &&
+    comp.duration !== "daily" &&
+    games.length > 3 &&
+    todaysPicks.length === 0 &&
+    firstPickerUserId === user.id &&
+    !!comp.opponent_id; // both players must be in
+
+  const draft = generateDraftOrder({ numGames: games.length, firstPickerSlot, deferred });
+
+  const firstPickerName = firstPickerSlot === "A"
+    ? (creatorProfile?.display_name ?? "Creator")
+    : (opponentProfile?.display_name ?? "Opponent");
+
+  const opponentName = user.id === comp.creator_id
+    ? (opponentProfile?.display_name ?? "Opponent")
+    : (creatorProfile?.display_name ?? "Creator");
 
   return (
     <div className="space-y-6">
@@ -93,7 +119,10 @@ export default async function CompetitionPage({ params }: { params: { id: string
           </div>
           <div className="text-right text-sm">
             <div><b>{creatorProfile?.display_name ?? "Creator"}</b> (creator)</div>
-            <div>{opponentProfile?.display_name ?? <span className="italic text-slate-400">awaiting opponent…</span>}</div>
+            <div>
+              {opponentProfile?.display_name ??
+                <span className="italic text-slate-400">awaiting opponent…</span>}
+            </div>
           </div>
         </div>
         {!comp.opponent_id && isCreator && (
@@ -110,11 +139,22 @@ export default async function CompetitionPage({ params }: { params: { id: string
       <div className="card">
         <h2 className="text-lg font-bold mb-1">Tonight's slate · {activeDate}</h2>
         <p className="text-sm text-slate-500 mb-4">
-          {games.length} games · first pick: <b>{firstPicker === "A"
-            ? creatorProfile?.display_name ?? "Creator"
-            : opponentProfile?.display_name ?? "Opponent"}</b>
-          {draft.unpickedGames > 0 && <> · {draft.unpickedGames} game(s) will be left unpicked</>}
+          {games.length} games ·{" "}
+          {deferChoiceMade
+            ? <>first pick: <b>{firstPickerName}</b>{deferred ? " (deferred — takes picks #2 & #3)" : ""}</>
+            : comp.duration === "daily" || !comp.opponent_id
+              ? <>first pick: <b>{firstPickerName}</b></>
+              : <><b>{firstPickerName}</b> has pick priority tonight</>}
+          {draft.unpickedGames > 0 && <> · {draft.unpickedGames} game(s) left unpicked</>}
         </p>
+
+        {showDeferBanner && (
+          <DeferBanner
+            competitionId={comp.id}
+            gameDate={activeDate}
+            opponentName={opponentName}
+          />
+        )}
 
         <PickRoom
           competitionId={comp.id}
@@ -132,12 +172,15 @@ export default async function CompetitionPage({ params }: { params: { id: string
           playerAId={comp.creator_id}
           playerBId={comp.opponent_id}
           currentUserId={user.id}
+          waitingForDefer={!deferChoiceMade && comp.duration !== "daily" && games.length > 3 && !!comp.opponent_id}
         />
       </div>
 
-      <Standings recordA={recordA} recordB={recordB}
+      <Standings
+        recordA={recordA} recordB={recordB}
         nameA={creatorProfile?.display_name ?? "Creator"}
-        nameB={opponentProfile?.display_name ?? "Opponent"} />
+        nameB={opponentProfile?.display_name ?? "Opponent"}
+      />
     </div>
   );
 }
@@ -147,7 +190,11 @@ function Standings({ recordA, recordB, nameA, nameB }: any) {
     <div className="card">
       <h2 className="text-lg font-bold mb-3">Standings (prior to today)</h2>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-slate-500"><th>Player</th><th>W</th><th>L</th><th>P</th></tr></thead>
+        <thead>
+          <tr className="text-left text-slate-500">
+            <th>Player</th><th>W</th><th>L</th><th>P</th>
+          </tr>
+        </thead>
         <tbody>
           <tr><td>{nameA}</td><td>{recordA.wins}</td><td>{recordA.losses}</td><td>{recordA.pushes}</td></tr>
           <tr><td>{nameB}</td><td>{recordB.wins}</td><td>{recordB.losses}</td><td>{recordB.pushes}</td></tr>
