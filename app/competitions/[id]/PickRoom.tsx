@@ -23,7 +23,7 @@ type Pick = {
 
 export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
-  draftOrder, playerAId, playerBId, currentUserId, waitingForDefer,
+  draftOrder, playerAId, playerBId, currentUserId, waitingForDefer, readOnly,
 }: {
   competitionId: string;
   activeDate: string;
@@ -34,6 +34,7 @@ export default function PickRoom({
   playerBId: string | null;
   currentUserId: string;
   waitingForDefer?: boolean;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -87,7 +88,9 @@ export default function PickRoom({
   return (
     <div>
       <div className="mb-3 text-sm">
-        {waitingForDefer ? (
+        {readOnly ? (
+          <span className="text-slate-400 italic">Past night — picks are locked.</span>
+        ) : waitingForDefer ? (
           <span className="text-slate-500 italic">Picks are locked until the pick-priority player makes their choice above.</span>
         ) : draftDone ? (
           <span className="font-semibold text-green-700">All picks made for tonight ✓</span>
@@ -147,7 +150,7 @@ export default function PickRoom({
               </div>
 
               {/* Pick buttons — hidden if already picked or game started */}
-              {!taken && !started && (
+              {!taken && !started && !readOnly && (
                 <div className="flex gap-2 shrink-0 ml-3">
                   <button
                     disabled={!isMyTurn || busy || waitingForDefer}

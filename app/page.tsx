@@ -66,11 +66,18 @@ export default async function HomePage() {
 
         // W/L for each player.
         let myWins = 0, myLosses = 0, theirWins = 0, theirLosses = 0;
+        let myWinsTonight = 0, myLossesTonight = 0, theirWinsTonight = 0, theirLossesTonight = 0;
         for (const p of picks) {
           const mine = p.picker_id === user.id;
           if (p.result === "win") mine ? myWins++ : theirWins++;
           if (p.result === "loss") mine ? myLosses++ : theirLosses++;
+          // Tonight's picks
+          if (p.game_date === today) {
+            if (p.result === "win") mine ? myWinsTonight++ : theirWinsTonight++;
+            if (p.result === "loss") mine ? myLossesTonight++ : theirLossesTonight++;
+          }
         }
+        const hasPicksTonight = myWinsTonight + myLossesTonight + theirWinsTonight + theirLossesTonight > 0;
 
         // Is it my turn tonight?
         let isMyTurnTonight = false;
@@ -115,8 +122,9 @@ export default async function HomePage() {
 
         return {
           ...comp,
-          myWins, myLosses,
-          theirWins, theirLosses,
+          myWins, myLosses, theirWins, theirLosses,
+          myWinsTonight, myLossesTonight, theirWinsTonight, theirLossesTonight,
+          hasPicksTonight,
           opponentName: opponentProfile?.display_name ?? (comp.opponent_id ? "Opponent" : null),
           isMyTurnTonight,
         };
@@ -177,20 +185,36 @@ export default async function HomePage() {
                       </div>
 
                       {c.opponentName ? (
-                        <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                          <div className="text-center">
-                            <div className="text-xs text-slate-500 mb-0.5">You</div>
-                            <div className="font-bold text-lg leading-none">
-                              {c.myWins}–{c.myLosses}
+                        <div className="space-y-2">
+                          {/* Overall record */}
+                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                            <div className="text-center">
+                              <div className="text-xs text-slate-500 mb-0.5">You</div>
+                              <div className="font-bold text-lg leading-none">
+                                {c.myWins}–{c.myLosses}
+                              </div>
+                            </div>
+                            <div className="text-xs text-slate-400 font-medium">Overall</div>
+                            <div className="text-center">
+                              <div className="text-xs text-slate-500 mb-0.5">{c.opponentName}</div>
+                              <div className="font-bold text-lg leading-none">
+                                {c.theirWins}–{c.theirLosses}
+                              </div>
                             </div>
                           </div>
-                          <div className="text-slate-300 font-bold">vs</div>
-                          <div className="text-center">
-                            <div className="text-xs text-slate-500 mb-0.5">{c.opponentName}</div>
-                            <div className="font-bold text-lg leading-none">
-                              {c.theirWins}–{c.theirLosses}
+
+                          {/* Tonight's running score (only if picks have been scored) */}
+                          {c.hasPicksTonight && c.duration !== "daily" && (
+                            <div className="flex items-center justify-between rounded-lg bg-ice px-3 py-1.5 text-sm">
+                              <div className="font-semibold tabular-nums">
+                                {c.myWinsTonight}–{c.myLossesTonight}
+                              </div>
+                              <div className="text-xs text-rink font-medium">Tonight</div>
+                              <div className="font-semibold tabular-nums">
+                                {c.theirWinsTonight}–{c.theirLossesTonight}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       ) : (
                         <div className="text-xs text-slate-400 italic">

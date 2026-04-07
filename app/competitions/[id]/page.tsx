@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
@@ -7,10 +6,18 @@ import PickRoom from "./PickRoom";
 import InvitePanel from "./InvitePanel";
 import DeferBanner from "./DeferBanner";
 import RefreshScores from "./RefreshScores";
+import DateNav from "./DateNav";
+import NightlyRecap from "./NightlyRecap";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
-export default async function CompetitionPage({ params }: { params: { id: string } }) {
+export default async function CompetitionPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { date?: string };
+}) {
   const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -35,23 +42,35 @@ export default async function CompetitionPage({ params }: { params: { id: string
   const { data: profiles } = await supabase.from("profiles").select("*").in("id", ids);
   const creatorProfile = profiles?.find((p) => p.id === comp.creator_id);
   const opponentProfile = profiles?.find((p) => p.id === comp.opponent_id);
+  const myProfile = isCreator ? creatorProfile : opponentProfile;
+  const theirProfile = isCreator ? opponentProfile : creatorProfile;
+  const myName = myProfile?.display_name ?? "You";
+  const theirName = theirProfile?.display_name ?? "Opponent";
 
-  // Active date
   const today = todayISO();
-  const activeDate =
+
+  // Default active date (today clamped to comp window), overridable via ?date=
+  const defaultDate =
     comp.duration === "daily" ? comp.start_date :
     today < comp.start_date ? comp.start_date :
     today > comp.end_date ? comp.end_date : today;
 
-  // Schedule + picks
-  let games: Awaited<ReturnType<typeof fetchNHLScheduleForDate>> = [];
-  try { games = await fetchNHLScheduleForDate(activeDate); } catch {}
+  const requestedDate = searchParams.date;
+  const activeDate =
+    requestedDate && requestedDate >= comp.start_date && requestedDate <= comp.end_date
+      ? requestedDate
+      : defaultDate;
 
+  const isViewingToday = activeDate === today || (comp.duration === "daily" && activeDate === comp.start_date);
+
+  // All picks for this competition
   const { data: allPicks } = await supabase
     .from("picks").select("*").eq("competition_id", comp.id);
-  const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
 
-  // Prior records
+  const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
+  const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
+
+  // Prior records (relative to activeDate)
   const recordA = { wins: 0, losses: 0, pushes: 0 };
   const recordB = { wins: 0, losses: 0, pushes: 0 };
   for (const p of allPicks ?? []) {
@@ -77,8 +96,11 @@ export default async function CompetitionPage({ params }: { params: { id: string
 
   const firstPickerSlot = whoPicksFirst(recordA, recordB, previousFirstPicker, "A");
   const firstPickerUserId = firstPickerSlot === "A" ? comp.creator_id : comp.opponent_id;
+  const firstPickerName = firstPickerSlot === "A"
+    ? (creatorProfile?.display_name ?? "Creator")
+    : (opponentProfile?.display_name ?? "Opponent");
 
-  // Fetch today's defer choice (if any)
+  // Defer choice for activeDate
   const { data: deferRow } = await supabase
     .from("draft_defers")
     .select("deferred")
@@ -86,30 +108,63 @@ export default async function CompetitionPage({ params }: { params: { id: string
     .eq("game_date", activeDate)
     .maybeSingle();
 
-  // If no choice has been made yet and it's a weekly/season comp with >3 games,
-  // show the DeferBanner to the first picker before any picks are made.
   const deferChoiceMade = deferRow !== null;
   const deferred = deferRow?.deferred ?? false;
+
+  // Schedule for activeDate
+  let games: Awaited<ReturnType<typeof fetchNHLScheduleForDate>> = [];
+  try { games = await fetchNHLScheduleForDate(activeDate); } catch {}
+
+  const draft = generateDraftOrder({ numGames: games.length, firstPicker: firstPickerSlot, deferred });
+
   const showDeferBanner =
+    isViewingToday &&
     !deferChoiceMade &&
     comp.duration !== "daily" &&
     games.length > 3 &&
     todaysPicks.length === 0 &&
     firstPickerUserId === user.id &&
-    !!comp.opponent_id; // both players must be in
-
-  const draft = generateDraftOrder({ numGames: games.length, firstPicker: firstPickerSlot, deferred });
-
-  const firstPickerName = firstPickerSlot === "A"
-    ? (creatorProfile?.display_name ?? "Creator")
-    : (opponentProfile?.display_name ?? "Opponent");
+    !!comp.opponent_id;
 
   const opponentName = user.id === comp.creator_id
     ? (opponentProfile?.display_name ?? "Opponent")
     : (creatorProfile?.display_name ?? "Creator");
 
+  // ── Nightly recap for the night before the activeDate ──────────────────
+  // Only show for weekly/season comps where there's a previous night with picks.
+  let nightlyRecap: {
+    date: string; myWins: number; myLosses: number;
+    theirWins: number; theirLosses: number;
+    myName: string; theirName: string;
+  } | null = null;
+
+  if (comp.duration !== "daily" && prevDate && datesWithPicks.includes(prevDate)) {
+    const prevPicks = (allPicks ?? []).filter((p) => p.game_date === prevDate);
+    let myWins = 0, myLosses = 0, theirWins = 0, theirLosses = 0;
+    for (const p of prevPicks) {
+      const mine = p.picker_id === user.id;
+      if (p.result === "win") mine ? myWins++ : theirWins++;
+      if (p.result === "loss") mine ? myLosses++ : theirLosses++;
+    }
+    // Only show recap if there are scored picks (not all pending)
+    if (myWins + myLosses + theirWins + theirLosses > 0) {
+      nightlyRecap = { date: prevDate, myWins, myLosses, theirWins, theirLosses, myName, theirName };
+    }
+  }
+
+  // ── Overall record for standings ───────────────────────────────────────
+  const overallRecordA = { wins: 0, losses: 0, pushes: 0 };
+  const overallRecordB = { wins: 0, losses: 0, pushes: 0 };
+  for (const p of allPicks ?? []) {
+    const rec = p.picker_id === comp.creator_id ? overallRecordA : overallRecordB;
+    if (p.result === "win") rec.wins++;
+    else if (p.result === "loss") rec.losses++;
+    else if (p.result === "push") rec.pushes++;
+  }
+
   return (
     <div className="space-y-6">
+      {/* Competition header */}
       <div className="card">
         <div className="flex justify-between items-start">
           <div>
@@ -137,11 +192,31 @@ export default async function CompetitionPage({ params }: { params: { id: string
         )}
       </div>
 
+      {/* Pick slate card */}
       <div className="card">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-bold">Tonight's slate · {activeDate}</h2>
-          <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />
+          <h2 className="text-lg font-bold">
+            {isViewingToday ? "Tonight's slate" : "Game results"} · {activeDate}
+          </h2>
+          {isViewingToday && <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />}
         </div>
+
+        {/* Date navigator — only for weekly/season comps */}
+        {comp.duration !== "daily" && (
+          <DateNav
+            competitionId={comp.id}
+            activeDate={activeDate}
+            startDate={comp.start_date}
+            endDate={comp.end_date}
+            datesWithPicks={datesWithPicks}
+          />
+        )}
+
+        {/* Nightly recap from the previous night */}
+        {nightlyRecap && isViewingToday && (
+          <NightlyRecap night={nightlyRecap} />
+        )}
+
         <p className="text-sm text-slate-500 mb-4">
           {games.length} games ·{" "}
           {deferChoiceMade
@@ -176,12 +251,20 @@ export default async function CompetitionPage({ params }: { params: { id: string
           playerAId={comp.creator_id}
           playerBId={comp.opponent_id}
           currentUserId={user.id}
-          waitingForDefer={!deferChoiceMade && comp.duration !== "daily" && games.length > 3 && !!comp.opponent_id}
+          waitingForDefer={
+            isViewingToday &&
+            !deferChoiceMade &&
+            comp.duration !== "daily" &&
+            games.length > 3 &&
+            !!comp.opponent_id
+          }
+          readOnly={!isViewingToday}
         />
       </div>
 
+      {/* Standings */}
       <Standings
-        recordA={recordA} recordB={recordB}
+        recordA={overallRecordA} recordB={overallRecordB}
         nameA={creatorProfile?.display_name ?? "Creator"}
         nameB={opponentProfile?.display_name ?? "Opponent"}
       />
@@ -192,16 +275,32 @@ export default async function CompetitionPage({ params }: { params: { id: string
 function Standings({ recordA, recordB, nameA, nameB }: any) {
   return (
     <div className="card">
-      <h2 className="text-lg font-bold mb-3">Standings (prior to today)</h2>
+      <h2 className="text-lg font-bold mb-3">Overall standings</h2>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-slate-500">
-            <th>Player</th><th>W</th><th>L</th><th>P</th>
+          <tr className="text-left text-slate-500 border-b">
+            <th className="pb-2">Player</th>
+            <th className="pb-2">W</th>
+            <th className="pb-2">L</th>
+            <th className="pb-2">Pct</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>{nameA}</td><td>{recordA.wins}</td><td>{recordA.losses}</td><td>{recordA.pushes}</td></tr>
-          <tr><td>{nameB}</td><td>{recordB.wins}</td><td>{recordB.losses}</td><td>{recordB.pushes}</td></tr>
+          {[
+            { name: nameA, ...recordA },
+            { name: nameB, ...recordB },
+          ].map((row) => {
+            const total = row.wins + row.losses;
+            const pct = total === 0 ? "—" : (row.wins / total).toFixed(3).replace(/^0/, "");
+            return (
+              <tr key={row.name} className="border-b last:border-0">
+                <td className="py-2 font-medium">{row.name}</td>
+                <td className="py-2">{row.wins}</td>
+                <td className="py-2">{row.losses}</td>
+                <td className="py-2 text-slate-500">{pct}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
