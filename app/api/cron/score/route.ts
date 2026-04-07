@@ -81,14 +81,40 @@ export async function GET(req: Request) {
     }
   }
 
-  // ── 3. Auto-cancel weekly/season comps with no opponent after 3 days ──
-  // Day 3 means start_date + 2 days has passed (i.e. today > start_date + 2).
+  // ── 3. Auto-cancel pending comps with no opponent ─────────────────────
   function addDays(d: string, n: number) {
     const dt = new Date(d + "T00:00:00Z");
     dt.setUTCDate(dt.getUTCDate() + n);
     return dt.toISOString().slice(0, 10);
   }
 
+  // Daily comps: cancel if start_date is in the past and no opponent joined.
+  const { data: expiredDailies } = await supabase
+    .from("competitions")
+    .select("*")
+    .eq("status", "pending")
+    .eq("duration", "daily")
+    .is("opponent_id", null)
+    .lt("start_date", today); // start date already passed
+
+  for (const comp of expiredDailies ?? []) {
+    await supabase.from("competitions").update({ status: "cancelled" }).eq("id", comp.id);
+
+    const { data: creator } = await supabase
+      .from("profiles").select("email, display_name").eq("id", comp.creator_id).single();
+
+    if (creator?.email) {
+      const { subject, html } = competitionCancelledEmail({
+        toName: creator.display_name ?? creator.email,
+        competitionName: comp.name,
+        reason: "daily",
+        newCompUrl: `${siteUrl}/competitions/new`,
+      });
+      sendEmail({ to: creator.email, subject, html }).catch(console.error);
+    }
+  }
+
+  // Weekly/season comps: cancel after 3 days with no opponent.
   const { data: expiredComps } = await supabase
     .from("competitions")
     .select("*")
