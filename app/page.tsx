@@ -13,6 +13,9 @@ function getStatusBadge(
   theirWins: number, theirLosses: number,
   isMyTurnTonight: boolean,
 ): BadgeStyle {
+  if (comp.status === "cancelled") {
+    return { label: "Cancelled", color: "bg-slate-100 text-slate-500" };
+  }
   if (comp.status === "pending" && !comp.opponent_id) {
     return { label: "Awaiting opponent", color: "bg-yellow-100 text-yellow-800" };
   }
@@ -207,8 +210,8 @@ function CompetitionCard({ c, userId }: { c: any; userId: string }) {
 }
 
 function CompetitionsList({ enriched, userId }: { enriched: any[]; userId: string }) {
-  const active = enriched.filter((c) => c.status !== "complete");
-  const past = enriched.filter((c) => c.status === "complete");
+  const active = enriched.filter((c) => c.status !== "complete" && c.status !== "cancelled");
+  const past = enriched.filter((c) => c.status === "complete" || c.status === "cancelled");
 
   return (
     <div className="space-y-8">

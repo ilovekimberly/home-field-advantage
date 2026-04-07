@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchNHLScheduleForDate } from "@/lib/nhl";
 import { whoPicksFirst, type Player } from "@/lib/picks";
-import { sendEmail, picksOpenEmail } from "@/lib/email";
+import { sendEmail, picksOpenEmail, competitionCancelledEmail } from "@/lib/email";
 
 // GET /api/cron/notify
 // Runs every 30 minutes (see vercel.json).
@@ -77,8 +77,48 @@ export async function GET(req: Request) {
     hour: "numeric", minute: "2-digit", timeZone: "America/New_York",
   }) + " ET";
 
-  // ── 3. Find eligible competitions ─────────────────────────────────────
   const supabase = createSupabaseServerClient();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+
+  // ── 3. Auto-cancel daily comps with no opponent once first game starts ─
+  if (nowMs >= firstGameMs) {
+    const { data: pendingDailies } = await supabase
+      .from("competitions")
+      .select("*")
+      .eq("status", "pending")
+      .eq("duration", "daily")
+      .is("opponent_id", null)
+      .eq("start_date", today);
+
+    for (const comp of pendingDailies ?? []) {
+      await supabase
+        .from("competitions")
+        .update({ status: "cancelled" })
+        .eq("id", comp.id);
+
+      const { data: creator } = await supabase
+        .from("profiles")
+        .select("email, display_name")
+        .eq("id", comp.creator_id)
+        .single();
+
+      if (creator?.email) {
+        const { subject, html } = competitionCancelledEmail({
+          toName: creator.display_name ?? creator.email,
+          competitionName: comp.name,
+          reason: "daily",
+          newCompUrl: `${siteUrl}/competitions/new`,
+        });
+        sendEmail({ to: creator.email, subject, html }).catch(console.error);
+      }
+    }
+
+    if ((pendingDailies ?? []).length > 0) {
+      console.log(`cron/notify: cancelled ${pendingDailies!.length} daily comp(s) with no opponent`);
+    }
+  }
+
+  // ── 4. Find eligible competitions ─────────────────────────────────────
 
   const { data: comps } = await supabase
     .from("competitions")
@@ -157,7 +197,6 @@ export async function GET(req: Request) {
     const firstPickerUserId = firstPickerSlot === "A" ? comp.creator_id : comp.opponent_id;
     const secondPickerUserId = firstPickerSlot === "A" ? comp.opponent_id : comp.creator_id;
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
     const competitionUrl = `${siteUrl}/competitions/${comp.id}`;
 
     // Send to both players — first picker gets the priority notice,
