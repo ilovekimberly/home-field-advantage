@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
+import { sendEmail, competitionCancelledEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -17,6 +18,7 @@ export async function GET(req: Request) {
   }
 
   const supabase = createSupabaseServerClient();
+  const today = new Date().toISOString().slice(0, 10);
 
   // ── 1. Score all pending picks ─────────────────────────────────────────
   const { data: pending, error } = await supabase
@@ -59,36 +61,64 @@ export async function GET(req: Request) {
   }
 
   // ── 2. Mark competitions as complete ──────────────────────────────────
-  // A competition is complete when its end_date has passed AND every pick
-  // in it has a non-pending result (or it has no picks at all but the date
-  // has passed, for daily comps with no games).
-  const today = new Date().toISOString().slice(0, 10);
-
   const { data: activeComps } = await supabase
     .from("competitions")
     .select("id, end_date")
     .eq("status", "active")
-    .lte("end_date", today); // end date is today or in the past
+    .lte("end_date", today);
 
   let completed = 0;
   for (const comp of activeComps ?? []) {
     const { data: remaining } = await supabase
-      .from("picks")
-      .select("id")
+      .from("picks").select("id")
       .eq("competition_id", comp.id)
       .eq("result", "pending")
       .limit(1);
 
-    // No pending picks left — mark as complete.
     if (!remaining || remaining.length === 0) {
-      await supabase
-        .from("competitions")
-        .update({ status: "complete" })
-        .eq("id", comp.id);
+      await supabase.from("competitions").update({ status: "complete" }).eq("id", comp.id);
       completed++;
     }
   }
 
-  console.log(`cron/score: ${updated} picks scored, ${completed} competitions completed`);
-  return NextResponse.json({ updated, completed });
+  // ── 3. Auto-cancel weekly/season comps with no opponent after 3 days ──
+  // Day 3 means start_date + 2 days has passed (i.e. today > start_date + 2).
+  function addDays(d: string, n: number) {
+    const dt = new Date(d + "T00:00:00Z");
+    dt.setUTCDate(dt.getUTCDate() + n);
+    return dt.toISOString().slice(0, 10);
+  }
+
+  const { data: expiredComps } = await supabase
+    .from("competitions")
+    .select("*")
+    .eq("status", "pending")
+    .is("opponent_id", null)
+    .neq("duration", "daily")
+    .lte("start_date", addDays(today, -2)); // started 3+ days ago
+
+  let cancelled = 0;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+
+  for (const comp of expiredComps ?? []) {
+    await supabase.from("competitions").update({ status: "cancelled" }).eq("id", comp.id);
+    cancelled++;
+
+    // Email the creator.
+    const { data: creator } = await supabase
+      .from("profiles").select("email, display_name").eq("id", comp.creator_id).single();
+
+    if (creator?.email) {
+      const { subject, html } = competitionCancelledEmail({
+        toName: creator.display_name ?? creator.email,
+        competitionName: comp.name,
+        reason: "weekly",
+        newCompUrl: `${siteUrl}/competitions/new`,
+      });
+      sendEmail({ to: creator.email, subject, html }).catch(console.error);
+    }
+  }
+
+  console.log(`cron/score: ${updated} picks scored, ${completed} completed, ${cancelled} cancelled`);
+  return NextResponse.json({ updated, completed, cancelled });
 }

@@ -162,3 +162,38 @@ export function picksOpenEmail({
     `),
   };
 }
+
+// Sent to the creator when a competition is auto-cancelled due to no opponent joining.
+export function competitionCancelledEmail({
+  toName,
+  competitionName,
+  reason,
+  newCompUrl,
+}: {
+  toName: string;
+  competitionName: string;
+  // 'daily' = games started with no opponent
+  // 'weekly' = 3 days passed with no opponent
+  reason: "daily" | "weekly";
+  newCompUrl: string;
+}) {
+  const explanation = reason === "daily"
+    ? "Tonight's games have started and no one joined in time."
+    : "3 days have passed and no one accepted the invite.";
+
+  return {
+    subject: `🏒 Your competition "${competitionName}" was cancelled`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">Competition cancelled</h1>
+      <p style="font-size:16px;line-height:1.6;">
+        Your pick'em <strong>${competitionName}</strong> has been automatically cancelled.
+        ${explanation}
+      </p>
+      <p style="font-size:15px;color:#555;line-height:1.6;">
+        Ready to try again? Create a new competition and send your friend the invite link
+        before the games start.
+      </p>
+      ${button(newCompUrl, "Create a new competition →")}
+    `),
+  };
+}
