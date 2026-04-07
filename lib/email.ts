@@ -119,3 +119,46 @@ export function opponentJoinedEmail({
     `),
   };
 }
+
+// Sent to the first picker ~2 hours before the first game of the night.
+export function picksOpenEmail({
+  toName,
+  opponentName,
+  competitionName,
+  competitionUrl,
+  firstGameTime,
+  gameCount,
+  hasPriority,
+}: {
+  toName: string;
+  opponentName: string;
+  competitionName: string;
+  competitionUrl: string;
+  firstGameTime: string; // e.g. "7:00 PM ET"
+  gameCount: number;
+  hasPriority: boolean; // true = this player picks first / can defer
+}) {
+  const priorityNote = hasPriority
+    ? `<p style="font-size:15px;color:#555;line-height:1.6;">
+        You have <strong>pick priority</strong> tonight — head over to choose whether
+        to pick first or defer and take picks&nbsp;#2&nbsp;&amp;&nbsp;#3.
+       </p>`
+    : `<p style="font-size:15px;color:#555;line-height:1.6;">
+        <strong>${opponentName}</strong> has pick priority tonight.
+        Head over once they've made their choice to start picking.
+       </p>`;
+
+  return {
+    subject: `🏒 Tonight's picks are open — ${competitionName}`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">Picks are open!</h1>
+      <p style="font-size:16px;line-height:1.6;">
+        There ${gameCount === 1 ? "is" : "are"} <strong>${gameCount} NHL game${gameCount !== 1 ? "s" : ""}</strong>
+        on the slate tonight for <strong>${competitionName}</strong>.
+        First puck drops at <strong>${firstGameTime}</strong>.
+      </p>
+      ${priorityNote}
+      ${button(competitionUrl, "Make your picks →")}
+    `),
+  };
+}

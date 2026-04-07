@@ -2,19 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
 
-// GET /api/cron/score
-// Called automatically by Vercel Cron (configured in vercel.json).
-// Also callable manually from the competition page with the right secret.
-//
-// Protected by CRON_SECRET — Vercel sends this automatically via the
-// Authorization header. Manual callers must pass ?secret=CRON_SECRET.
-//
-// Runs through every pending pick across every active competition and
-// resolves win/loss/push once the game is final.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-
-  // Vercel cron sends the secret as a Bearer token.
   const authHeader = req.headers.get("authorization");
   const bearerToken = authHeader?.replace("Bearer ", "");
   const querySecret = searchParams.get("secret");
@@ -23,85 +12,83 @@ export async function GET(req: Request) {
   if (secret && bearerToken !== secret && querySecret !== secret) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-
-  // If no CRON_SECRET is set, only allow in development.
   if (!secret && process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
   }
 
   const supabase = createSupabaseServerClient();
 
-  // Pull every pending pick across all competitions.
+  // ── 1. Score all pending picks ─────────────────────────────────────────
   const { data: pending, error } = await supabase
-    .from("picks")
-    .select("*")
-    .eq("result", "pending");
+    .from("picks").select("*").eq("result", "pending");
 
-  if (error) {
-    console.error("cron/score: DB error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  if (!pending || pending.length === 0) {
-    return NextResponse.json({ updated: 0, message: "No pending picks to score." });
-  }
-
-  // Group by date so we hit the NHL API once per date.
-  const byDate = new Map<string, typeof pending>();
-  for (const p of pending) {
-    const arr = byDate.get(p.game_date) ?? [];
-    arr.push(p);
-    byDate.set(p.game_date, arr);
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let updated = 0;
-  let failed = 0;
-  const log: string[] = [];
+  const affectedCompIds = new Set<string>();
 
-  for (const [date, picks] of byDate) {
-    let games;
-    try {
-      games = await fetchNHLScheduleForDate(date);
-    } catch (e) {
-      console.error(`cron/score: NHL API failed for ${date}`, e);
-      failed += picks.length;
-      continue;
+  if (pending && pending.length > 0) {
+    const byDate = new Map<string, typeof pending>();
+    for (const p of pending) {
+      const arr = byDate.get(p.game_date) ?? [];
+      arr.push(p);
+      byDate.set(p.game_date, arr);
     }
 
-    for (const pick of picks) {
-      const game = games.find((g) => g.id === pick.game_id);
-      if (!game) {
-        log.push(`pick ${pick.id}: game ${pick.game_id} not found on ${date}`);
-        continue;
-      }
-      if (!isFinal(game.gameState)) {
-        // Game not finished yet — leave as pending.
-        continue;
-      }
+    for (const [date, picks] of byDate) {
+      let games;
+      try { games = await fetchNHLScheduleForDate(date); }
+      catch { continue; }
 
-      const winner = winnerAbbrev(game);
-      let result: string;
-      if (winner === null) {
-        result = "push"; // shouldn't happen in NHL (no ties) but just in case
-      } else {
-        result = winner === pick.picked_team_abbrev ? "win" : "loss";
-      }
+      for (const pick of picks) {
+        const game = games.find((g) => g.id === pick.game_id);
+        if (!game || !isFinal(game.gameState)) continue;
 
-      const { error: updateErr } = await supabase
-        .from("picks")
-        .update({ result })
-        .eq("id", pick.id);
+        const winner = winnerAbbrev(game);
+        const result = winner === null ? "push"
+          : winner === pick.picked_team_abbrev ? "win" : "loss";
 
-      if (updateErr) {
-        console.error(`cron/score: failed to update pick ${pick.id}`, updateErr);
-        failed++;
-      } else {
-        updated++;
-        log.push(`pick ${pick.id}: ${pick.picked_team_abbrev} → ${result}`);
+        const { error: updateErr } = await supabase
+          .from("picks").update({ result }).eq("id", pick.id);
+        if (!updateErr) {
+          updated++;
+          affectedCompIds.add(pick.competition_id);
+        }
       }
     }
   }
 
-  console.log(`cron/score complete: ${updated} updated, ${failed} failed`);
-  return NextResponse.json({ updated, failed, log });
+  // ── 2. Mark competitions as complete ──────────────────────────────────
+  // A competition is complete when its end_date has passed AND every pick
+  // in it has a non-pending result (or it has no picks at all but the date
+  // has passed, for daily comps with no games).
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: activeComps } = await supabase
+    .from("competitions")
+    .select("id, end_date")
+    .eq("status", "active")
+    .lte("end_date", today); // end date is today or in the past
+
+  let completed = 0;
+  for (const comp of activeComps ?? []) {
+    const { data: remaining } = await supabase
+      .from("picks")
+      .select("id")
+      .eq("competition_id", comp.id)
+      .eq("result", "pending")
+      .limit(1);
+
+    // No pending picks left — mark as complete.
+    if (!remaining || remaining.length === 0) {
+      await supabase
+        .from("competitions")
+        .update({ status: "complete" })
+        .eq("id", comp.id);
+      completed++;
+    }
+  }
+
+  console.log(`cron/score: ${updated} picks scored, ${completed} competitions completed`);
+  return NextResponse.json({ updated, completed });
 }

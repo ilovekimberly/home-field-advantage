@@ -146,87 +146,92 @@ export default async function HomePage() {
       </section>
 
       {user && (
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-bold">Your competitions</h2>
-            <Link href="/competitions/new" className="btn-primary">+ New</Link>
+        <CompetitionsList enriched={enriched} userId={user.id} />
+      )}
+    </div>
+  );
+}
+
+function CompetitionCard({ c, userId }: { c: any; userId: string }) {
+  const badge = getStatusBadge(
+    c, userId, c.myWins, c.myLosses, c.theirWins, c.theirLosses, c.isMyTurnTonight,
+  );
+  const durationLabel =
+    c.duration === "daily" ? "Single day" :
+    c.duration === "weekly" ? "1 week" : "Full season";
+
+  return (
+    <li className="card hover:shadow-md transition-shadow">
+      <Link href={`/competitions/${c.id}`} className="block">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <span className="font-semibold text-rink hover:underline leading-tight">{c.name}</span>
+          <span className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${badge.color}`}>
+            {badge.label}
+          </span>
+        </div>
+
+        <div className="text-xs text-slate-500 mb-3">
+          🏒 NHL · {durationLabel} · {c.start_date}
+          {c.duration !== "daily" && ` → ${c.end_date}`}
+        </div>
+
+        {c.opponentName ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <div className="text-center">
+                <div className="text-xs text-slate-500 mb-0.5">You</div>
+                <div className="font-bold text-lg leading-none">{c.myWins}–{c.myLosses}</div>
+              </div>
+              <div className="text-xs text-slate-400 font-medium">Overall</div>
+              <div className="text-center">
+                <div className="text-xs text-slate-500 mb-0.5">{c.opponentName}</div>
+                <div className="font-bold text-lg leading-none">{c.theirWins}–{c.theirLosses}</div>
+              </div>
+            </div>
+            {c.hasPicksTonight && c.duration !== "daily" && c.status !== "complete" && (
+              <div className="flex items-center justify-between rounded-lg bg-ice px-3 py-1.5 text-sm">
+                <div className="font-semibold tabular-nums">{c.myWinsTonight}–{c.myLossesTonight}</div>
+                <div className="text-xs text-rink font-medium">Tonight</div>
+                <div className="font-semibold tabular-nums">{c.theirWinsTonight}–{c.theirLossesTonight}</div>
+              </div>
+            )}
           </div>
+        ) : (
+          <div className="text-xs text-slate-400 italic">
+            No opponent yet — share your invite link
+          </div>
+        )}
+      </Link>
+    </li>
+  );
+}
 
-          {enriched.length === 0 ? (
-            <p className="text-slate-500">No competitions yet. Create one to get started.</p>
-          ) : (
-            <ul className="grid gap-3 md:grid-cols-2">
-              {enriched.map((c) => {
-                const badge = getStatusBadge(
-                  c, user.id,
-                  c.myWins, c.myLosses,
-                  c.theirWins, c.theirLosses,
-                  c.isMyTurnTonight,
-                );
-                const durationLabel =
-                  c.duration === "daily" ? "Single day" :
-                  c.duration === "weekly" ? "1 week" : "Full season";
+function CompetitionsList({ enriched, userId }: { enriched: any[]; userId: string }) {
+  const active = enriched.filter((c) => c.status !== "complete");
+  const past = enriched.filter((c) => c.status === "complete");
 
-                return (
-                  <li key={c.id} className="card hover:shadow-md transition-shadow">
-                    <Link href={`/competitions/${c.id}`} className="block">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="font-semibold text-rink hover:underline leading-tight">
-                          {c.name}
-                        </span>
-                        <span className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${badge.color}`}>
-                          {badge.label}
-                        </span>
-                      </div>
+  return (
+    <div className="space-y-8">
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xl font-bold">Your competitions</h2>
+          <Link href="/competitions/new" className="btn-primary">+ New</Link>
+        </div>
+        {active.length === 0 ? (
+          <p className="text-slate-500">No active competitions. Create one to get started.</p>
+        ) : (
+          <ul className="grid gap-3 md:grid-cols-2">
+            {active.map((c) => <CompetitionCard key={c.id} c={c} userId={userId} />)}
+          </ul>
+        )}
+      </section>
 
-                      <div className="text-xs text-slate-500 mb-3">
-                        🏒 NHL · {durationLabel} · {c.start_date}
-                        {c.duration !== "daily" && ` → ${c.end_date}`}
-                      </div>
-
-                      {c.opponentName ? (
-                        <div className="space-y-2">
-                          {/* Overall record */}
-                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                            <div className="text-center">
-                              <div className="text-xs text-slate-500 mb-0.5">You</div>
-                              <div className="font-bold text-lg leading-none">
-                                {c.myWins}–{c.myLosses}
-                              </div>
-                            </div>
-                            <div className="text-xs text-slate-400 font-medium">Overall</div>
-                            <div className="text-center">
-                              <div className="text-xs text-slate-500 mb-0.5">{c.opponentName}</div>
-                              <div className="font-bold text-lg leading-none">
-                                {c.theirWins}–{c.theirLosses}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Tonight's running score (only if picks have been scored) */}
-                          {c.hasPicksTonight && c.duration !== "daily" && (
-                            <div className="flex items-center justify-between rounded-lg bg-ice px-3 py-1.5 text-sm">
-                              <div className="font-semibold tabular-nums">
-                                {c.myWinsTonight}–{c.myLossesTonight}
-                              </div>
-                              <div className="text-xs text-rink font-medium">Tonight</div>
-                              <div className="font-semibold tabular-nums">
-                                {c.theirWinsTonight}–{c.theirLossesTonight}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-slate-400 italic">
-                          No opponent yet — share your invite link
-                        </div>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+      {past.length > 0 && (
+        <section>
+          <h2 className="text-xl font-bold mb-3 text-slate-500">Past competitions</h2>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {past.map((c) => <CompetitionCard key={c.id} c={c} userId={userId} />)}
+          </ul>
         </section>
       )}
     </div>

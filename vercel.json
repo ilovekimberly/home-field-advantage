@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/score",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/notify",
+      "schedule": "0,30 12-22 * * *"
     }
   ]
 }
