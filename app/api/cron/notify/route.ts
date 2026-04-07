@@ -224,12 +224,6 @@ export async function GET(req: Request) {
     }
 
     // Record that we notified this competition today.
-    await supabase.from("competition_notifications").insert({
-      competition_id: comp.id,
-      notification_date: today,
-      notification_type: "picks_open",
-    }).onConflict ? undefined : undefined; // ignore if already exists
-    // Use upsert to be safe:
     await supabase.from("competition_notifications").upsert({
       competition_id: comp.id,
       notification_date: today,
