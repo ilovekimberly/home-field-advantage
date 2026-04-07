@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { sendEmail, opponentJoinedEmail } from "@/lib/email";
 
 export async function GET(req: Request, { params }: { params: { token: string } }) {
   const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    // Not signed in — send them to login and remember where they were going.
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("next", `/join/${params.token}`);
     return NextResponse.redirect(loginUrl);
@@ -47,6 +47,26 @@ export async function GET(req: Request, { params }: { params: { token: string } 
   if (updateError) {
     console.error("Join route: failed to update competition", updateError);
     return NextResponse.redirect(new URL("/?err=join-failed", req.url));
+  }
+
+  // ── Notify the creator that their opponent has joined ─────────────────
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, email, display_name")
+    .in("id", [comp.creator_id, user.id]);
+
+  const creatorProfile = profiles?.find((p) => p.id === comp.creator_id);
+  const opponentProfile = profiles?.find((p) => p.id === user.id);
+
+  if (creatorProfile?.email) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+    const { subject, html } = opponentJoinedEmail({
+      toName: creatorProfile.display_name ?? creatorProfile.email,
+      opponentName: opponentProfile?.display_name ?? "Your opponent",
+      competitionName: comp.name,
+      competitionUrl: `${siteUrl}/competitions/${comp.id}`,
+    });
+    sendEmail({ to: creatorProfile.email, subject, html }).catch(console.error);
   }
 
   return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
