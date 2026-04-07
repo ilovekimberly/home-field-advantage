@@ -6,6 +6,7 @@ import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
 import InvitePanel from "./InvitePanel";
 import DeferBanner from "./DeferBanner";
+import RefreshScores from "./RefreshScores";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
@@ -97,7 +98,7 @@ export default async function CompetitionPage({ params }: { params: { id: string
     firstPickerUserId === user.id &&
     !!comp.opponent_id; // both players must be in
 
-  const draft = generateDraftOrder({ numGames: games.length, firstPickerSlot, deferred });
+  const draft = generateDraftOrder({ numGames: games.length, firstPicker: firstPickerSlot, deferred });
 
   const firstPickerName = firstPickerSlot === "A"
     ? (creatorProfile?.display_name ?? "Creator")
@@ -137,7 +138,10 @@ export default async function CompetitionPage({ params }: { params: { id: string
       </div>
 
       <div className="card">
-        <h2 className="text-lg font-bold mb-1">Tonight's slate · {activeDate}</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold">Tonight's slate · {activeDate}</h2>
+          <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />
+        </div>
         <p className="text-sm text-slate-500 mb-4">
           {games.length} games ·{" "}
           {deferChoiceMade
