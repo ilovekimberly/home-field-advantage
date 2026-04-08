@@ -30,9 +30,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="mx-auto flex max-w-screen-xl items-center justify-between px-6 py-4">
             <Link href="/" className="text-lg font-bold text-rink">🏒 Home Field Advantage</Link>
             <nav className="flex items-center gap-3 text-sm">
-              <Link href="/how-it-works" className="text-sm text-slate-500 hover:text-slate-700 hidden sm:block">
-              How it works
-            </Link>
+              <Link href="/how-it-works" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-rink bg-ice border border-rink/20 px-3 py-1.5 rounded-full hover:bg-rink hover:text-white transition-colors">
+                ❓ How it works
+              </Link>
             {user ? (
                 <>
                   <Link
