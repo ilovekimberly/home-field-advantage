@@ -108,7 +108,7 @@ function StatusSection({
                 <button
                   onClick={(e) => handleDelete(e, comp.id)}
                   disabled={deleting === comp.id}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 transition-opacity text-slate-300 hover:text-red-400 text-xs px-1 py-0.5 rounded"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400 text-xs px-1 py-0.5 rounded"
                   title="Remove"
                 >
                   {deleting === comp.id ? "…" : "✕"}
