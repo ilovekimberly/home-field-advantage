@@ -141,7 +141,7 @@ export default function PickRoom({
   }
 
   const allRemainingLocked = games
-    .filter((g) => !pickedGameIds.has(g.id))
+    .filter((g) => !pickedGameIds.has(String(g.id)))
     .every((g) => gameStarted(g.startTimeUTC));
 
   return (

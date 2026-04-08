@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
+import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame, getPickDate } from "@/lib/schedule";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
 import InvitePanel from "./InvitePanel";
@@ -50,16 +50,18 @@ export default async function CompetitionPage({
   const today = todayISO();
 
   // Default active date (today clamped to comp window), overridable via ?date=
-  const defaultDate =
+  const rawDefault =
     comp.duration === "daily" ? comp.start_date :
     today < comp.start_date ? comp.start_date :
     today > comp.end_date ? comp.end_date : today;
 
+  // For EPL, snap to gameweek start date.
+  const defaultDate = getPickDate(comp.sport ?? "NHL", rawDefault);
+
   const requestedDate = searchParams.date;
-  const activeDate =
-    requestedDate && requestedDate >= comp.start_date && requestedDate <= comp.end_date
-      ? requestedDate
-      : defaultDate;
+  const activeDate = requestedDate && requestedDate >= comp.start_date && requestedDate <= comp.end_date
+    ? getPickDate(comp.sport ?? "NHL", requestedDate)
+    : defaultDate;
 
   const isViewingToday = activeDate === today || (comp.duration === "daily" && activeDate === comp.start_date);
 
@@ -196,7 +198,9 @@ export default async function CompetitionPage({
       <div className="card">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-bold">
-            {isViewingToday ? "Tonight's slate" : "Game results"} · {activeDate}
+            {comp.sport === "EPL"
+              ? `Gameweek · ${activeDate}`
+              : isViewingToday ? "Tonight's slate" : "Game results"} · {comp.sport !== "EPL" && activeDate}
           </h2>
           {isViewingToday && <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />}
         </div>

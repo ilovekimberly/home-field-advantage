@@ -4,7 +4,6 @@ export type SportGame = {
   startTimeUTC: string;
   homeTeam: { abbrev: string; name: string; id: number | string };
   awayTeam: { abbrev: string; name: string; id: number | string };
-  // Unified states: 'FUT' | 'PRE' | 'LIVE' | 'CRIT' | 'FINAL' | 'OFF' | 'POSTPONED'
   gameState: string;
   homeScore?: number;
   awayScore?: number;
@@ -20,31 +19,48 @@ export const SPORT_CONFIG: Record<SupportedSport, {
   label: string;
   emoji: string;
   seasonEnd: (startYear: number) => string;
+  // How picks are grouped — 'day' means one pick session per calendar day,
+  // 'gameweek' means one pick session per weekly fixture round.
+  pickCadence: "day" | "gameweek";
 }> = {
   NHL: {
     label: "NHL Hockey",
     emoji: "🏒",
     seasonEnd: (y) => `${y}-04-15`,
+    pickCadence: "day",
   },
   MLB: {
     label: "MLB Baseball",
     emoji: "⚾",
     seasonEnd: (y) => `${y}-09-30`,
+    pickCadence: "day",
   },
   EPL: {
     label: "English Premier League",
     emoji: "⚽",
-    // EPL season spans two calendar years — ends in May of the following year.
     seasonEnd: (y) => `${y + 1}-05-20`,
+    pickCadence: "gameweek",
   },
 };
 
+// Returns the canonical "pick date" for a given sport and calendar date.
+// For NHL/MLB this is the date itself. For EPL it's the Friday that starts
+// the gameweek so all picks within the same gameweek share one game_date.
+export function getPickDate(sport: string, date: string): string {
+  if (sport === "EPL") {
+    const { getGameweekStartDate } = require("./epl");
+    return getGameweekStartDate(date);
+  }
+  return date;
+}
+
+// Fetch the full schedule for a sport on a given pick-date.
+// For EPL, this returns the entire gameweek's fixtures.
 export async function fetchScheduleForDate(sport: string, date: string): Promise<SportGame[]> {
   switch (sport) {
     case "NHL": {
       const { fetchNHLScheduleForDate } = await import("./nhl");
       const games = await fetchNHLScheduleForDate(date);
-      // NHLGame is compatible with SportGame — cast it.
       return games as unknown as SportGame[];
     }
     case "MLB": {
@@ -52,8 +68,8 @@ export async function fetchScheduleForDate(sport: string, date: string): Promise
       return fetchMLBScheduleForDate(date);
     }
     case "EPL": {
-      const { fetchEPLScheduleForDate } = await import("./epl");
-      return fetchEPLScheduleForDate(date);
+      const { fetchEPLGameweekForDate } = await import("./epl");
+      return fetchEPLGameweekForDate(date);
     }
     default:
       throw new Error(`Unsupported sport: ${sport}`);
@@ -64,7 +80,7 @@ export function isFinalGame(g: SportGame): boolean {
   return (
     g.gameState === "FINAL" ||
     g.gameState === "OFF" ||
-    g.gameState === "CRIT" // NHL sometimes uses CRIT for critical/final
+    g.gameState === "CRIT"
   );
 }
 
