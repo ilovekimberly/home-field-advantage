@@ -30,7 +30,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="mx-auto flex max-w-screen-xl items-center justify-between px-6 py-4">
             <Link href="/" className="text-lg font-bold text-rink">🏒 Home Field Advantage</Link>
             <nav className="flex items-center gap-3 text-sm">
-              {user ? (
+              <Link href="/how-it-works" className="text-sm text-slate-500 hover:text-slate-700 hidden sm:block">
+              How it works
+            </Link>
+            {user ? (
                 <>
                   <Link
                     href="/profile"

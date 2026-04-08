@@ -16,14 +16,33 @@ export default async function HomePage() {
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-6">
-        <div>
-          <h1 className="text-4xl font-bold text-rink mb-3">🏒 Home Field Advantage</h1>
-          <p className="text-slate-600 text-lg max-w-md">
-            1v1 NHL pick'em competitions with your friends. Snake-draft picks, automatic scoring, head-to-head records.
+      <div className="max-w-2xl space-y-10">
+        {/* Hero */}
+        <section className="text-center py-8">
+          <h1 className="text-4xl font-bold text-rink mb-4">🏒 Home Field Advantage</h1>
+          <p className="text-slate-600 text-xl leading-relaxed mb-8 max-w-lg mx-auto">
+            1v1 pick'em competitions with your friends. Draft game picks, track the scores, settle the debate.
           </p>
-        </div>
-        <Link href="/login" className="btn-primary text-lg px-8 py-3">Sign in to start</Link>
+          <div className="flex items-center justify-center gap-4">
+            <Link href="/login" className="btn-primary text-lg px-8 py-3">Sign in to start</Link>
+            <Link href="/how-it-works" className="btn-ghost text-lg px-6 py-3">How it works →</Link>
+          </div>
+        </section>
+
+        {/* Feature highlights */}
+        <section className="grid gap-4 sm:grid-cols-3">
+          {[
+            { emoji: "🐍", title: "Snake draft picks", desc: "Take turns picking games each night. Better record picks first." },
+            { emoji: "📊", title: "Auto scoring", desc: "Results come in automatically. No manual updating required." },
+            { emoji: "🏒⚾⚽", title: "3 sports", desc: "NHL, MLB, and the Premier League. More coming soon." },
+          ].map((f) => (
+            <div key={f.title} className="card text-center">
+              <div className="text-3xl mb-2">{f.emoji}</div>
+              <div className="font-semibold mb-1">{f.title}</div>
+              <div className="text-sm text-slate-500">{f.desc}</div>
+            </div>
+          ))}
+        </section>
       </div>
     );
   }
