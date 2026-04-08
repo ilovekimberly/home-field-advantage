@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
+import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
 import { sendEmail, competitionCancelledEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
@@ -30,23 +30,33 @@ export async function GET(req: Request) {
   const affectedCompIds = new Set<string>();
 
   if (pending && pending.length > 0) {
-    const byDate = new Map<string, typeof pending>();
+    // Fetch sport for each competition.
+    const compIds = [...new Set(pending.map((p) => p.competition_id))];
+    const { data: comps } = await supabase
+      .from("competitions").select("id, sport").in("id", compIds);
+    const sportMap = new Map((comps ?? []).map((c) => [c.id, c.sport ?? "NHL"]));
+
+    // Group by date+sport so we fetch the schedule once per combination.
+    const byDateSport = new Map<string, typeof pending>();
     for (const p of pending) {
-      const arr = byDate.get(p.game_date) ?? [];
+      const sport = sportMap.get(p.competition_id) ?? "NHL";
+      const key = `${p.game_date}__${sport}`;
+      const arr = byDateSport.get(key) ?? [];
       arr.push(p);
-      byDate.set(p.game_date, arr);
+      byDateSport.set(key, arr);
     }
 
-    for (const [date, picks] of byDate) {
+    for (const [key, picks] of byDateSport) {
+      const [date, sport] = key.split("__");
       let games;
-      try { games = await fetchNHLScheduleForDate(date); }
+      try { games = await fetchScheduleForDate(sport, date); }
       catch { continue; }
 
       for (const pick of picks) {
-        const game = games.find((g) => g.id === pick.game_id);
-        if (!game || !isFinal(game.gameState)) continue;
+        const game = games.find((g) => String(g.id) === String(pick.game_id));
+        if (!game || !isFinalGame(game)) continue;
 
-        const winner = winnerAbbrev(game);
+        const winner = winnerAbbrevGame(game);
         const result = winner === null ? "push"
           : winner === pick.picked_team_abbrev ? "win" : "loss";
 

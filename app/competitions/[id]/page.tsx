@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
+import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
 import InvitePanel from "./InvitePanel";
@@ -112,8 +112,8 @@ export default async function CompetitionPage({
   const deferred = deferRow?.deferred ?? false;
 
   // Schedule for activeDate
-  let games: Awaited<ReturnType<typeof fetchNHLScheduleForDate>> = [];
-  try { games = await fetchNHLScheduleForDate(activeDate); } catch {}
+  let games: Awaited<ReturnType<typeof fetchScheduleForDate>> = [];
+  try { games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate); } catch {}
 
   const draft = generateDraftOrder({ numGames: games.length, firstPicker: firstPickerSlot, deferred });
 
@@ -244,8 +244,8 @@ export default async function CompetitionPage({
             away: g.awayTeam,
             startTimeUTC: g.startTimeUTC,
             gameState: g.gameState,
-            final: isFinal(g.gameState),
-            winner: winnerAbbrev(g),
+            final: isFinalGame(g),
+            winner: winnerAbbrevGame(g),
             homeScore: g.homeScore,
             awayScore: g.awayScore,
             period: g.period,
