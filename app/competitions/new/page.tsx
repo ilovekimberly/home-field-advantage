@@ -41,8 +41,8 @@ export default function NewCompetitionPage() {
   const [error, setError] = useState<string | null>(null);
 
   function endDateFor(start: string, dur: Duration) {
-    if (dur === "daily") return start;
-    if (dur === "weekly") return addDays(start, 6);
+    if (dur === "daily") return addDays(start, sport === "EPL" ? 3 : 0);
+    if (dur === "weekly") return addDays(start, sport === "EPL" ? 27 : 6);
     return seasonEndFor(sport, start);
   }
 
@@ -127,9 +127,19 @@ export default function NewCompetitionPage() {
             value={duration}
             onChange={(e) => setDuration(e.target.value as Duration)}
           >
-            <option value="daily">Single day</option>
-            <option value="weekly">One week</option>
-            <option value="season">Full regular season</option>
+            {sport === "EPL" ? (
+              <>
+                <option value="daily">Single gameweek</option>
+                <option value="weekly">4 gameweeks</option>
+                <option value="season">Full season (Aug – May)</option>
+              </>
+            ) : (
+              <>
+                <option value="daily">Single day</option>
+                <option value="weekly">One week</option>
+                <option value="season">Full regular season</option>
+              </>
+            )}
           </select>
         </label>
 
