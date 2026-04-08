@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 
 // DELETE /api/competitions/[id]
 // Only the creator can delete, and only cancelled competitions.
@@ -24,12 +24,14 @@ export async function DELETE(
     return NextResponse.json({ error: "only cancelled competitions can be deleted" }, { status: 403 });
   }
 
-  // Delete related records first, then the competition.
-  await supabase.from("picks").delete().eq("competition_id", params.id);
-  await supabase.from("invites").delete().eq("competition_id", params.id);
-  await supabase.from("draft_defers").delete().eq("competition_id", params.id);
-  await supabase.from("competition_notifications").delete().eq("competition_id", params.id);
-  await supabase.from("competitions").delete().eq("id", params.id);
+  // Use admin client to bypass RLS for cascading deletes.
+  const admin = createSupabaseAdminClient();
+  await admin.from("picks").delete().eq("competition_id", params.id);
+  await admin.from("invites").delete().eq("competition_id", params.id);
+  await admin.from("draft_defers").delete().eq("competition_id", params.id);
+  await admin.from("competition_notifications").delete().eq("competition_id", params.id);
+  const { error } = await admin.from("competitions").delete().eq("id", params.id);
 
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

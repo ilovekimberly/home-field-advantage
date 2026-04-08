@@ -62,10 +62,14 @@ function StatusSection({
     e.stopPropagation();
     if (!confirm("Remove this cancelled competition?")) return;
     setDeleting(id);
-    await fetch(`/api/competitions/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/competitions/${id}`, { method: "DELETE" });
     setDeleting(null);
-    onDelete(id);
-    startTransition(() => router.refresh());
+    if (res.ok) {
+      onDelete(id);
+      startTransition(() => router.refresh());
+    } else {
+      alert("Failed to delete — please try again.");
+    }
   }
 
   return (
