@@ -82,6 +82,8 @@ export async function GET(req: Request) {
   }
 
   // ── 3. Auto-cancel pending comps with no opponent ─────────────────────
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+
   function addDays(d: string, n: number) {
     const dt = new Date(d + "T00:00:00Z");
     dt.setUTCDate(dt.getUTCDate() + n);
@@ -124,7 +126,6 @@ export async function GET(req: Request) {
     .lte("start_date", addDays(today, -2)); // started 3+ days ago
 
   let cancelled = 0;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
 
   for (const comp of expiredComps ?? []) {
     await supabase.from("competitions").update({ status: "cancelled" }).eq("id", comp.id);
