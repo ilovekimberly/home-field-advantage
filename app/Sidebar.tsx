@@ -141,16 +141,18 @@ export default function Sidebar({ competitions: initialComps }: Props) {
 
   return (
     <>
-      {/* Toggle tab */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="fixed top-[72px] left-0 z-30 flex items-center gap-1.5 rounded-r-lg border border-l-0 border-slate-200 bg-white px-2 py-2 text-slate-500 hover:text-rink shadow-sm transition-colors"
-        aria-label="Toggle sidebar"
-      >
-        <span className="text-xs font-medium" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
-          {open ? "◀ Hide" : "▶ Competitions"}
-        </span>
-      </button>
+      {/* Tab shown only when sidebar is closed */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed top-[72px] left-0 z-30 flex items-center gap-1.5 rounded-r-lg border border-l-0 border-slate-200 bg-white px-2 py-2 text-slate-500 hover:text-rink shadow-sm transition-colors"
+          aria-label="Open sidebar"
+        >
+          <span className="text-xs font-medium" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
+            ▶ Competitions
+          </span>
+        </button>
+      )}
 
       {/* Sidebar panel */}
       <aside
@@ -160,7 +162,17 @@ export default function Sidebar({ competitions: initialComps }: Props) {
       >
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <span className="font-semibold text-rink text-sm">Your competitions</span>
-          <Link href="/competitions/new" className="text-xs btn-primary py-1 px-2">+ New</Link>
+          <div className="flex items-center gap-2">
+            <Link href="/competitions/new" className="text-xs btn-primary py-1 px-2">+ New</Link>
+            <button
+              onClick={() => setOpen(false)}
+              className="text-slate-400 hover:text-slate-600 transition-colors text-lg leading-none px-1"
+              aria-label="Close sidebar"
+              title="Hide sidebar"
+            >
+              ←
+            </button>
+          </div>
         </div>
 
         {comps.length === 0 ? (
