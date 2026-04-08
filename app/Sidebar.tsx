@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type SidebarComp = {
   id: string;
@@ -39,12 +40,95 @@ const DURATION_LABEL: Record<string, string> = {
   season: "Full season",
 };
 
-export default function Sidebar({ competitions }: Props) {
+// Statuses open by default.
+const DEFAULT_OPEN = new Set(["active", "pending"]);
+
+function StatusSection({
+  status,
+  comps,
+  onDelete,
+}: {
+  status: string;
+  comps: SidebarComp[];
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(DEFAULT_OPEN.has(status));
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm("Remove this cancelled competition?")) return;
+    setDeleting(id);
+    await fetch(`/api/competitions/${id}`, { method: "DELETE" });
+    setDeleting(null);
+    onDelete(id);
+    startTransition(() => router.refresh());
+  }
+
+  return (
+    <div>
+      {/* Section header — clickable to collapse */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 w-full px-1 mb-1.5 group"
+      >
+        <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
+        <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700 flex-1 text-left">
+          {STATUS_LABEL[status]}
+        </span>
+        <span className="text-xs text-slate-400">{comps.length}</span>
+        <span className="text-slate-300 text-xs ml-1">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <ul className="space-y-1 mb-1">
+          {comps.map((comp) => (
+            <li key={comp.id} className="relative group/item">
+              <Link
+                href={`/competitions/${comp.id}`}
+                className="flex flex-col rounded-lg px-2 py-1.5 hover:bg-ice transition-colors pr-7"
+              >
+                <span className="text-sm font-medium text-slate-800 group-hover/item:text-rink leading-snug truncate">
+                  {comp.name}
+                </span>
+                <span className="text-xs text-slate-400 mt-0.5">
+                  {DURATION_LABEL[comp.duration] ?? comp.duration} · {comp.start_date}
+                </span>
+              </Link>
+
+              {/* Delete button — only for cancelled */}
+              {comp.status === "cancelled" && (
+                <button
+                  onClick={(e) => handleDelete(e, comp.id)}
+                  disabled={deleting === comp.id}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 transition-opacity text-slate-300 hover:text-red-400 text-xs px-1 py-0.5 rounded"
+                  title="Remove"
+                >
+                  {deleting === comp.id ? "…" : "✕"}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default function Sidebar({ competitions: initialComps }: Props) {
   const [open, setOpen] = useState(true);
+  const [comps, setComps] = useState(initialComps);
+
+  function handleDelete(id: string) {
+    setComps((prev) => prev.filter((c) => c.id !== id));
+  }
 
   // Group by sport, then by status.
   const bySport: Record<string, Record<string, SidebarComp[]>> = {};
-  for (const comp of competitions) {
+  for (const comp of comps) {
     const sport = comp.sport ?? "NHL";
     if (!bySport[sport]) bySport[sport] = {};
     if (!bySport[sport][comp.status]) bySport[sport][comp.status] = [];
@@ -53,7 +137,7 @@ export default function Sidebar({ competitions }: Props) {
 
   return (
     <>
-      {/* Toggle button — always visible */}
+      {/* Toggle tab */}
       <button
         onClick={() => setOpen((o) => !o)}
         className="fixed top-[72px] left-0 z-30 flex items-center gap-1.5 rounded-r-lg border border-l-0 border-slate-200 bg-white px-2 py-2 text-slate-500 hover:text-rink shadow-sm transition-colors"
@@ -75,47 +159,23 @@ export default function Sidebar({ competitions }: Props) {
           <Link href="/competitions/new" className="text-xs btn-primary py-1 px-2">+ New</Link>
         </div>
 
-        {competitions.length === 0 ? (
+        {comps.length === 0 ? (
           <p className="p-4 text-xs text-slate-400">No competitions yet.</p>
         ) : (
           <div className="p-3 space-y-5">
             {Object.entries(bySport).map(([sport, byStatus]) => (
               <div key={sport}>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
                   🏒 {sport}
                 </div>
-
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {STATUS_ORDER.filter((s) => byStatus[s]?.length).map((status) => (
-                    <div key={status}>
-                      <div className="flex items-center gap-1.5 mb-1.5 px-1">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
-                        <span className="text-xs font-semibold text-slate-500">
-                          {STATUS_LABEL[status]}
-                        </span>
-                        <span className="ml-auto text-xs text-slate-400">
-                          {byStatus[status].length}
-                        </span>
-                      </div>
-
-                      <ul className="space-y-1">
-                        {byStatus[status].map((comp) => (
-                          <li key={comp.id}>
-                            <Link
-                              href={`/competitions/${comp.id}`}
-                              className="flex flex-col rounded-lg px-2 py-1.5 hover:bg-ice transition-colors group"
-                            >
-                              <span className="text-sm font-medium text-slate-800 group-hover:text-rink leading-snug truncate">
-                                {comp.name}
-                              </span>
-                              <span className="text-xs text-slate-400 mt-0.5">
-                                {DURATION_LABEL[comp.duration] ?? comp.duration} · {comp.start_date}
-                              </span>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <StatusSection
+                      key={status}
+                      status={status}
+                      comps={byStatus[status]}
+                      onDelete={handleDelete}
+                    />
                   ))}
                 </div>
               </div>
@@ -124,7 +184,7 @@ export default function Sidebar({ competitions }: Props) {
         )}
       </aside>
 
-      {/* Push main content over when sidebar is open */}
+      {/* Spacer to push main content right when sidebar is open */}
       {open && <div className="w-64 shrink-0 hidden md:block" />}
     </>
   );
