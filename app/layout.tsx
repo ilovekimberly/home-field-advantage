@@ -32,7 +32,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <nav className="flex items-center gap-3 text-sm">
               {user ? (
                 <>
-                  <span className="text-slate-600 hidden sm:block">{user.email}</span>
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  >
+                    {user.user_metadata?.avatar_url ? (
+                      <img
+                        src={user.user_metadata.avatar_url}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-rink flex items-center justify-center text-white text-sm font-bold">
+                        {(user.email ?? "?").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-slate-600 text-sm hidden sm:block">
+                      {user.user_metadata?.name ?? user.email}
+                    </span>
+                  </Link>
                   <form action="/auth/signout" method="post">
                     <button className="btn-ghost" type="submit">Sign out</button>
                   </form>
