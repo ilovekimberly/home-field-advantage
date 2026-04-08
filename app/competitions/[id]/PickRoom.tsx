@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-type Team = { abbrev: string; name: string; id: number };
+type Team = { abbrev: string; name: string; id: number | string };
 type Game = {
   id: number | string;
   home: Team;
