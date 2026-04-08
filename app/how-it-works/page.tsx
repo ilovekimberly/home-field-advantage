@@ -2,188 +2,244 @@ import Link from "next/link";
 
 export default function HowItWorksPage() {
   return (
-    <div className="max-w-2xl space-y-12">
+    <div className="max-w-3xl space-y-16">
 
       {/* Hero */}
-      <section>
-        <h1 className="text-3xl font-bold mb-3">How it works</h1>
-        <p className="text-slate-600 text-lg leading-relaxed">
-          Home Field Advantage is a 1v1 pick'em game. You and a friend take turns
-          drafting game picks each night, then sit back and watch the results roll in.
-          Best record wins. Simple as that.
+      <section className="text-center py-6">
+        <div className="inline-flex items-center gap-2 bg-ice border border-rink/20 text-rink text-sm font-semibold px-4 py-1.5 rounded-full mb-5">
+          🏒 Pick'em · Draft · Compete
+        </div>
+        <h1 className="text-4xl font-extrabold text-slate-900 mb-4 leading-tight">
+          How Home Field Advantage works
+        </h1>
+        <p className="text-slate-500 text-lg leading-relaxed max-w-xl mx-auto">
+          You and a friend draft game picks each night, sit back while results roll in,
+          and settle the debate once and for all.
         </p>
       </section>
 
-      {/* Competition types */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">🏆</span>
-          <h2 className="text-xl font-bold">Pick your competition</h2>
+      {/* Step 1 — Create */}
+      <section className="relative">
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
+            1
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Create a competition</h2>
+            <p className="text-slate-500 mb-5">
+              Pick your sport, set the duration, and send an invite link to your opponent.
+              That's it — no accounts needed for them to join.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { emoji: "🏒", label: "NHL", sub: "Oct → Apr" },
+                { emoji: "⚾", label: "MLB", sub: "Mar → Sep" },
+                { emoji: "⚽", label: "Premier League", sub: "Aug → May" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl border-2 border-slate-100 bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
+                  <span className="text-2xl">{s.emoji}</span>
+                  <div>
+                    <div className="font-semibold text-slate-800 text-sm">{s.label}</div>
+                    <div className="text-xs text-slate-400">{s.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <p className="text-slate-600 mb-4">
-          When you create a competition you pick the sport and how long it runs.
-        </p>
-        <div className="grid gap-3">
-          {[
-            {
-              label: "Single day / Gameweek",
-              desc: "One night of picks. Great for a quick head-to-head when there's a big slate. For Premier League, this covers the whole gameweek fixture list.",
-              emoji: "⚡",
-            },
-            {
-              label: "One week / 4 gameweeks",
-              desc: "A short series. You pick every night (or every gameweek) and accumulate wins. Good for a rivalry that doesn't need a full season commitment.",
-              emoji: "📅",
-            },
-            {
-              label: "Full season",
-              desc: "The whole thing. NHL runs October to April, MLB March to September, EPL August to May. If you're serious about bragging rights, this is it.",
-              emoji: "🏅",
-            },
-          ].map((item) => (
-            <div key={item.label} className="card flex gap-4">
-              <span className="text-2xl">{item.emoji}</span>
+      </section>
+
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Step 2 — Duration */}
+      <section>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
+            2
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Choose how long it runs</h2>
+            <p className="text-slate-500 mb-5">
+              Quick one-night throwdown or a full-season war of attrition — your call.
+            </p>
+            <div className="grid gap-3">
+              {[
+                { emoji: "⚡", label: "Single day / Gameweek", desc: "One slate. Settle it tonight. Great for big game nights.", highlight: false },
+                { emoji: "📅", label: "One week / 4 gameweeks", desc: "A short series where every pick night counts.", highlight: false },
+                { emoji: "🏅", label: "Full season", desc: "NHL, MLB, or EPL — all the way to the end. For true bragging rights.", highlight: true },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className={`rounded-xl px-5 py-4 flex gap-4 items-start border-2 ${
+                    item.highlight
+                      ? "bg-ice border-rink/30 shadow-sm"
+                      : "bg-white border-slate-100"
+                  }`}
+                >
+                  <span className="text-2xl mt-0.5">{item.emoji}</span>
+                  <div>
+                    <div className={`font-bold text-sm ${item.highlight ? "text-rink" : "text-slate-800"}`}>{item.label}</div>
+                    <div className="text-sm text-slate-500 mt-0.5">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Step 3 — Snake draft */}
+      <section>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
+            3
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Draft your picks — snake style</h2>
+            <p className="text-slate-500 mb-5">
+              You don't just pick any game you want. You take turns. This keeps it fair
+              and makes every selection meaningful.
+            </p>
+
+            {/* Visual draft example */}
+            <div className="rounded-2xl bg-slate-900 p-5 mb-4">
+              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Tonight's draft order — 6 games</div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "Pick 1", player: "You", you: true },
+                  { label: "Pick 2", player: "Them", you: false },
+                  { label: "Pick 3", player: "Them", you: false },
+                  { label: "Pick 4", player: "You", you: true },
+                  { label: "Pick 5", player: "You", you: true },
+                  { label: "Pick 6", player: "Them", you: false },
+                ].map((p, i) => (
+                  <div
+                    key={i}
+                    className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-bold border ${
+                      p.you
+                        ? "bg-rink border-rink text-white"
+                        : "bg-slate-700 border-slate-600 text-slate-200"
+                    }`}
+                  >
+                    <span className="text-[10px] font-normal opacity-70 mb-0.5">{p.label}</span>
+                    {p.player}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500 mt-3">
+                🐍 Snake pattern — it reverses like a draft. Nobody stacks the deck.
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-5 py-3.5 flex gap-3">
+              <span className="text-xl">🔄</span>
               <div>
-                <div className="font-semibold">{item.label}</div>
-                <div className="text-sm text-slate-500 mt-0.5">{item.desc}</div>
+                <div className="font-bold text-amber-900 text-sm">Who picks first?</div>
+                <div className="text-sm text-amber-700 mt-0.5">
+                  The player with the better record gets first pick. Tied? It alternates night to night.
+                  New competition — the creator goes first.
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Snake draft */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">🐍</span>
-          <h2 className="text-xl font-bold">The snake draft</h2>
-        </div>
-        <p className="text-slate-600 mb-4">
-          Each night you don't just pick any game you want — you take turns. This
-          keeps it fair and makes every pick feel meaningful.
-        </p>
-        <div className="rounded-xl bg-slate-50 border border-slate-200 p-5 space-y-3 text-sm">
-          <p className="text-slate-700">
-            <strong>Who picks first?</strong> The player with the better record going
-            into that night gets first pick. If it's tied, it alternates from the night
-            before. New competition? The creator goes first.
-          </p>
-          <p className="text-slate-700">
-            <strong>How does the order go?</strong> Say there are 6 games tonight and
-            you're going first. The order looks like this:
-          </p>
-          <div className="flex flex-wrap gap-2 font-mono text-xs">
-            {["You #1", "Them #2", "Them #3", "You #4", "You #5", "Them #6"].map((p, i) => (
-              <span
-                key={i}
-                className={`px-3 py-1.5 rounded-full font-semibold ${
-                  p.startsWith("You")
-                    ? "bg-rink text-white"
-                    : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {p}
-              </span>
-            ))}
-          </div>
-          <p className="text-slate-700">
-            <strong>Odd number of games?</strong> The last game gets dropped — no one
-            picks it. Unless there are 3 or fewer games, in which case you each pick one
-            and the last is dropped (or you each get one in a 2-game night).
-          </p>
-          <p className="text-slate-700">
-            <strong>End of night twist:</strong> On slates of 6+ picks, the last three
-            always go: first-pick player, first-pick player, second-pick player. This
-            prevents one person from stacking the end of the draft.
-          </p>
-        </div>
-      </section>
-
-      {/* Defer rule */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">🔄</span>
-          <h2 className="text-xl font-bold">The defer move</h2>
-        </div>
-        <p className="text-slate-600 mb-4">
-          On weekly and season competitions with 4+ games on the slate, the player with
-          pick priority gets a choice before anyone picks anything.
-        </p>
-        <div className="grid gap-3">
-          <div className="card border-rink border">
-            <div className="font-semibold mb-1">Go first — keep pick #1</div>
-            <div className="text-sm text-slate-500">
-              You get the first overall pick. Classic. You know what game you want, you
-              take it.
-            </div>
-          </div>
-          <div className="card">
-            <div className="font-semibold mb-1">Defer — take picks #2 and #3</div>
-            <div className="text-sm text-slate-500">
-              You let your opponent pick first, then you get the next two picks in a row.
-              Smart move when the top game is a coin flip and you'd rather have two
-              solid picks than one great one.
             </div>
           </div>
         </div>
       </section>
 
-      {/* Scoring */}
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Step 4 — Defer */}
       <section>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">📊</span>
-          <h2 className="text-xl font-bold">Scoring</h2>
-        </div>
-        <div className="space-y-3 text-slate-600">
-          <div className="card flex gap-4">
-            <span className="text-xl">✅</span>
-            <div>
-              <div className="font-semibold text-slate-800">Your team wins → you get a W</div>
-              <div className="text-sm mt-0.5">Simple. Your team wins the game, you win the pick.</div>
-            </div>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
+            4
           </div>
-          <div className="card flex gap-4">
-            <span className="text-xl">❌</span>
-            <div>
-              <div className="font-semibold text-slate-800">Your team loses → you get an L</div>
-              <div className="text-sm mt-0.5">That's the game. Accountability is part of the fun.</div>
-            </div>
-          </div>
-          <div className="card flex gap-4">
-            <span className="text-xl">🤝</span>
-            <div>
-              <div className="font-semibold text-slate-800">Draw → push (EPL only)</div>
-              <div className="text-sm mt-0.5">
-                Draws in the Premier League count as a push — no win, no loss. It
-                happens, especially in a tight fixture.
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">The defer move</h2>
+            <p className="text-slate-500 mb-5">
+              On weekly and season competitions with 4+ games on the slate, the player
+              with pick priority gets a strategic choice before anyone picks.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="rounded-xl border-2 border-rink bg-ice px-5 py-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">🎯</span>
+                  <div className="font-bold text-rink text-sm">Go first — keep pick #1</div>
+                </div>
+                <div className="text-sm text-slate-600">
+                  You know what game you want — take it. First pick is yours.
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="card flex gap-4">
-            <span className="text-xl">🔒</span>
-            <div>
-              <div className="font-semibold text-slate-800">Game starts → pick locks</div>
-              <div className="text-sm mt-0.5">
-                Once a game's puck drops (or first pitch, or kickoff), that game is
-                locked. You can still pick other games on the slate that haven't started,
-                but no jumping in after tip-off.
+              <div className="rounded-xl border-2 border-slate-200 bg-white px-5 py-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">🧠</span>
+                  <div className="font-bold text-slate-800 text-sm">Defer — take picks #2 and #3</div>
+                </div>
+                <div className="text-sm text-slate-600">
+                  Let your opponent go first, then you get the next two in a row. Smart
+                  when the top game is a coin flip.
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <p className="text-sm text-slate-400 mt-4">
-          Scores are updated automatically a few times each morning after games finish.
-          You'll get an email when it's your turn to pick, and live scores update on
-          the competition page every 60 seconds while games are in progress.
-        </p>
+      </section>
+
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Step 5 — Scoring */}
+      <section>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
+            5
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Scoring — fully automatic</h2>
+            <p className="text-slate-500 mb-5">
+              Results come in overnight. No manual updating, no spreadsheets, no drama.
+            </p>
+            <div className="grid gap-3">
+              {[
+                { icon: "✅", label: "Your team wins", sub: "You get a W. That's the game.", color: "border-green-200 bg-green-50" },
+                { icon: "❌", label: "Your team loses", sub: "You get an L. Accountability is part of the fun.", color: "border-red-200 bg-red-50" },
+                { icon: "🤝", label: "Draw (EPL only)", sub: "Counts as a push — no win, no loss.", color: "border-slate-200 bg-slate-50" },
+                { icon: "🔒", label: "Game starts → pick locks", sub: "Once the puck drops (or first pitch, or kickoff) that pick is locked in.", color: "border-slate-200 bg-slate-50" },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>
+                  <span className="text-xl mt-0.5">{item.icon}</span>
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm">{item.label}</div>
+                    <div className="text-sm text-slate-500 mt-0.5">{item.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-4 flex items-center gap-1.5">
+              <span>⏱</span>
+              Scores update automatically each morning. Live scores refresh on the competition page every 60 seconds while games are in progress.
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* CTA */}
-      <section className="card bg-ice border-rink border text-center py-8">
-        <p className="text-lg font-semibold text-rink mb-4">Ready to challenge someone?</p>
-        <Link href="/competitions/new" className="btn-primary">
-          Create a competition
-        </Link>
+      <section className="relative overflow-hidden rounded-3xl bg-rink px-8 py-10 text-center shadow-lg">
+        <div className="absolute inset-0 opacity-10 pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 50%, white 1px, transparent 1px)", backgroundSize: "40px 40px" }}
+        />
+        <div className="relative">
+          <div className="text-4xl mb-3">🏒</div>
+          <h2 className="text-2xl font-extrabold text-white mb-2">Ready to settle the debate?</h2>
+          <p className="text-white/70 mb-6 text-sm">Create a competition and send your opponent the link. Takes 60 seconds.</p>
+          <Link href="/competitions/new" className="inline-flex items-center gap-2 bg-white text-rink font-bold px-8 py-3 rounded-xl hover:bg-ice transition-colors shadow-md text-base">
+            Create a competition →
+          </Link>
+        </div>
       </section>
 
     </div>
