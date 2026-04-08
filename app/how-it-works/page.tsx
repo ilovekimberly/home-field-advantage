@@ -105,35 +105,51 @@ export default function HowItWorksPage() {
               and makes every selection meaningful.
             </p>
 
-            {/* Visual draft example */}
-            <div className="rounded-2xl bg-slate-900 p-5 mb-4">
-              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Tonight's draft order — 6 games</div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { label: "Pick 1", player: "You", you: true },
-                  { label: "Pick 2", player: "Them", you: false },
-                  { label: "Pick 3", player: "Them", you: false },
-                  { label: "Pick 4", player: "You", you: true },
-                  { label: "Pick 5", player: "You", you: true },
-                  { label: "Pick 6", player: "Them", you: false },
-                ].map((p, i) => (
-                  <div
-                    key={i}
-                    className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-bold border ${
-                      p.you
-                        ? "bg-rink border-rink text-white"
-                        : "bg-slate-700 border-slate-600 text-slate-200"
-                    }`}
-                  >
-                    <span className="text-[10px] font-normal opacity-70 mb-0.5">{p.label}</span>
-                    {p.player}
-                  </div>
-                ))}
+            {/* Two draft style examples */}
+            <div className="grid sm:grid-cols-2 gap-3 mb-4">
+              {/* Standard snake */}
+              <div className="rounded-2xl bg-slate-900 p-4">
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Standard snake — 6 games</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: "Pick 1", you: true },
+                    { label: "Pick 2", you: false },
+                    { label: "Pick 3", you: false },
+                    { label: "Pick 4", you: true },
+                    { label: "Pick 5", you: true },
+                    { label: "Pick 6", you: false },
+                  ].map((p, i) => (
+                    <div key={i} className={`flex flex-col items-center px-2.5 py-1.5 rounded-lg text-xs font-bold border ${p.you ? "bg-rink border-rink text-white" : "bg-slate-700 border-slate-600 text-slate-200"}`}>
+                      <span className="text-[9px] font-normal opacity-70 mb-0.5">{p.label}</span>
+                      {p.you ? "You" : "Them"}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 mt-2.5">Pair at the start, alternate through, pair at the end.</p>
               </div>
-              <p className="text-xs text-slate-500 mt-3">
-                🐍 Snake pattern — it reverses like a draft. Nobody stacks the deck.
-              </p>
+
+              {/* Balanced snake */}
+              <div className="rounded-2xl bg-slate-900 p-4">
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Balanced snake — 6 games</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: "Pick 1", you: true },
+                    { label: "Pick 2", you: false },
+                    { label: "Pick 3", you: false },
+                    { label: "Pick 4", you: true },
+                    { label: "Pick 5", you: true },
+                    { label: "Pick 6", you: false },
+                  ].map((p, i) => (
+                    <div key={i} className={`flex flex-col items-center px-2.5 py-1.5 rounded-lg text-xs font-bold border ${p.you ? "bg-rink border-rink text-white" : "bg-slate-700 border-slate-600 text-slate-200"}`}>
+                      <span className="text-[9px] font-normal opacity-70 mb-0.5">{p.label}</span>
+                      {p.you ? "You" : "Them"}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 mt-2.5">Single first pick, then strict pairs — fairer on larger slates.</p>
+              </div>
             </div>
+            <p className="text-xs text-slate-400 mb-4">Both styles always give each player the same number of picks. You choose which pattern to use when you create the competition.</p>
 
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-5 py-3.5 flex gap-3">
               <span className="text-xl">🔄</span>
