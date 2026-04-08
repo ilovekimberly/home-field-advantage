@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 
 type Team = { abbrev: string; name: string; id: number };
 type Game = {
-  id: number;
+  id: number | string;
   home: Team;
   away: Team;
   startTimeUTC: string;
@@ -112,7 +112,7 @@ export default function PickRoom({
   const onTheClockUserId = onTheClock === "A" ? playerAId : playerBId;
   const isMyTurn = onTheClockUserId === currentUserId && nextIndex < draftOrder.length;
   const draftDone = nextIndex >= draftOrder.length;
-  const pickedGameIds = new Set(existingPicks.map((p) => p.game_id));
+  const pickedGameIds = new Set(existingPicks.map((p) => String(p.game_id)));
 
   function gameStarted(startTimeUTC: string) {
     return new Date(startTimeUTC) <= now;
@@ -174,8 +174,8 @@ export default function PickRoom({
 
       <ul className="grid gap-2">
         {games.map((g) => {
-          const pick = existingPicks.find((p) => p.game_id === g.id);
-          const taken = pickedGameIds.has(g.id);
+          const pick = existingPicks.find((p) => String(p.game_id) === String(g.id));
+          const taken = pickedGameIds.has(String(g.id));
           const started = gameStarted(g.startTimeUTC);
           const winner = g.winner;
           const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
