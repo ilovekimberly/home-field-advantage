@@ -243,8 +243,15 @@ export default async function CompetitionPage({
             home: g.homeTeam,
             away: g.awayTeam,
             startTimeUTC: g.startTimeUTC,
+            gameState: g.gameState,
             final: isFinal(g.gameState),
             winner: winnerAbbrev(g),
+            homeScore: g.homeScore,
+            awayScore: g.awayScore,
+            period: g.period,
+            periodType: g.periodType,
+            clock: g.clock,
+            inIntermission: g.inIntermission,
           }))}
           existingPicks={todaysPicks}
           draftOrder={draft.order}

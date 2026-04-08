@@ -8,8 +8,15 @@ type Game = {
   home: Team;
   away: Team;
   startTimeUTC: string;
+  gameState: string;
   final: boolean;
   winner: string | null;
+  homeScore?: number;
+  awayScore?: number;
+  period?: number;
+  periodType?: string;
+  clock?: string;
+  inIntermission?: boolean;
 };
 type Pick = {
   id: string;
@@ -20,6 +27,49 @@ type Pick = {
   pick_index: number;
   result: string;
 };
+
+function periodLabel(period?: number, periodType?: string) {
+  if (!period) return "";
+  if (periodType === "OT") return "OT";
+  if (periodType === "SO") return "SO";
+  const suffixes = ["", "1st", "2nd", "3rd"];
+  return suffixes[period] ?? `P${period}`;
+}
+
+function ScoreBadge({ g }: { g: Game }) {
+  const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
+  const isFinal = g.final;
+  const hasScore = g.homeScore != null && g.awayScore != null;
+
+  if (!hasScore && !isLive && !isFinal) return null;
+
+  if (isFinal && hasScore) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+        <span>Final</span>
+        <span className="font-bold">{g.awayScore} – {g.homeScore}</span>
+      </span>
+    );
+  }
+
+  if (isLive && hasScore) {
+    const period = periodLabel(g.period, g.periodType);
+    const timeInfo = g.inIntermission
+      ? `INT`
+      : g.clock ? `${g.clock} · ${period}` : period;
+
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+        <span>LIVE</span>
+        <span className="font-bold text-slate-700">{g.awayScore} – {g.homeScore}</span>
+        <span className="text-slate-400">{timeInfo}</span>
+      </span>
+    );
+  }
+
+  return null;
+}
 
 export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
@@ -41,11 +91,21 @@ export default function PickRoom({
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
-  // Tick every 30 seconds so the "started" lock updates without a page refresh.
+  // Tick every 30 seconds to update game-start locks.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  // Auto-refresh every 60 seconds when any game is live.
+  const hasLiveGames = games.some(
+    (g) => g.gameState === "LIVE" || g.gameState === "CRIT"
+  );
+  useEffect(() => {
+    if (!hasLiveGames) return;
+    const id = setInterval(() => router.refresh(), 60_000);
+    return () => clearInterval(id);
+  }, [hasLiveGames, router]);
 
   const nextIndex = existingPicks.length;
   const onTheClock = draftOrder[nextIndex];
@@ -80,29 +140,37 @@ export default function PickRoom({
     return <div className="text-slate-500 italic">No NHL games on {activeDate}.</div>;
   }
 
-  // Are ALL unpicked games already locked (started)?
   const allRemainingLocked = games
     .filter((g) => !pickedGameIds.has(g.id))
     .every((g) => gameStarted(g.startTimeUTC));
 
   return (
     <div>
-      <div className="mb-3 text-sm">
-        {readOnly ? (
-          <span className="text-slate-400 italic">Past night — picks are locked.</span>
-        ) : waitingForDefer ? (
-          <span className="text-slate-500 italic">Picks are locked until the pick-priority player makes their choice above.</span>
-        ) : draftDone ? (
-          <span className="font-semibold text-green-700">All picks made for tonight ✓</span>
-        ) : allRemainingLocked ? (
-          <span className="font-semibold text-amber-600">All remaining games have started — no more picks tonight.</span>
-        ) : isMyTurn ? (
-          <span className="font-semibold text-rink">You're on the clock — pick a team.</span>
-        ) : (
-          <span className="text-slate-500">Waiting on the other player…</span>
+      <div className="mb-3 text-sm flex items-center justify-between">
+        <span>
+          {readOnly ? (
+            <span className="text-slate-400 italic">Past night — picks are locked.</span>
+          ) : waitingForDefer ? (
+            <span className="text-slate-500 italic">Picks locked until pick-priority player makes their choice.</span>
+          ) : draftDone ? (
+            <span className="font-semibold text-green-700">All picks made for tonight ✓</span>
+          ) : allRemainingLocked ? (
+            <span className="font-semibold text-amber-600">All remaining games have started — no more picks tonight.</span>
+          ) : isMyTurn ? (
+            <span className="font-semibold text-rink">You're on the clock — pick a team.</span>
+          ) : (
+            <span className="text-slate-500">Waiting on the other player…</span>
+          )}
+        </span>
+        {hasLiveGames && (
+          <span className="text-xs text-slate-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+            Auto-updating
+          </span>
         )}
-        {error && <div className="text-red-600 mt-1">{error}</div>}
       </div>
+
+      {error && <div className="text-red-600 mb-2 text-sm">{error}</div>}
 
       <ul className="grid gap-2">
         {games.map((g) => {
@@ -110,68 +178,75 @@ export default function PickRoom({
           const taken = pickedGameIds.has(g.id);
           const started = gameStarted(g.startTimeUTC);
           const winner = g.winner;
+          const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
 
           return (
             <li
               key={g.id}
-              className={`border rounded-lg p-3 flex items-center justify-between ${
+              className={`border rounded-lg p-3 ${
+                isLive ? "border-red-100 bg-red-50/30" :
                 started && !taken ? "opacity-60 bg-slate-50" : ""
               }`}
             >
-              <div>
-                <div className="font-semibold">
-                  {g.away.name} @ {g.home.name}
-                </div>
-                <div className="text-xs text-slate-500 flex items-center gap-2">
-                  <span>
-                    {new Date(g.startTimeUTC).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  {started && !g.final && (
-                    <span className="inline-block rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 text-xs font-medium">
-                      In progress
-                    </span>
-                  )}
-                  {g.final && winner && (
-                    <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-                      Final · {winner} won
-                    </span>
-                  )}
-                </div>
-                {pick && (
-                  <div className="text-sm mt-1">
-                    Picked: <b>{pick.picked_team_name}</b>
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">
+                    {g.away.name} @ {g.home.name}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    {!started && (
+                      <span className="text-xs text-slate-500">
+                        {new Date(g.startTimeUTC).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                    <ScoreBadge g={g} />
                     {g.final && winner && (
-                      pick.picked_team_abbrev === winner
-                        ? <span className="text-green-700"> ✓ win</span>
-                        : <span className="text-red-700"> ✗ loss</span>
+                      <span className="text-xs text-slate-500">{winner} won</span>
                     )}
                   </div>
+                  {pick && (
+                    <div className="text-sm mt-1.5">
+                      Picked: <b>{pick.picked_team_name}</b>
+                      {g.final && winner && (
+                        pick.picked_team_abbrev === winner
+                          ? <span className="text-green-700 ml-1">✓ win</span>
+                          : <span className="text-red-600 ml-1">✗ loss</span>
+                      )}
+                      {isLive && g.homeScore != null && (
+                        <span className="text-slate-400 ml-1 text-xs">
+                          {pick.picked_team_abbrev === g.home.abbrev
+                            ? `(${g.homeScore} – ${g.awayScore})`
+                            : `(${g.awayScore} – ${g.homeScore})`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Pick buttons */}
+                {!taken && !started && !readOnly && (
+                  <div className="flex gap-2 shrink-0 ml-3">
+                    <button
+                      disabled={!isMyTurn || busy || waitingForDefer}
+                      onClick={() => makePick(g.id, g.away.abbrev, g.away.name)}
+                      className="btn-ghost disabled:opacity-30 text-sm"
+                    >
+                      {g.away.abbrev}
+                    </button>
+                    <button
+                      disabled={!isMyTurn || busy || waitingForDefer}
+                      onClick={() => makePick(g.id, g.home.abbrev, g.home.name)}
+                      className="btn-ghost disabled:opacity-30 text-sm"
+                    >
+                      {g.home.abbrev}
+                    </button>
+                  </div>
+                )}
+
+                {!taken && started && (
+                  <span className="text-xs text-slate-400 ml-3 shrink-0">🔒 Locked</span>
                 )}
               </div>
-
-              {/* Pick buttons — hidden if already picked or game started */}
-              {!taken && !started && !readOnly && (
-                <div className="flex gap-2 shrink-0 ml-3">
-                  <button
-                    disabled={!isMyTurn || busy || waitingForDefer}
-                    onClick={() => makePick(g.id, g.away.abbrev, g.away.name)}
-                    className="btn-ghost disabled:opacity-30 text-sm"
-                  >
-                    {g.away.abbrev}
-                  </button>
-                  <button
-                    disabled={!isMyTurn || busy || waitingForDefer}
-                    onClick={() => makePick(g.id, g.home.abbrev, g.home.name)}
-                    className="btn-ghost disabled:opacity-30 text-sm"
-                  >
-                    {g.home.abbrev}
-                  </button>
-                </div>
-              )}
-
-              {!taken && started && (
-                <span className="text-xs text-slate-400 ml-3 shrink-0">🔒 Locked</span>
-              )}
             </li>
           );
         })}

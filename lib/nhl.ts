@@ -11,9 +11,13 @@ export type NHLGame = {
   awayTeam: { abbrev: string; name: string; id: number };
   // 'FUT' = future, 'PRE' = pregame, 'LIVE' = in progress, 'OFF'/'FINAL' = done
   gameState: string;
-  // Filled when game ends
   homeScore?: number;
   awayScore?: number;
+  // Live game info
+  period?: number;        // 1, 2, 3, 4 (OT), 5 (SO)
+  periodType?: string;    // 'REG', 'OT', 'SO'
+  clock?: string;         // e.g. "14:32"
+  inIntermission?: boolean;
 };
 
 export async function fetchNHLScheduleForDate(date: string): Promise<NHLGame[]> {
@@ -40,6 +44,10 @@ export async function fetchNHLScheduleForDate(date: string): Promise<NHLGame[]> 
     },
     homeScore: g.homeTeam.score,
     awayScore: g.awayTeam.score,
+    period: g.period,
+    periodType: g.periodDescriptor?.periodType,
+    clock: g.clock?.timeRemaining,
+    inIntermission: g.clock?.inIntermission ?? false,
   }));
 }
 
