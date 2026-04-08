@@ -20,8 +20,8 @@ export async function DELETE(
     .single();
 
   if (!comp) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (comp.status !== "cancelled") {
-    return NextResponse.json({ error: "only cancelled competitions can be deleted" }, { status: 403 });
+  if (!["cancelled", "pending"].includes(comp.status)) {
+    return NextResponse.json({ error: "only cancelled or pending competitions can be deleted" }, { status: 403 });
   }
 
   // Use admin client to bypass RLS for cascading deletes.

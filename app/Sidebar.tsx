@@ -41,7 +41,7 @@ const DURATION_LABEL: Record<string, string> = {
 };
 
 // Statuses open by default.
-const DEFAULT_OPEN = new Set(["active", "pending"]);
+const DEFAULT_OPEN = new Set(["active", "pending", "cancelled"]);
 
 function StatusSection({
   status,
@@ -60,7 +60,7 @@ function StatusSection({
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("Remove this cancelled competition?")) return;
+    if (!confirm("Remove this competition?")) return;
     setDeleting(id);
     const res = await fetch(`/api/competitions/${id}`, { method: "DELETE" });
     setDeleting(null);
@@ -103,8 +103,8 @@ function StatusSection({
                 </span>
               </Link>
 
-              {/* Delete button — only for cancelled */}
-              {comp.status === "cancelled" && (
+              {/* Delete button — for cancelled or pending (awaiting opponent) */}
+              {(comp.status === "cancelled" || comp.status === "pending") && (
                 <button
                   onClick={(e) => handleDelete(e, comp.id)}
                   disabled={deleting === comp.id}
