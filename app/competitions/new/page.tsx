@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Sport = "NHL" | "MLB" | "EPL";
 type Duration = "daily" | "weekly" | "season";
+type DraftStyle = "standard" | "balanced";
 
 const SPORTS: { value: Sport; label: string; emoji: string }[] = [
   { value: "NHL", label: "NHL Hockey", emoji: "🏒" },
@@ -36,6 +37,7 @@ export default function NewCompetitionPage() {
   const [name, setName] = useState("");
   const [duration, setDuration] = useState<Duration>("daily");
   const [startDate, setStartDate] = useState(todayISO());
+  const [draftStyle, setDraftStyle] = useState<DraftStyle>("standard");
   const [inviteEmail, setInviteEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +66,7 @@ export default function NewCompetitionPage() {
         name: name || namePlaceholder,
         sport,
         duration,
+        draft_style: draftStyle,
         start_date: startDate,
         end_date: end,
         creator_id: user.id,
@@ -142,6 +145,44 @@ export default function NewCompetitionPage() {
             )}
           </select>
         </label>
+
+        {/* Draft style */}
+        <div>
+          <span className="block text-sm font-medium mb-2">Draft style</span>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              {
+                value: "standard" as DraftStyle,
+                label: "Standard snake",
+                pattern: "A · BB · AA · BB · A",
+                desc: "Classic snake — pair at the start, alternate through, pair at the end.",
+              },
+              {
+                value: "balanced" as DraftStyle,
+                label: "Balanced snake",
+                pattern: "A · BB · AA · BB · AA · B",
+                desc: "Single first pick, then strict pairs all the way through.",
+              },
+            ] as const).map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => setDraftStyle(s.value)}
+                className={`flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                  draftStyle === s.value
+                    ? "border-rink bg-ice"
+                    : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <span className={`text-sm font-semibold ${draftStyle === s.value ? "text-rink" : "text-slate-700"}`}>
+                  {s.label}
+                </span>
+                <span className="text-xs font-mono text-slate-500">{s.pattern}</span>
+                <span className="text-xs text-slate-400 leading-snug">{s.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Start date */}
         <label className="block">

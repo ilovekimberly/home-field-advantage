@@ -30,6 +30,7 @@
 // =====================================================================
 
 export type Player = "A" | "B";
+export type DraftStyle = "standard" | "balanced";
 
 export type DraftInputs = {
   numGames: number;
@@ -37,6 +38,8 @@ export type DraftInputs = {
   firstPicker: Player;
   /** true if the better-record player chose to defer (take picks 2 & 3) */
   deferred: boolean;
+  /** "standard" = A BB AA BB (current); "balanced" = A BB AA BB AA B pairs */
+  draftStyle?: DraftStyle;
 };
 
 export type DraftResult = {
@@ -46,8 +49,31 @@ export type DraftResult = {
   unpickedGames: number;
 };
 
+/**
+ * Balanced snake: A BB AA BB AA B ...
+ * The first picker gets a single pick, then players alternate in pairs,
+ * and the last pick goes to whoever comes next in the pair sequence.
+ * Every even total always gives both players the same number of picks.
+ */
+function buildBalancedOrder(totalPicks: number, firstPicker: Player, deferred: boolean): Player[] {
+  // If deferred, the priority player yields pick #1, then takes picks #2 & #3.
+  const first: Player = deferred ? (firstPicker === "A" ? "B" : "A") : firstPicker;
+  const second: Player = first === "A" ? "B" : "A";
+  const order: Player[] = [];
+  for (let i = 0; i < totalPicks; i++) {
+    if (i === 0) {
+      order.push(first);
+    } else {
+      // Positions 1-2 → second, 3-4 → first, 5-6 → second, ...
+      const pairIndex = Math.floor((i - 1) / 2);
+      order.push(pairIndex % 2 === 0 ? second : first);
+    }
+  }
+  return order;
+}
+
 export function generateDraftOrder(input: DraftInputs): DraftResult {
-  const { numGames, firstPicker, deferred } = input;
+  const { numGames, firstPicker, deferred, draftStyle = "standard" } = input;
   const A: Player = firstPicker;
   const B: Player = firstPicker === "A" ? "B" : "A";
 
@@ -64,6 +90,11 @@ export function generateDraftOrder(input: DraftInputs): DraftResult {
   // Drop the last game if odd so totalPicks is even.
   const totalPicks = numGames % 2 === 0 ? numGames : numGames - 1;
   const unpickedGames = numGames - totalPicks;
+
+  // Balanced snake: A BB AA BB AA B ...
+  if (draftStyle === "balanced") {
+    return { order: buildBalancedOrder(totalPicks, firstPicker, deferred), unpickedGames };
+  }
 
   // Start rule: pick #1 + the bundled pair (picks 2 & 3).
   // If A defers, B picks first and A gets picks 2 and 3.

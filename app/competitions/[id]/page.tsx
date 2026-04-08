@@ -117,7 +117,12 @@ export default async function CompetitionPage({
   let games: Awaited<ReturnType<typeof fetchScheduleForDate>> = [];
   try { games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate); } catch {}
 
-  const draft = generateDraftOrder({ numGames: games.length, firstPicker: firstPickerSlot, deferred });
+  const draft = generateDraftOrder({
+    numGames: games.length,
+    firstPicker: firstPickerSlot,
+    deferred,
+    draftStyle: (comp.draft_style ?? "standard") as "standard" | "balanced",
+  });
 
   const showDeferBanner =
     isViewingToday &&
