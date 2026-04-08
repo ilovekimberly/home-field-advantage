@@ -118,7 +118,7 @@ export default function PickRoom({
     return new Date(startTimeUTC) <= now;
   }
 
-  async function makePick(gameId: number, teamAbbrev: string, teamName: string) {
+  async function makePick(gameId: number | string, teamAbbrev: string, teamName: string) {
     if (!isMyTurn) return;
     setBusy(true); setError(null);
     const res = await fetch(`/api/competitions/${competitionId}/picks`, {
