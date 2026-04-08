@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { sendEmail, opponentJoinedEmail } from "@/lib/email";
 
 export async function GET(req: Request, { params }: { params: { token: string } }) {
@@ -38,8 +38,10 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     return NextResponse.redirect(new URL("/?err=full", req.url));
   }
 
-  // Join the competition.
-  const { error: updateError } = await supabase
+  // Join the competition — use admin client to bypass RLS since the
+  // user isn't a participant yet and can't update their own entry.
+  const admin = createSupabaseAdminClient();
+  const { error: updateError } = await admin
     .from("competitions")
     .update({ opponent_id: user.id, status: "active" })
     .eq("id", comp.id);
