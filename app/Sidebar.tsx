@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 type SidebarComp = {
   id: string;
@@ -55,6 +55,7 @@ function StatusSection({
   const [open, setOpen] = useState(DEFAULT_OPEN.has(status));
   const [deleting, setDeleting] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
   async function handleDelete(e: React.MouseEvent, id: string) {
@@ -66,7 +67,12 @@ function StatusSection({
     setDeleting(null);
     if (res.ok) {
       onDelete(id);
-      startTransition(() => router.refresh());
+      // If we're currently viewing the deleted competition, go home instead of refreshing.
+      if (pathname === `/competitions/${id}`) {
+        router.push("/");
+      } else {
+        startTransition(() => router.refresh());
+      }
     } else {
       alert("Failed to delete — please try again.");
     }
