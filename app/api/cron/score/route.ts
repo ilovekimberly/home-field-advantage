@@ -71,6 +71,10 @@ export async function GET(req: Request) {
   }
 
   // ── 2. Mark competitions as complete ──────────────────────────────────
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const yesterdayISO = yesterday.toISOString().slice(0, 10);
+
   const { data: activeComps } = await supabase
     .from("competitions")
     .select("id, end_date")
@@ -85,7 +89,19 @@ export async function GET(req: Request) {
       .eq("result", "pending")
       .limit(1);
 
-    if (!remaining || remaining.length === 0) {
+    // Close if no pending picks remain, OR if the end date was yesterday or
+    // earlier — at that point games are definitely over regardless of scoring.
+    const endDatePassed = comp.end_date <= yesterdayISO;
+
+    if (!remaining || remaining.length === 0 || endDatePassed) {
+      // Mark any still-pending picks as unscored so they don't block future closes.
+      if (remaining && remaining.length > 0) {
+        await supabase
+          .from("picks")
+          .update({ result: "unscored" })
+          .eq("competition_id", comp.id)
+          .eq("result", "pending");
+      }
       await supabase.from("competitions").update({ status: "complete" }).eq("id", comp.id);
       completed++;
     }
