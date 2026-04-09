@@ -154,7 +154,11 @@ export default async function HomePage() {
     const onTheClock = nextIndex < draft.order.length ? draft.order[nextIndex] : null;
     const onTheClockUserId = onTheClock === "A" ? comp.creator_id : comp.opponent_id;
 
-    if (onTheClock && onTheClockUserId === user.id) {
+    // Don't prompt if the competition's active date is in the past
+    // (e.g. a daily comp that hasn't been closed by the cron yet).
+    const isStale = activeDate < today;
+
+    if (!isStale && onTheClock && onTheClockUserId === user.id) {
       const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
       const opponentProfile = profileMap.get(opponentId);
       needsMyPick.push({
