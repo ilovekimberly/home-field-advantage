@@ -128,6 +128,15 @@ export default function PickRoom({
     return () => clearInterval(id);
   }, [hasLiveGames, router]);
 
+  // Poll every 10 seconds while the draft is in progress and it's not our turn.
+  // This way the page updates automatically when the opponent makes a pick.
+  const waitingForOpponentPick = !readOnly && !draftDone && !isMyTurn && !waitingForDefer && !allRemainingLocked;
+  useEffect(() => {
+    if (!waitingForOpponentPick) return;
+    const id = setInterval(() => router.refresh(), 10_000);
+    return () => clearInterval(id);
+  }, [waitingForOpponentPick, router]);
+
   const nextIndex = existingPicks.length;
   const onTheClock = draftOrder[nextIndex];
   const onTheClockUserId = onTheClock === "A" ? playerAId : playerBId;
