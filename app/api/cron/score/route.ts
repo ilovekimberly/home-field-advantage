@@ -75,6 +75,12 @@ export async function GET(req: Request) {
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const yesterdayISO = yesterday.toISOString().slice(0, 10);
 
+  // Only apply the "force close" fallback on the final cron run of the night
+  // (8 AM UTC = 4 AM ET), not the earlier 6:30 AM UTC run. This ensures late
+  // west coast games have been scored before we force-close anything.
+  const utcHour = new Date().getUTCHours();
+  const isFinalRun = utcHour >= 8;
+
   const { data: activeComps } = await supabase
     .from("competitions")
     .select("id, end_date")
@@ -89,13 +95,15 @@ export async function GET(req: Request) {
       .eq("result", "pending")
       .limit(1);
 
-    // Close if no pending picks remain, OR if the end date was yesterday or
-    // earlier — at that point games are definitely over regardless of scoring.
-    const endDatePassed = comp.end_date <= yesterdayISO;
+    const hasPendingPicks = remaining && remaining.length > 0;
 
-    if (!remaining || remaining.length === 0 || endDatePassed) {
-      // Mark any still-pending picks as unscored so they don't block future closes.
-      if (remaining && remaining.length > 0) {
+    // Always close if no pending picks remain.
+    // Only force-close (marking picks unscored) on the final run of the night.
+    const endDatePassed = comp.end_date <= yesterdayISO;
+    const shouldClose = !hasPendingPicks || (isFinalRun && endDatePassed);
+
+    if (shouldClose) {
+      if (hasPendingPicks) {
         await supabase
           .from("picks")
           .update({ result: "unscored" })
