@@ -53,14 +53,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
   const firstPicker = whoPicksFirst(recordA, recordB, previousFirstPicker, "A");
 
-  // Check if the pick-priority player chose to defer tonight.
-  const { data: deferRow } = await supabase
-    .from("draft_defers")
-    .select("deferred")
-    .eq("competition_id", comp.id)
-    .eq("game_date", gameDate)
-    .maybeSingle();
-  const deferred = deferRow?.deferred ?? false;
+  // Determine if the pick-priority player deferred tonight.
+  // If picks have already been made, derive it from who actually picked first
+  // (ground truth) rather than trusting the defer table, which avoids
+  // mismatches when the defer state changed after picks were already placed.
+  let deferred = false;
+  if (todays.length > 0) {
+    const firstPick = [...todays].sort((a, b) => a.pick_index - b.pick_index)[0];
+    const firstPickSlot = firstPick.picker_id === comp.creator_id ? "A" : "B";
+    // If the first actual pick was made by the non-priority player, A deferred.
+    deferred = firstPickSlot !== firstPicker;
+  } else {
+    const { data: deferRow } = await supabase
+      .from("draft_defers")
+      .select("deferred")
+      .eq("competition_id", comp.id)
+      .eq("game_date", gameDate)
+      .maybeSingle();
+    deferred = deferRow?.deferred ?? false;
+  }
 
   const draft = generateDraftOrder({
     numGames: games.length,
