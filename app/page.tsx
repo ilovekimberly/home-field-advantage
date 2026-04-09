@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { whoPicksFirst, type Player } from "@/lib/picks";
+import { whoPicksFirst, generateDraftOrder, type Player, type DraftStyle } from "@/lib/picks";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
@@ -133,10 +133,28 @@ export default async function HomePage() {
     }
     const firstPickerSlot = whoPicksFirst(recordA, recordB, prevFirstPicker, "A");
     const nextIndex = dayPicks.length;
-    const onTheClock = nextIndex % 2 === 0 ? firstPickerSlot : (firstPickerSlot === "A" ? "B" : "A");
+
+    // Derive deferred from who actually made pick #0 (ground truth).
+    let deferred = false;
+    if (dayPicks.length > 0) {
+      const firstPick = [...dayPicks].sort((a: any, b: any) => a.pick_index - b.pick_index)[0];
+      const firstPickSlot = firstPick.picker_id === comp.creator_id ? "A" : "B";
+      deferred = firstPickSlot !== firstPickerSlot;
+    }
+
+    // Use a large numGames so we get the full middle-of-draft order
+    // without needing to fetch the schedule on the home page.
+    const draft = generateDraftOrder({
+      numGames: 20,
+      firstPicker: firstPickerSlot,
+      deferred,
+      draftStyle: (comp.draft_style ?? "standard") as DraftStyle,
+    });
+
+    const onTheClock = nextIndex < draft.order.length ? draft.order[nextIndex] : null;
     const onTheClockUserId = onTheClock === "A" ? comp.creator_id : comp.opponent_id;
 
-    if (onTheClockUserId === user.id) {
+    if (onTheClock && onTheClockUserId === user.id) {
       const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
       const opponentProfile = profileMap.get(opponentId);
       needsMyPick.push({
