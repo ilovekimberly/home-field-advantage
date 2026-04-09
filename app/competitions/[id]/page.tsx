@@ -266,6 +266,8 @@ export default async function CompetitionPage({
           draftOrder={draft.order}
           playerAId={comp.creator_id}
           playerBId={comp.opponent_id}
+          playerAName={creatorProfile?.display_name ?? "Creator"}
+          playerBName={opponentProfile?.display_name ?? "Opponent"}
           currentUserId={user.id}
           waitingForDefer={
             isViewingToday &&

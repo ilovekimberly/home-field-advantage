@@ -28,6 +28,25 @@ type Pick = {
   result: string;
 };
 
+function initials(name: string) {
+  return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function PickerChip({ name, isMe }: { name: string; isMe: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+      isMe ? "bg-rink text-white" : "bg-slate-200 text-slate-700"
+    }`}>
+      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+        isMe ? "bg-white/20" : "bg-slate-400 text-white"
+      }`}>
+        {initials(name)}
+      </span>
+      {name}
+    </span>
+  );
+}
+
 function periodLabel(period?: number, periodType?: string) {
   if (!period) return "";
   if (periodType === "OT") return "OT";
@@ -73,7 +92,7 @@ function ScoreBadge({ g }: { g: Game }) {
 
 export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
-  draftOrder, playerAId, playerBId, currentUserId, waitingForDefer, readOnly,
+  draftOrder, playerAId, playerBId, playerAName, playerBName, currentUserId, waitingForDefer, readOnly,
 }: {
   competitionId: string;
   activeDate: string;
@@ -82,6 +101,8 @@ export default function PickRoom({
   draftOrder: ("A" | "B")[];
   playerAId: string;
   playerBId: string | null;
+  playerAName: string;
+  playerBName: string;
   currentUserId: string;
   waitingForDefer?: boolean;
   readOnly?: boolean;
@@ -204,23 +225,29 @@ export default function PickRoom({
                       <span className="text-xs text-slate-500">{winner} won</span>
                     )}
                   </div>
-                  {pick && (
-                    <div className="text-sm mt-1.5">
-                      Picked: <b>{pick.picked_team_name}</b>
-                      {g.final && winner && (
-                        pick.picked_team_abbrev === winner
-                          ? <span className="text-green-700 ml-1">✓ win</span>
-                          : <span className="text-red-600 ml-1">✗ loss</span>
-                      )}
-                      {isLive && g.homeScore != null && (
-                        <span className="text-slate-400 ml-1 text-xs">
-                          {pick.picked_team_abbrev === g.home.abbrev
-                            ? `(${g.homeScore} – ${g.awayScore})`
-                            : `(${g.awayScore} – ${g.homeScore})`}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  {pick && (() => {
+                    const pickerIsA = pick.picker_id === playerAId;
+                    const pickerName = pickerIsA ? playerAName : (playerBName || "Opponent");
+                    const pickerIsMe = pick.picker_id === currentUserId;
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <PickerChip name={pickerName} isMe={pickerIsMe} />
+                        <span className="text-sm text-slate-600">→ <b>{pick.picked_team_name}</b></span>
+                        {g.final && winner && (
+                          pick.picked_team_abbrev === winner
+                            ? <span className="text-green-700 text-sm">✓ win</span>
+                            : <span className="text-red-600 text-sm">✗ loss</span>
+                        )}
+                        {isLive && g.homeScore != null && (
+                          <span className="text-slate-400 text-xs">
+                            ({pick.picked_team_abbrev === g.home.abbrev
+                              ? `${g.homeScore} – ${g.awayScore}`
+                              : `${g.awayScore} – ${g.homeScore}`})
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Pick buttons */}
