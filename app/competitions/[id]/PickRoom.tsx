@@ -128,15 +128,6 @@ export default function PickRoom({
     return () => clearInterval(id);
   }, [hasLiveGames, router]);
 
-  // Poll every 10 seconds while the draft is in progress and it's not our turn.
-  // This way the page updates automatically when the opponent makes a pick.
-  const waitingForOpponentPick = !readOnly && !draftDone && !isMyTurn && !waitingForDefer && !allRemainingLocked;
-  useEffect(() => {
-    if (!waitingForOpponentPick) return;
-    const id = setInterval(() => router.refresh(), 10_000);
-    return () => clearInterval(id);
-  }, [waitingForOpponentPick, router]);
-
   const nextIndex = existingPicks.length;
   const onTheClock = draftOrder[nextIndex];
   const onTheClockUserId = onTheClock === "A" ? playerAId : playerBId;
@@ -166,13 +157,21 @@ export default function PickRoom({
     setBusy(false);
   }
 
+  const allRemainingLocked = games.length === 0 || games
+    .filter((g) => !pickedGameIds.has(String(g.id)))
+    .every((g) => gameStarted(g.startTimeUTC));
+
+  // Poll every 10 seconds while waiting for the opponent to pick.
+  const waitingForOpponentPick = !readOnly && !draftDone && !isMyTurn && !waitingForDefer && !allRemainingLocked;
+  useEffect(() => {
+    if (!waitingForOpponentPick) return;
+    const id = setInterval(() => router.refresh(), 10_000);
+    return () => clearInterval(id);
+  }, [waitingForOpponentPick, router]);
+
   if (games.length === 0) {
     return <div className="text-slate-500 italic">No NHL games on {activeDate}.</div>;
   }
-
-  const allRemainingLocked = games
-    .filter((g) => !pickedGameIds.has(String(g.id)))
-    .every((g) => gameStarted(g.startTimeUTC));
 
   return (
     <div>
