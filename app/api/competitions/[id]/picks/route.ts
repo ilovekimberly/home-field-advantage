@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { fetchNHLScheduleForDate, isFinal, winnerAbbrev } from "@/lib/nhl";
-import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
+import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
+import { generateDraftOrder, whoPicksFirst, type Player, type DraftStyle } from "@/lib/picks";
 import { sendEmail, yourTurnEmail } from "@/lib/email";
 
 // POST /api/competitions/:id/picks
@@ -23,9 +23,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "not a participant" }, { status: 403 });
 
   // Recompute draft order server-side to validate the turn.
+  const sport = comp.sport ?? "NHL";
   let games;
-  try { games = await fetchNHLScheduleForDate(gameDate); }
-  catch { return NextResponse.json({ error: "NHL API failed" }, { status: 502 }); }
+  try { games = await fetchScheduleForDate(sport, gameDate); }
+  catch { return NextResponse.json({ error: "schedule API failed" }, { status: 502 }); }
 
   const { data: allPicks } = await supabase
     .from("picks").select("*").eq("competition_id", comp.id);
@@ -51,7 +52,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (fp) previousFirstPicker = fp.picker_id === comp.creator_id ? "A" : "B";
   }
   const firstPicker = whoPicksFirst(recordA, recordB, previousFirstPicker, "A");
-  const draft = generateDraftOrder({ numGames: games.length, firstPicker, deferred: false });
+
+  // Check if the pick-priority player chose to defer tonight.
+  const { data: deferRow } = await supabase
+    .from("draft_defers")
+    .select("deferred")
+    .eq("competition_id", comp.id)
+    .eq("game_date", gameDate)
+    .maybeSingle();
+  const deferred = deferRow?.deferred ?? false;
+
+  const draft = generateDraftOrder({
+    numGames: games.length,
+    firstPicker,
+    deferred,
+    draftStyle: (comp.draft_style ?? "standard") as DraftStyle,
+  });
 
   if (todays.length !== pickIndex)
     return NextResponse.json({ error: "stale pick index" }, { status: 409 });
@@ -63,7 +79,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (expectedUserId !== user.id)
     return NextResponse.json({ error: "not your turn" }, { status: 403 });
 
-  const game = games.find((g) => g.id === gameId);
+  const game = games.find((g) => String(g.id) === String(gameId));
   if (!game) return NextResponse.json({ error: "game not in tonight's slate" }, { status: 400 });
 
   // Reject picks on games that have already started.
@@ -72,8 +88,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   let result = "pending";
-  if (isFinal(game.gameState)) {
-    const w = winnerAbbrev(game);
+  if (isFinalGame(game)) {
+    const w = winnerAbbrevGame(game);
     if (w == null) result = "push";
     else result = w === teamAbbrev ? "win" : "loss";
   }
