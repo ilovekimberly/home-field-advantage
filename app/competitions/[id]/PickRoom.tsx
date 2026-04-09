@@ -178,9 +178,13 @@ export default function PickRoom({
           ) : allRemainingLocked ? (
             <span className="font-semibold text-amber-600">All remaining games have started — no more picks tonight.</span>
           ) : isMyTurn ? (
-            <span className="font-semibold text-rink">You're on the clock — pick a team.</span>
+            <span className="font-semibold text-rink">
+              You're on the clock — {draftOrder.length - nextIndex} pick{draftOrder.length - nextIndex !== 1 ? "s" : ""} remaining.
+            </span>
           ) : (
-            <span className="text-slate-500">Waiting on the other player…</span>
+            <span className="text-slate-500">
+              Waiting on the other player — {draftOrder.length - nextIndex} pick{draftOrder.length - nextIndex !== 1 ? "s" : ""} remaining.
+            </span>
           )}
         </span>
         {hasLiveGames && (
