@@ -272,6 +272,7 @@ export default async function CompetitionPage({
           waitingForDefer={
             isViewingToday &&
             !deferChoiceMade &&
+            todaysPicks.length === 0 &&
             comp.duration !== "daily" &&
             games.length > 3 &&
             !!comp.opponent_id
