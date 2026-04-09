@@ -205,7 +205,7 @@ export default async function CompetitionPage({
           <h2 className="text-lg font-bold">
             {comp.sport === "EPL"
               ? `Gameweek · ${activeDate}`
-              : isViewingToday ? "Tonight's slate" : "Game results"} · {comp.sport !== "EPL" && activeDate}
+              : activeDate}
           </h2>
           {isViewingToday && <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />}
         </div>
