@@ -50,11 +50,24 @@ export async function GET(req: Request) {
       const [date, sport] = key.split("__");
       let games;
       try { games = await fetchScheduleForDate(sport, date, true); }
-      catch { continue; }
+      catch (e) {
+        console.error(`cron/score: failed to fetch schedule for ${key}`, e);
+        continue;
+      }
+
+      console.log(`cron/score: ${key} — fetched ${games.length} games, IDs: ${games.map(g => g.id).join(", ")}`);
+      console.log(`cron/score: ${key} — pick game_ids: ${picks.map(p => p.game_id).join(", ")}`);
 
       for (const pick of picks) {
         const game = games.find((g) => String(g.id) === String(pick.game_id));
-        if (!game || !isFinalGame(game)) continue;
+        if (!game) {
+          console.log(`cron/score: game ${pick.game_id} not found in ${key}`);
+          continue;
+        }
+        if (!isFinalGame(game)) {
+          console.log(`cron/score: game ${pick.game_id} not final, state: ${game.gameState}`);
+          continue;
+        }
 
         const winner = winnerAbbrevGame(game);
         const result = winner === null ? "push"
