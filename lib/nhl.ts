@@ -20,11 +20,14 @@ export type NHLGame = {
   inIntermission?: boolean;
 };
 
-export async function fetchNHLScheduleForDate(date: string): Promise<NHLGame[]> {
+export async function fetchNHLScheduleForDate(date: string, noCache = false): Promise<NHLGame[]> {
   // The "schedule" endpoint returns a week. The "score" endpoint returns a
   // single day with results — useful for both schedule and scoring.
   const url = `https://api-web.nhle.com/v1/score/${date}`;
-  const res = await fetch(url, { next: { revalidate: 60 } });
+  const fetchOpts = noCache
+    ? { cache: "no-store" as const }
+    : { next: { revalidate: 60 } };
+  const res = await fetch(url, fetchOpts);
   if (!res.ok) throw new Error(`NHL API error: ${res.status}`);
   const data = await res.json();
   const games = (data.games ?? []) as any[];

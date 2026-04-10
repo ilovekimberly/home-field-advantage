@@ -56,11 +56,11 @@ export function getPickDate(sport: string, date: string): string {
 
 // Fetch the full schedule for a sport on a given pick-date.
 // For EPL, this returns the entire gameweek's fixtures.
-export async function fetchScheduleForDate(sport: string, date: string): Promise<SportGame[]> {
+export async function fetchScheduleForDate(sport: string, date: string, noCache = false): Promise<SportGame[]> {
   switch (sport) {
     case "NHL": {
       const { fetchNHLScheduleForDate } = await import("./nhl");
-      const games = await fetchNHLScheduleForDate(date);
+      const games = await fetchNHLScheduleForDate(date, noCache);
       return games as unknown as SportGame[];
     }
     case "MLB": {
@@ -77,11 +77,7 @@ export async function fetchScheduleForDate(sport: string, date: string): Promise
 }
 
 export function isFinalGame(g: SportGame): boolean {
-  return (
-    g.gameState === "FINAL" ||
-    g.gameState === "OFF" ||
-    g.gameState === "CRIT"
-  );
+  return g.gameState === "FINAL" || g.gameState === "OFF";
 }
 
 export function winnerAbbrevGame(g: SportGame): string | null {

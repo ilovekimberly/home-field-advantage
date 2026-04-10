@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     for (const [key, picks] of byDateSport) {
       const [date, sport] = key.split("__");
       let games;
-      try { games = await fetchScheduleForDate(sport, date); }
+      try { games = await fetchScheduleForDate(sport, date, true); }
       catch { continue; }
 
       for (const pick of picks) {
