@@ -61,13 +61,14 @@ export async function GET(req: Request) {
       for (const pick of picks) {
         const game = games.find((g) => String(g.id) === String(pick.game_id));
         if (!game) {
-          console.log(`cron/score: game ${pick.game_id} not found in ${key}`);
+          console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not found in ${key}`);
           continue;
         }
         if (!isFinalGame(game)) {
-          console.log(`cron/score: game ${pick.game_id} not final, state: ${game.gameState}`);
+          console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not final, state: ${game.gameState}`);
           continue;
         }
+        console.log(`cron/score: [${pick.competition_id}] scoring game ${pick.game_id}, state: ${game.gameState}`);
 
         const winner = winnerAbbrevGame(game);
         const result = winner === null ? "push"
