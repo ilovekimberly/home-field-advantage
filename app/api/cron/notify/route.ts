@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchNHLScheduleForDate } from "@/lib/nhl";
 import { whoPicksFirst, type Player } from "@/lib/picks";
 import { sendEmail, picksOpenEmail, competitionCancelledEmail } from "@/lib/email";
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     hour: "numeric", minute: "2-digit", timeZone: "America/New_York",
   }) + " ET";
 
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
 
   // ── 3. Auto-cancel daily comps with no opponent once first game starts ─

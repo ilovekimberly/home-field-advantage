@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
 import { sendEmail, competitionCancelledEmail } from "@/lib/email";
 
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
   }
 
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const today = new Date().toISOString().slice(0, 10);
 
   // ── 1. Score all pending picks ─────────────────────────────────────────
