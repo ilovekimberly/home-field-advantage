@@ -199,6 +199,15 @@ export default async function CompetitionPage({
         )}
       </div>
 
+      {/* Standings at top when competition is complete */}
+      {comp.status === "complete" && (
+        <Standings
+          recordA={overallRecordA} recordB={overallRecordB}
+          nameA={creatorProfile?.display_name ?? "Creator"}
+          nameB={opponentProfile?.display_name ?? "Opponent"}
+        />
+      )}
+
       {/* Pick slate card */}
       <div className="card">
         <div className="flex items-center justify-between mb-1">
@@ -281,12 +290,14 @@ export default async function CompetitionPage({
         />
       </div>
 
-      {/* Standings */}
-      <Standings
-        recordA={overallRecordA} recordB={overallRecordB}
-        nameA={creatorProfile?.display_name ?? "Creator"}
-        nameB={opponentProfile?.display_name ?? "Opponent"}
-      />
+      {/* Standings — always at bottom for active, moved to top for complete */}
+      {comp.status !== "complete" && (
+        <Standings
+          recordA={overallRecordA} recordB={overallRecordB}
+          nameA={creatorProfile?.display_name ?? "Creator"}
+          nameB={opponentProfile?.display_name ?? "Opponent"}
+        />
+      )}
     </div>
   );
 }
