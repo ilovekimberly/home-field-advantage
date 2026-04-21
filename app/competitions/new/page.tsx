@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { SportPhase } from "@/app/api/sport-phase/route";
 
 type Sport = "NHL" | "MLB" | "EPL";
 type Duration = "daily" | "weekly" | "season";
@@ -22,9 +23,10 @@ function addDays(d: string, n: number) {
   return dt.toISOString().slice(0, 10);
 }
 
-function seasonEndFor(sport: Sport, start: string) {
+// Static fallback end dates (used for EPL and if API call fails).
+function staticSeasonEnd(sport: Sport, start: string) {
   const year = new Date(start).getUTCFullYear();
-  if (sport === "NHL") return `${year}-04-15`;
+  if (sport === "NHL") return `${year}-04-20`;
   if (sport === "MLB") return `${year}-09-30`;
   if (sport === "EPL") return `${year + 1}-05-20`;
   return addDays(start, 180);
@@ -42,11 +44,51 @@ export default function NewCompetitionPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Phase detection for NHL and MLB.
+  const [phaseInfo, setPhaseInfo] = useState<SportPhase | null>(null);
+  const [phaseLoading, setPhaseLoading] = useState(false);
+
+  useEffect(() => {
+    if (sport === "EPL") {
+      setPhaseInfo(null);
+      return;
+    }
+    setPhaseLoading(true);
+    setPhaseInfo(null);
+    fetch(`/api/sport-phase?sport=${sport}`)
+      .then((r) => r.json())
+      .then((data: SportPhase) => setPhaseInfo(data))
+      .catch(() => setPhaseInfo(null))
+      .finally(() => setPhaseLoading(false));
+  }, [sport]);
+
+  // When we detect playoffs, the "season" duration now means playoffs —
+  // make sure the default still works or auto-adjust if user had "season" selected.
+  // (No forced reset; the label just changes.)
+
+  function seasonEnd(): string {
+    if (sport === "EPL") return staticSeasonEnd("EPL", startDate);
+    if (phaseInfo) {
+      return phaseInfo.phase === "playoffs"
+        ? phaseInfo.playoffEndDate
+        : phaseInfo.seasonEndDate;
+    }
+    return staticSeasonEnd(sport, startDate);
+  }
+
   function endDateFor(start: string, dur: Duration) {
     if (dur === "daily") return addDays(start, sport === "EPL" ? 3 : 0);
     if (dur === "weekly") return addDays(start, sport === "EPL" ? 27 : 6);
-    return seasonEndFor(sport, start);
+    return seasonEnd();
   }
+
+  // Label for the "season" duration option.
+  const seasonOptionLabel =
+    sport === "EPL"
+      ? "Full season (Aug – May)"
+      : phaseLoading
+      ? "Full season (detecting…)"
+      : phaseInfo?.label ?? "Full regular season";
 
   // Auto-suggest a name when sport or duration changes.
   const namePlaceholder =
@@ -109,6 +151,30 @@ export default function NewCompetitionPage() {
               </button>
             ))}
           </div>
+
+          {/* Phase badge for NHL / MLB */}
+          {(sport === "NHL" || sport === "MLB") && (
+            <div className="mt-2 h-5">
+              {phaseLoading && (
+                <span className="text-xs text-slate-400">Detecting current phase…</span>
+              )}
+              {!phaseLoading && phaseInfo && (
+                <span
+                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                    phaseInfo.phase === "playoffs"
+                      ? "bg-amber-100 text-amber-700"
+                      : phaseInfo.phase === "offseason"
+                      ? "bg-slate-100 text-slate-500"
+                      : "bg-green-100 text-green-700"
+                  }`}
+                >
+                  {phaseInfo.phase === "playoffs" && "🏆 Playoffs"}
+                  {phaseInfo.phase === "season" && "🗓 Regular season"}
+                  {phaseInfo.phase === "offseason" && "💤 Off-season"}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Name */}
@@ -140,10 +206,15 @@ export default function NewCompetitionPage() {
               <>
                 <option value="daily">Single day</option>
                 <option value="weekly">One week</option>
-                <option value="season">Full regular season</option>
+                <option value="season">{seasonOptionLabel}</option>
               </>
             )}
           </select>
+          {duration === "season" && (
+            <span className="text-xs text-slate-500 mt-1 block">
+              Ends {seasonEnd()}
+            </span>
+          )}
         </label>
 
         {/* Draft style */}
@@ -194,11 +265,6 @@ export default function NewCompetitionPage() {
             onChange={(e) => setStartDate(e.target.value)}
             required
           />
-          {duration === "season" && (
-            <span className="text-xs text-slate-500 mt-1 block">
-              Season ends {seasonEndFor(sport, startDate)}
-            </span>
-          )}
         </label>
 
         {/* Invite */}
