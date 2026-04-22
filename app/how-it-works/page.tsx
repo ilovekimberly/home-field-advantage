@@ -67,7 +67,8 @@ export default function HowItWorksPage() {
               {[
                 { emoji: "⚡", label: "Single day / Gameweek", desc: "One slate. Settle it tonight. Great for big game nights.", highlight: false },
                 { emoji: "📅", label: "One week / 4 gameweeks", desc: "A short series where every pick night counts.", highlight: false },
-                { emoji: "🏅", label: "Full season", desc: "NHL, MLB, or EPL — all the way to the end. For true bragging rights.", highlight: true },
+                { emoji: "🏅", label: "Full regular season", desc: "NHL or MLB — all the way to the final game of the regular season.", highlight: false },
+                { emoji: "🏆", label: "Full playoffs", desc: "Only available when the playoffs are active. Every series, every round — until the cup is lifted.", highlight: true },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -208,11 +209,65 @@ export default function HowItWorksPage() {
       {/* Divider */}
       <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
 
-      {/* Step 5 — Scoring */}
+      {/* Step 5 — Over/Under */}
       <section>
         <div className="flex items-start gap-6">
           <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
             5
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Over/Under picks (NHL)</h2>
+            <p className="text-slate-500 mb-5">
+              When creating an NHL competition you can turn on over/under picks. Instead of
+              picking a winner, you predict whether the total goals scored will go over or
+              under the posted line — on top of your regular draft picks.
+            </p>
+            <div className="grid gap-3">
+              {[
+                {
+                  icon: "⬆️",
+                  label: "Over",
+                  desc: "You think it'll be a high-scoring game. If the final total beats the line, you win.",
+                  color: "border-green-200 bg-green-50",
+                },
+                {
+                  icon: "⬇️",
+                  label: "Under",
+                  desc: "You're backing the goalies. If the final total comes in below the line, you win.",
+                  color: "border-blue-100 bg-blue-50",
+                },
+                {
+                  icon: "🎯",
+                  label: "Lands exactly on the line",
+                  desc: "No push here — a final total that hits the line exactly is scored as a loss.",
+                  color: "border-slate-200 bg-slate-50",
+                },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>
+                  <span className="text-xl mt-0.5">{item.icon}</span>
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm">{item.label}</div>
+                    <div className="text-sm text-slate-500 mt-0.5">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-3 flex items-center gap-1.5">
+              <span>📊</span>
+              Lines are pulled from live odds and locked in at the time you make your pick.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Step 6 — Scoring */}
+      <section>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
+            6
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Scoring — fully automatic</h2>
@@ -224,7 +279,7 @@ export default function HowItWorksPage() {
                 { icon: "✅", label: "Your team wins", sub: "You get a W. That's the game.", color: "border-green-200 bg-green-50" },
                 { icon: "❌", label: "Your team loses", sub: "You get an L. Accountability is part of the fun.", color: "border-red-200 bg-red-50" },
                 { icon: "🤝", label: "Draw (EPL only)", sub: "Counts as a push — no win, no loss.", color: "border-slate-200 bg-slate-50" },
-                { icon: "🔒", label: "Game starts → pick locks", sub: "Once the puck drops (or first pitch, or kickoff) that pick is locked in.", color: "border-slate-200 bg-slate-50" },
+                { icon: "🔒", label: "Game starts → pick locks", sub: "Once the puck drops (or first pitch) that pick is locked in.", color: "border-slate-200 bg-slate-50" },
               ].map((item) => (
                 <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>
                   <span className="text-xl mt-0.5">{item.icon}</span>
@@ -249,7 +304,11 @@ export default function HowItWorksPage() {
           style={{ backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 50%, white 1px, transparent 1px)", backgroundSize: "40px 40px" }}
         />
         <div className="relative">
-          <div className="text-4xl mb-3">🏒</div>
+          <div className="flex items-center justify-center gap-3 text-4xl mb-3">
+            <span>🏒</span>
+            <span>⚾</span>
+            <span>⚽</span>
+          </div>
           <h2 className="text-2xl font-extrabold text-white mb-2">Ready to settle the debate?</h2>
           <p className="text-white/70 mb-6 text-sm">Create a competition and send your opponent the link. Takes 60 seconds.</p>
           <Link href="/competitions/new" className="inline-flex items-center gap-2 bg-white text-rink font-bold px-8 py-3 rounded-xl hover:bg-ice transition-colors shadow-md text-base">
