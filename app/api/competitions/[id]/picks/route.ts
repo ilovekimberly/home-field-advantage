@@ -139,7 +139,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (nextProfile?.email) {
         const picksAlreadyMade = todays.length + 1; // include the one just saved
         const gamesRemaining = draft.order.length - picksAlreadyMade;
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
         const { subject, html } = yourTurnEmail({
           toName: nextProfile.display_name ?? nextProfile.email,

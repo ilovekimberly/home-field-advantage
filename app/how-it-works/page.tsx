@@ -10,7 +10,7 @@ export default function HowItWorksPage() {
           🏒 Pick'em · Draft · Compete
         </div>
         <h1 className="text-4xl font-extrabold text-slate-900 mb-4 leading-tight">
-          How Home Field Advantage works
+          How My Home Field works
         </h1>
         <p className="text-slate-500 text-lg leading-relaxed max-w-xl mx-auto">
           You and a friend draft game picks each night, sit back while results roll in,

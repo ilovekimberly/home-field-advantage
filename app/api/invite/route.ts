@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "competition not found or not yours" }, { status: 404 });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
   const inviteUrl = `${siteUrl}/join/${comp.invite_token}`;
   const creatorName = (comp.profiles as any)?.display_name ?? "Your friend";
 
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
           Or copy this link: ${inviteUrl}
         </p>
         <hr style="margin-top:40px;border:none;border-top:1px solid #eee;" />
-        <p style="color:#aaa;font-size:12px;">Home Field Advantage · NHL Pick'em</p>
+        <p style="color:#aaa;font-size:12px;">My Home Field · Pick'em</p>
       </div>
     `,
   });

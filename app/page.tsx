@@ -19,7 +19,7 @@ export default async function HomePage() {
       <div className="max-w-2xl space-y-10">
         {/* Hero */}
         <section className="text-center py-8">
-          <h1 className="text-4xl font-bold text-rink mb-4">🏒 Home Field Advantage</h1>
+          <h1 className="text-4xl font-bold text-rink mb-4">🏒 My Home Field</h1>
           <p className="text-slate-600 text-xl leading-relaxed mb-8 max-w-lg mx-auto">
             1v1 pick'em competitions with your friends. Draft game picks, track the scores, settle the debate.
           </p>

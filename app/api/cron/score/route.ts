@@ -130,7 +130,7 @@ export async function GET(req: Request) {
   }
 
   // ── 3. Auto-cancel pending comps with no opponent ─────────────────────
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
   function addDays(d: string, n: number) {
     const dt = new Date(d + "T00:00:00Z");

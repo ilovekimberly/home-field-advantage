@@ -61,7 +61,7 @@ export async function GET(req: Request, { params }: { params: { token: string } 
   const opponentProfile = profiles?.find((p) => p.id === user.id);
 
   if (creatorProfile?.email) {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
     const { subject, html } = opponentJoinedEmail({
       toName: creatorProfile.display_name ?? creatorProfile.email,
       opponentName: opponentProfile?.display_name ?? "Your opponent",

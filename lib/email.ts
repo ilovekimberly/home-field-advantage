@@ -22,7 +22,7 @@ export async function sendEmail({ to, subject, html }: EmailPayload): Promise<bo
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Home Field Advantage <onboarding@resend.dev>",
+      from: "My Home Field <noreply@myhomefield.team>",
       to: [to],
       subject,
       html,
@@ -46,7 +46,7 @@ function wrapper(content: string) {
       ${content}
       <hr style="margin-top:40px;border:none;border-top:1px solid #eee;" />
       <p style="color:#aaa;font-size:12px;margin-top:16px;">
-        Home Field Advantage · NHL Pick'em
+        My Home Field · Pick'em
       </p>
     </div>
   `;

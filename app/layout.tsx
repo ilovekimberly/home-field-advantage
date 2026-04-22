@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Sidebar from "./Sidebar";
 
 export const metadata: Metadata = {
-  title: "Home Field Advantage",
+  title: "My Home Field",
   description: "Pick'em competitions with your friends.",
 };
 
@@ -28,7 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <header className="fixed top-0 left-0 right-0 z-40 border-b border-slate-200 bg-white">
           <div className="mx-auto flex max-w-screen-xl items-center justify-between px-6 py-4">
-            <Link href="/" className="text-lg font-bold text-rink">🏒 Home Field Advantage</Link>
+            <Link href="/" className="text-lg font-bold text-rink">🏒 My Home Field</Link>
             <nav className="flex items-center gap-3 text-sm">
               <Link href="/how-it-works" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-rink bg-ice border border-rink/20 px-3 py-1.5 rounded-full hover:bg-rink hover:text-white transition-colors">
                 ❓ How it works

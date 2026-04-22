@@ -78,7 +78,7 @@ export async function GET(req: Request) {
   }) + " ET";
 
   const supabase = createSupabaseAdminClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://home-field-advantage.vercel.app";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
   // ── 3. Auto-cancel daily comps with no opponent once first game starts ─
   if (nowMs >= firstGameMs) {
