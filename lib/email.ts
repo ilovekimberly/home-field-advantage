@@ -197,3 +197,42 @@ export function competitionCancelledEmail({
     `),
   };
 }
+
+// Sent to the site owner when a support request or suggestion is submitted.
+export function feedbackEmail({
+  type,
+  fromName,
+  fromEmail,
+  message,
+}: {
+  type: "support" | "suggestion";
+  fromName: string;
+  fromEmail: string;
+  message: string;
+}) {
+  const isSupport = type === "support";
+  const title = isSupport ? "New support request" : "New game/sport suggestion";
+  const emoji = isSupport ? "🆘" : "💡";
+
+  return {
+    subject: `${emoji} ${title} from ${fromName}`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">${title}</h1>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+        <tr>
+          <td style="font-size:13px;color:#888;padding:4px 0;width:80px;">From</td>
+          <td style="font-size:14px;color:#222;padding:4px 0;">${fromName}</td>
+        </tr>
+        <tr>
+          <td style="font-size:13px;color:#888;padding:4px 0;">Email</td>
+          <td style="font-size:14px;color:#222;padding:4px 0;">${fromEmail}</td>
+        </tr>
+        <tr>
+          <td style="font-size:13px;color:#888;padding:4px 0;">Type</td>
+          <td style="font-size:14px;color:#222;padding:4px 0;">${isSupport ? "Support request" : "Suggestion"}</td>
+        </tr>
+      </table>
+      <div style="background:#f8f9fa;border-left:4px solid #0b1f3a;padding:16px;border-radius:4px;font-size:15px;line-height:1.6;color:#333;white-space:pre-wrap;">${message}</div>
+    `),
+  };
+}

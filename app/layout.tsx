@@ -65,11 +65,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         </header>
 
-        <div className="flex pt-[65px] min-h-screen">
-          {user && <Sidebar competitions={competitions} />}
-          <main className="flex-1 px-6 py-10 max-w-4xl mx-auto w-full">
-            {children}
-          </main>
+        <div className="flex pt-[65px] min-h-screen flex-col">
+          <div className="flex flex-1">
+            {user && <Sidebar competitions={competitions} />}
+            <main className="flex-1 px-6 py-10 max-w-4xl mx-auto w-full">
+              {children}
+            </main>
+          </div>
+          <footer className="border-t border-slate-100 py-4 px-6">
+            <div className="max-w-screen-xl mx-auto flex items-center justify-between text-xs text-slate-400">
+              <span>© {new Date().getFullYear()} My Home Field</span>
+              <div className="flex items-center gap-4">
+                <Link href="/suggest" className="hover:text-slate-600 transition-colors">💡 Suggest a sport</Link>
+                <Link href="/support" className="hover:text-slate-600 transition-colors">🆘 Support</Link>
+              </div>
+            </div>
+          </footer>
         </div>
       </body>
     </html>
