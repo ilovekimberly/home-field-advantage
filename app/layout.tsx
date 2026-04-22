@@ -31,7 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="flex items-center gap-4">
               <Link href="/" className="text-lg font-bold text-rink">🏒 My Home Field</Link>
               <Link href="/how-it-works" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-rink bg-ice border border-rink/20 px-3 py-1.5 rounded-full hover:bg-rink hover:text-white transition-colors">
-                ❓ How it works
+                How it works
               </Link>
             </div>
             <nav className="flex items-center gap-3 text-sm">
@@ -56,8 +56,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       {user.user_metadata?.name ?? user.email}
                     </span>
                   </Link>
-                  <Link href="/suggest" className="hidden sm:inline-flex text-slate-400 hover:text-rink transition-colors" title="Suggest a sport">💡</Link>
-                  <Link href="/support" className="hidden sm:inline-flex text-slate-400 hover:text-rink transition-colors" title="Support">🆘</Link>
+                  <Link href="/suggest" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-rink transition-colors">💡 Share an Idea</Link>
+                  <Link href="/support" className="hidden sm:inline-flex text-lg text-slate-400 hover:text-rink transition-colors" title="Support">❓</Link>
                   <form action="/auth/signout" method="post">
                     <button className="btn-ghost" type="submit">Sign out</button>
                   </form>
