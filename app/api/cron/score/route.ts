@@ -70,9 +70,24 @@ export async function GET(req: Request) {
         }
         console.log(`cron/score: [${pick.competition_id}] scoring game ${pick.game_id}, state: ${game.gameState}`);
 
-        const winner = winnerAbbrevGame(game);
-        const result = winner === null ? "push"
-          : winner === pick.picked_team_abbrev ? "win" : "loss";
+        let result: string;
+        if (pick.pick_type === "over_under") {
+          const finalTotal = (game.homeScore ?? 0) + (game.awayScore ?? 0);
+          const line = pick.total_line;
+          if (line == null) {
+            result = "unscored";
+          } else if (finalTotal === line) {
+            result = "loss"; // exact total = loss per rules
+          } else if (finalTotal > line) {
+            result = pick.over_under_choice === "over" ? "win" : "loss";
+          } else {
+            result = pick.over_under_choice === "under" ? "win" : "loss";
+          }
+        } else {
+          const winner = winnerAbbrevGame(game);
+          result = winner === null ? "push"
+            : winner === pick.picked_team_abbrev ? "win" : "loss";
+        }
 
         const { error: updateErr } = await supabase
           .from("picks").update({ result }).eq("id", pick.id);

@@ -14,7 +14,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!user) return NextResponse.json({ error: "unauth" }, { status: 401 });
 
   const body = await req.json();
-  const { gameDate, gameId, teamAbbrev, teamName, pickIndex } = body;
+  const {
+    gameDate, gameId, teamAbbrev, teamName, pickIndex,
+    pickType = "winner", overUnderChoice, totalLine,
+  } = body;
 
   const { data: comp } = await supabase
     .from("competitions").select("*").eq("id", params.id).single();
@@ -100,9 +103,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   let result = "pending";
   if (isFinalGame(game)) {
-    const w = winnerAbbrevGame(game);
-    if (w == null) result = "push";
-    else result = w === teamAbbrev ? "win" : "loss";
+    if (pickType === "over_under") {
+      // Score over/under immediately if game is already final.
+      const finalTotal = (game.homeScore ?? 0) + (game.awayScore ?? 0);
+      if (finalTotal === totalLine) {
+        result = "loss"; // exact total = loss
+      } else if (finalTotal > totalLine) {
+        result = overUnderChoice === "over" ? "win" : "loss";
+      } else {
+        result = overUnderChoice === "under" ? "win" : "loss";
+      }
+    } else {
+      const w = winnerAbbrevGame(game);
+      if (w == null) result = "push";
+      else result = w === teamAbbrev ? "win" : "loss";
+    }
   }
 
   const { error: insErr } = await supabase.from("picks").insert({
@@ -113,6 +128,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     picked_team_abbrev: teamAbbrev,
     picked_team_name: teamName,
     pick_index: pickIndex,
+    pick_type: pickType,
+    over_under_choice: pickType === "over_under" ? overUnderChoice : null,
+    total_line: pickType === "over_under" ? totalLine : null,
     result,
   });
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 400 });

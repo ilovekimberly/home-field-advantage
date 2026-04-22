@@ -70,6 +70,19 @@ export default async function CompetitionPage({
     .from("picks").select("*").eq("competition_id", comp.id);
 
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
+
+  // Game lines for the active date (over/under feature, NHL only)
+  const gameLineRows = comp.enable_over_under
+    ? (await supabase
+        .from("game_lines")
+        .select("game_id, total_line")
+        .eq("game_date", activeDate)
+      ).data ?? []
+    : [];
+  const gameLines: Record<string, number> = {};
+  for (const row of gameLineRows) {
+    gameLines[String(row.game_id)] = row.total_line;
+  }
   const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
 
   // Prior records (relative to activeDate)
@@ -278,6 +291,8 @@ export default async function CompetitionPage({
           playerAName={creatorProfile?.display_name ?? "Creator"}
           playerBName={opponentProfile?.display_name ?? "Opponent"}
           currentUserId={user.id}
+          enableOverUnder={!!comp.enable_over_under}
+          gameLines={gameLines}
           waitingForDefer={
             isViewingToday &&
             !deferChoiceMade &&

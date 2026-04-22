@@ -26,6 +26,9 @@ type Pick = {
   picked_team_name: string;
   pick_index: number;
   result: string;
+  pick_type?: string;         // 'winner' | 'over_under'
+  over_under_choice?: string; // 'over' | 'under'
+  total_line?: number;
 };
 
 function initials(name: string) {
@@ -92,7 +95,9 @@ function ScoreBadge({ g }: { g: Game }) {
 
 export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
-  draftOrder, playerAId, playerBId, playerAName, playerBName, currentUserId, waitingForDefer, readOnly,
+  draftOrder, playerAId, playerBId, playerAName, playerBName,
+  currentUserId, waitingForDefer, readOnly,
+  enableOverUnder, gameLines,
 }: {
   competitionId: string;
   activeDate: string;
@@ -106,6 +111,8 @@ export default function PickRoom({
   currentUserId: string;
   waitingForDefer?: boolean;
   readOnly?: boolean;
+  enableOverUnder?: boolean;
+  gameLines?: Record<string, number>; // game_id → total line
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -145,7 +152,46 @@ export default function PickRoom({
     const res = await fetch(`/api/competitions/${competitionId}/picks`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ gameDate: activeDate, gameId, teamAbbrev, teamName, pickIndex: nextIndex }),
+      body: JSON.stringify({
+        gameDate: activeDate,
+        gameId,
+        teamAbbrev,
+        teamName,
+        pickIndex: nextIndex,
+        pickType: "winner",
+      }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setError(j.error ?? "Failed to save pick");
+      setBusy(false);
+      return;
+    }
+    router.refresh();
+    setBusy(false);
+  }
+
+  async function makeOverUnderPick(
+    gameId: number | string,
+    choice: "over" | "under",
+    line: number
+  ) {
+    if (!isMyTurn) return;
+    setBusy(true); setError(null);
+    const label = choice === "over" ? `Over ${line}` : `Under ${line}`;
+    const res = await fetch(`/api/competitions/${competitionId}/picks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        gameDate: activeDate,
+        gameId,
+        teamAbbrev: choice.toUpperCase(),   // "OVER" or "UNDER"
+        teamName: label,                     // "Over 5.5" or "Under 5.5"
+        pickIndex: nextIndex,
+        pickType: "over_under",
+        overUnderChoice: choice,
+        totalLine: line,
+      }),
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
@@ -203,6 +249,13 @@ export default function PickRoom({
         )}
       </div>
 
+      {enableOverUnder && (
+        <p className="text-xs text-slate-400 mb-3 bg-slate-50 rounded-lg px-3 py-2">
+          ⚖️ <b>Over/Under available.</b> Use your pick slot on total goals instead of a winner.
+          If the final total lands exactly on the line, the pick is a <b>loss</b>.
+        </p>
+      )}
+
       {error && <div className="text-red-600 mb-2 text-sm">{error}</div>}
 
       <ul className="grid gap-2">
@@ -212,6 +265,24 @@ export default function PickRoom({
           const started = gameStarted(g.startTimeUTC);
           const winner = g.winner;
           const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
+          const line = gameLines?.[String(g.id)];
+          const hasLine = enableOverUnder && line != null;
+
+          const isOUPick = pick?.pick_type === "over_under";
+          const isWinnerPick = !isOUPick;
+
+          // For live/final O/U result display
+          const finalTotal = g.final && g.homeScore != null && g.awayScore != null
+            ? g.homeScore + g.awayScore
+            : null;
+
+          const ouResult = isOUPick && finalTotal != null && pick?.total_line != null
+            ? (finalTotal === pick.total_line
+                ? "loss"  // exact = loss per rules
+                : finalTotal > pick.total_line
+                  ? (pick.over_under_choice === "over" ? "win" : "loss")
+                  : (pick.over_under_choice === "under" ? "win" : "loss"))
+            : null;
 
           return (
             <li
@@ -221,6 +292,7 @@ export default function PickRoom({
                 started && !taken ? "opacity-60 bg-slate-50" : ""
               }`}
             >
+              {/* Game header */}
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm">
@@ -237,6 +309,8 @@ export default function PickRoom({
                       <span className="text-xs text-slate-500">{winner} won</span>
                     )}
                   </div>
+
+                  {/* Pick display */}
                   {pick && (() => {
                     const pickerIsA = pick.picker_id === playerAId;
                     const pickerName = pickerIsA ? playerAName : (playerBName || "Opponent");
@@ -244,13 +318,23 @@ export default function PickRoom({
                     return (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                         <PickerChip name={pickerName} isMe={pickerIsMe} />
-                        <span className="text-sm text-slate-600">→ <b>{pick.picked_team_name}</b></span>
-                        {g.final && winner && (
+                        <span className="text-sm text-slate-600">
+                          → <b>{pick.picked_team_name}</b>
+                        </span>
+                        {isWinnerPick && g.final && winner && (
                           pick.picked_team_abbrev === winner
                             ? <span className="text-green-700 text-sm">✓ win</span>
                             : <span className="text-red-600 text-sm">✗ loss</span>
                         )}
-                        {isLive && g.homeScore != null && (
+                        {isOUPick && g.final && ouResult && (
+                          ouResult === "win"
+                            ? <span className="text-green-700 text-sm">✓ win · {finalTotal} goals</span>
+                            : <span className="text-red-600 text-sm">✗ loss · {finalTotal} goals</span>
+                        )}
+                        {isOUPick && isLive && finalTotal != null && (
+                          <span className="text-slate-400 text-xs">({finalTotal} so far)</span>
+                        )}
+                        {isWinnerPick && isLive && g.homeScore != null && (
                           <span className="text-slate-400 text-xs">
                             ({pick.picked_team_abbrev === g.home.abbrev
                               ? `${g.homeScore} – ${g.awayScore}`
@@ -262,7 +346,7 @@ export default function PickRoom({
                   })()}
                 </div>
 
-                {/* Pick buttons */}
+                {/* Winner pick buttons */}
                 {!taken && !started && !readOnly && (
                   <div className="flex gap-2 shrink-0 ml-3">
                     <button
@@ -286,6 +370,44 @@ export default function PickRoom({
                   <span className="text-xs text-slate-400 ml-3 shrink-0">🔒 Locked</span>
                 )}
               </div>
+
+              {/* Over/Under section */}
+              {hasLine && (
+                <div className={`mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 ${
+                  taken && isWinnerPick ? "opacity-40" : ""
+                }`}>
+                  <span className="text-xs text-slate-500">
+                    ⚖️ Total {line} goals
+                    {g.final && finalTotal != null && (
+                      <span className="ml-1 text-slate-400">· final: {finalTotal}</span>
+                    )}
+                  </span>
+                  {!taken && !started && !readOnly && (
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        disabled={!isMyTurn || busy || waitingForDefer}
+                        onClick={() => makeOverUnderPick(g.id, "over", line)}
+                        className="btn-ghost disabled:opacity-30 text-xs px-2 py-1"
+                      >
+                        Over {line}
+                      </button>
+                      <button
+                        disabled={!isMyTurn || busy || waitingForDefer}
+                        onClick={() => makeOverUnderPick(g.id, "under", line)}
+                        className="btn-ghost disabled:opacity-30 text-xs px-2 py-1"
+                      >
+                        Under {line}
+                      </button>
+                    </div>
+                  )}
+                  {taken && isOUPick && !started && (
+                    <span className="text-xs text-slate-400">Picked</span>
+                  )}
+                  {!taken && started && (
+                    <span className="text-xs text-slate-400">🔒</span>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
