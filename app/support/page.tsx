@@ -1,25 +1,13 @@
 "use client";
 import { useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function SupportPage() {
-  const supabase = createSupabaseBrowserClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Pre-fill from session if logged in.
-  useState(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setEmail(user.email ?? "");
-        setName(user.user_metadata?.name ?? "");
-      }
-    });
-  });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

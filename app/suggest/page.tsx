@@ -1,25 +1,13 @@
 "use client";
 import { useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function SuggestPage() {
-  const supabase = createSupabaseBrowserClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Pre-fill from session if logged in.
-  useState(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setEmail(user.email ?? "");
-        setName(user.user_metadata?.name ?? "");
-      }
-    });
-  });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +42,7 @@ export default function SuggestPage() {
 
   return (
     <div className="max-w-xl mx-auto card">
-      <h1 className="text-2xl font-bold mb-1">Suggest a sport or game type</h1>
+      <h1 className="text-2xl font-bold mb-1">Share an idea</h1>
       <p className="text-slate-500 text-sm mb-6">
         Want to see a new sport, competition format, or pick type? Tell us about it.
       </p>
