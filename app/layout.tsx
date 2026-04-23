@@ -77,12 +77,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </main>
           </div>
           <footer className="border-t border-slate-100 py-4 px-6">
-            <div className="max-w-screen-xl mx-auto flex items-center justify-between text-xs text-slate-400">
+            <div className="max-w-screen-xl mx-auto text-xs text-slate-400">
               <span>© {new Date().getFullYear()} My Home Field</span>
-              <div className="flex items-center gap-4">
-                <Link href="/suggest" className="hover:text-slate-600 transition-colors">💡 Suggest a sport</Link>
-                <Link href="/support" className="hover:text-slate-600 transition-colors">🆘 Support</Link>
-              </div>
             </div>
           </footer>
         </div>

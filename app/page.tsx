@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { whoPicksFirst, generateDraftOrder, type Player, type DraftStyle } from "@/lib/picks";
+import { fetchScheduleForDate, getPickDate } from "@/lib/schedule";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function daysAgo(n: number) {
@@ -90,16 +91,41 @@ export default async function HomePage() {
 
   // ── Which active competitions need my pick tonight ─────────────────────
   const activeComps = (competitions ?? []).filter((c) => c.status === "active" && c.opponent_id);
-  const needsMyPick: { comp: any; opponentName: string }[] = [];
 
+  // Compute the active date for each comp, then batch-fetch schedules grouped
+  // by (sport, date) so we only hit the schedule API once per pair.
+  const compActiveDates: Record<string, string> = {};
   for (const comp of activeComps) {
-    const picks = (allPicks ?? []).filter((p) => p.competition_id === comp.id);
-    const activeDate =
+    const raw =
       comp.duration === "daily" ? comp.start_date :
       today < comp.start_date ? comp.start_date :
       today > comp.end_date ? comp.end_date : today;
+    compActiveDates[comp.id] = getPickDate(comp.sport ?? "NHL", raw);
+  }
 
+  const sportDatePairs = Array.from(
+    new Set(activeComps.map((c) => `${c.sport ?? "NHL"}__${compActiveDates[c.id]}`))
+  );
+  const gameCountMap: Record<string, number> = {};
+  await Promise.all(
+    sportDatePairs.map(async (pair) => {
+      const [sport, date] = pair.split("__");
+      try {
+        const games = await fetchScheduleForDate(sport, date);
+        gameCountMap[pair] = games.length;
+      } catch {
+        gameCountMap[pair] = 20; // safe fallback
+      }
+    })
+  );
+
+  const needsMyPick: { comp: any; opponentName: string }[] = [];
+
+  for (const comp of activeComps) {
+    const activeDate = compActiveDates[comp.id];
+    const picks = (allPicks ?? []).filter((p) => p.competition_id === comp.id);
     const dayPicks = picks.filter((p) => p.game_date === activeDate);
+
     const recordA = { wins: 0, losses: 0, pushes: 0 };
     const recordB = { wins: 0, losses: 0, pushes: 0 };
     for (const p of picks) {
@@ -129,8 +155,9 @@ export default async function HomePage() {
       deferred = firstPickSlot !== firstPickerSlot;
     }
 
+    const numGames = gameCountMap[`${comp.sport ?? "NHL"}__${activeDate}`] ?? 20;
     const draft = generateDraftOrder({
-      numGames: 20,
+      numGames,
       firstPicker: firstPickerSlot,
       deferred,
       draftStyle: (comp.draft_style ?? "standard") as DraftStyle,
