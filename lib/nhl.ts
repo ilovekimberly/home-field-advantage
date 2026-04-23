@@ -1,3 +1,44 @@
+// Full team name lookup — used when the API doesn't return placeName/commonName.
+const NHL_TEAM_NAMES: Record<string, string> = {
+  ANA: "Anaheim Ducks",
+  BOS: "Boston Bruins",
+  BUF: "Buffalo Sabres",
+  CGY: "Calgary Flames",
+  CAR: "Carolina Hurricanes",
+  CHI: "Chicago Blackhawks",
+  COL: "Colorado Avalanche",
+  CBJ: "Columbus Blue Jackets",
+  DAL: "Dallas Stars",
+  DET: "Detroit Red Wings",
+  EDM: "Edmonton Oilers",
+  FLA: "Florida Panthers",
+  LAK: "Los Angeles Kings",
+  MIN: "Minnesota Wild",
+  MTL: "Montréal Canadiens",
+  NSH: "Nashville Predators",
+  NJD: "New Jersey Devils",
+  NYI: "New York Islanders",
+  NYR: "New York Rangers",
+  OTT: "Ottawa Senators",
+  PHI: "Philadelphia Flyers",
+  PIT: "Pittsburgh Penguins",
+  SJS: "San Jose Sharks",
+  SEA: "Seattle Kraken",
+  STL: "St. Louis Blues",
+  TBL: "Tampa Bay Lightning",
+  TOR: "Toronto Maple Leafs",
+  UTA: "Utah Hockey Club",
+  VAN: "Vancouver Canucks",
+  VGK: "Vegas Golden Knights",
+  WSH: "Washington Capitals",
+  WPG: "Winnipeg Jets",
+};
+
+function teamName(t: { abbrev: string; placeName?: { default?: string }; commonName?: { default?: string } }): string {
+  const constructed = `${t.placeName?.default ?? ""} ${t.commonName?.default ?? ""}`.trim();
+  return constructed || NHL_TEAM_NAMES[t.abbrev] || t.abbrev;
+}
+
 // Thin wrapper around the public NHL schedule API.
 // Endpoint format (no auth required):
 //   https://api-web.nhle.com/v1/schedule/YYYY-MM-DD
@@ -35,16 +76,8 @@ export async function fetchNHLScheduleForDate(date: string, noCache = false): Pr
     id: g.id,
     startTimeUTC: g.startTimeUTC,
     gameState: g.gameState,
-    homeTeam: {
-      abbrev: g.homeTeam.abbrev,
-      name: `${g.homeTeam.placeName?.default ?? ""} ${g.homeTeam.commonName?.default ?? g.homeTeam.abbrev}`.trim(),
-      id: g.homeTeam.id,
-    },
-    awayTeam: {
-      abbrev: g.awayTeam.abbrev,
-      name: `${g.awayTeam.placeName?.default ?? ""} ${g.awayTeam.commonName?.default ?? g.awayTeam.abbrev}`.trim(),
-      id: g.awayTeam.id,
-    },
+    homeTeam: { abbrev: g.homeTeam.abbrev, name: teamName(g.homeTeam), id: g.homeTeam.id },
+    awayTeam: { abbrev: g.awayTeam.abbrev, name: teamName(g.awayTeam), id: g.awayTeam.id },
     homeScore: g.homeTeam.score,
     awayScore: g.awayTeam.score,
     period: g.period,
