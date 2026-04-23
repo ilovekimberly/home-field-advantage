@@ -250,7 +250,7 @@ export default async function CompetitionPage({
           <h2 className="text-lg font-bold">
             {comp.sport === "EPL"
               ? `Gameweek · ${activeDate}`
-              : activeDate}
+              : new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
           </h2>
           {isViewingToday && <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />}
         </div>
