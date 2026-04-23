@@ -128,6 +128,7 @@ export default function NewCompetitionPage() {
         body: JSON.stringify({ competitionId: data.id, toEmail: inviteEmail }),
       }).catch(() => {});
     }
+    router.refresh();
     router.push(`/competitions/${data.id}`);
   }
 
