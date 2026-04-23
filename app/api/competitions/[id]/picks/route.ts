@@ -17,6 +17,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const {
     gameDate, gameId, teamAbbrev, teamName, pickIndex,
     pickType = "winner", overUnderChoice, totalLine,
+    spreadChoice, spreadLine,
   } = body;
 
   const { data: comp } = await supabase
@@ -104,14 +105,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   let result = "pending";
   if (isFinalGame(game)) {
     if (pickType === "over_under") {
-      // Score over/under immediately if game is already final.
       const finalTotal = (game.homeScore ?? 0) + (game.awayScore ?? 0);
-      if (finalTotal === totalLine) {
-        result = "loss"; // exact total = loss
-      } else if (finalTotal > totalLine) {
-        result = overUnderChoice === "over" ? "win" : "loss";
+      if (finalTotal === totalLine) result = "loss";
+      else if (finalTotal > totalLine) result = overUnderChoice === "over" ? "win" : "loss";
+      else result = overUnderChoice === "under" ? "win" : "loss";
+    } else if (pickType === "spread") {
+      if (spreadLine == null) {
+        result = "unscored";
       } else {
-        result = overUnderChoice === "under" ? "win" : "loss";
+        const coverMargin = ((game.homeScore ?? 0) - (game.awayScore ?? 0)) + spreadLine;
+        if (coverMargin === 0) result = "loss"; // push = loss
+        else if (spreadChoice === "home") result = coverMargin > 0 ? "win" : "loss";
+        else result = coverMargin < 0 ? "win" : "loss";
       }
     } else {
       const w = winnerAbbrevGame(game);
@@ -130,7 +135,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     pick_index: pickIndex,
     pick_type: pickType,
     over_under_choice: pickType === "over_under" ? overUnderChoice : null,
-    total_line: pickType === "over_under" ? totalLine : null,
+    total_line:        pickType === "over_under" ? totalLine : null,
+    spread_choice:     pickType === "spread" ? spreadChoice : null,
+    spread_line:       pickType === "spread" ? spreadLine : null,
     result,
   });
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 400 });

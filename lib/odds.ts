@@ -1,17 +1,28 @@
-// Thin wrapper around The Odds API for NHL game totals.
+// Wrapper around The Odds API for NHL (and eventually MLB) game lines.
 // Docs: https://the-odds-api.com/liveapi/guides/v4/
 //
-// We fetch totals once per day and freeze them so the line doesn't move
-// after players start picking.
+// Fetches h2h (moneyline), spreads, and totals in a single API call.
+// Lines are frozen once per day before puck drop so they don't move during picks.
 
 export type GameLine = {
-  homeTeam: string; // full name e.g. "Toronto Maple Leafs"
+  homeTeam: string;       // full name e.g. "Toronto Maple Leafs"
   awayTeam: string;
-  commenceTime: string; // ISO timestamp
-  totalLine: number;    // e.g. 5.5
+  commenceTime: string;   // ISO timestamp
+  // Totals
+  totalLine: number | null;
+  overOdds: number | null;
+  underOdds: number | null;
+  // Moneyline (American odds, e.g. -150 / +130)
+  homeMoneyline: number | null;
+  awayMoneyline: number | null;
+  // Spread (home team perspective, e.g. homeSpread = -1.5, awaySpread = +1.5)
+  homeSpread: number | null;
+  awaySpread: number | null;
+  homeSpreadOdds: number | null;
+  awaySpreadOdds: number | null;
 };
 
-// Preferred bookmakers in priority order — first one found wins.
+// Preferred bookmakers in priority order — first one with data wins.
 const BOOKMAKER_PRIORITY = [
   "draftkings",
   "fanduel",
@@ -20,13 +31,20 @@ const BOOKMAKER_PRIORITY = [
   "pointsbetus",
 ];
 
-export async function fetchNHLTotals(): Promise<GameLine[]> {
+export async function fetchNHLGameLines(): Promise<GameLine[]> {
+  return fetchGameLines("icehockey_nhl");
+}
+
+// Keep old name as an alias for any existing imports.
+export const fetchNHLTotals = fetchNHLGameLines;
+
+async function fetchGameLines(sport: string): Promise<GameLine[]> {
   const apiKey = process.env.ODDS_API_KEY;
   if (!apiKey) throw new Error("ODDS_API_KEY is not set");
 
   const url =
-    `https://api.the-odds-api.com/v4/sports/icehockey_nhl/odds/` +
-    `?apiKey=${apiKey}&regions=us&markets=totals&oddsFormat=american`;
+    `https://api.the-odds-api.com/v4/sports/${sport}/odds/` +
+    `?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`;
 
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
@@ -38,40 +56,83 @@ export async function fetchNHLTotals(): Promise<GameLine[]> {
   const lines: GameLine[] = [];
 
   for (const game of data) {
-    const line = extractTotalLine(game.bookmakers ?? []);
-    if (line !== null) {
-      lines.push({
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
-        commenceTime: game.commence_time,
-        totalLine: line,
-      });
-    }
+    const bms = game.bookmakers ?? [];
+    lines.push({
+      homeTeam: game.home_team,
+      awayTeam: game.away_team,
+      commenceTime: game.commence_time,
+      ...extractTotals(bms, game.home_team),
+      ...extractMoneyline(bms, game.home_team, game.away_team),
+      ...extractSpread(bms, game.home_team, game.away_team),
+    });
   }
 
   return lines;
 }
 
-function extractTotalLine(bookmakers: any[]): number | null {
-  // Try preferred bookmakers first, then fall back to any available.
-  const ordered = [
+// ── Market extractors ──────────────────────────────────────────────────────
+
+function preferredBookmakers(bookmakers: any[]): any[] {
+  return [
     ...BOOKMAKER_PRIORITY.map((k) => bookmakers.find((b) => b.key === k)).filter(Boolean),
     ...bookmakers.filter((b) => !BOOKMAKER_PRIORITY.includes(b.key)),
   ];
-
-  for (const bm of ordered) {
-    const market = (bm.markets ?? []).find((m: any) => m.key === "totals");
-    if (!market) continue;
-    const over = market.outcomes?.find((o: any) => o.name === "Over");
-    if (over?.point != null) return over.point;
-  }
-  return null;
 }
 
-// Match Odds API team names to NHL API team names.
-// The Odds API uses full names like "Toronto Maple Leafs";
-// the NHL API constructs names as "{city} {commonName}" which should match.
-// We do a case-insensitive substring check as a fallback.
+function extractTotals(bookmakers: any[], _homeTeam: string) {
+  for (const bm of preferredBookmakers(bookmakers)) {
+    const market = (bm.markets ?? []).find((m: any) => m.key === "totals");
+    if (!market) continue;
+    const over  = market.outcomes?.find((o: any) => o.name === "Over");
+    const under = market.outcomes?.find((o: any) => o.name === "Under");
+    if (over?.point != null) {
+      return {
+        totalLine:  over.point as number,
+        overOdds:   over.price  != null ? Math.round(over.price)  : null,
+        underOdds:  under?.price != null ? Math.round(under.price) : null,
+      };
+    }
+  }
+  return { totalLine: null, overOdds: null, underOdds: null };
+}
+
+function extractMoneyline(bookmakers: any[], homeTeam: string, awayTeam: string) {
+  for (const bm of preferredBookmakers(bookmakers)) {
+    const market = (bm.markets ?? []).find((m: any) => m.key === "h2h");
+    if (!market) continue;
+    const home = market.outcomes?.find((o: any) => matchTeamName(o.name, homeTeam));
+    const away = market.outcomes?.find((o: any) => matchTeamName(o.name, awayTeam));
+    if (home?.price != null && away?.price != null) {
+      return {
+        homeMoneyline: Math.round(home.price) as number,
+        awayMoneyline: Math.round(away.price) as number,
+      };
+    }
+  }
+  return { homeMoneyline: null, awayMoneyline: null };
+}
+
+function extractSpread(bookmakers: any[], homeTeam: string, awayTeam: string) {
+  for (const bm of preferredBookmakers(bookmakers)) {
+    const market = (bm.markets ?? []).find((m: any) => m.key === "spreads");
+    if (!market) continue;
+    const home = market.outcomes?.find((o: any) => matchTeamName(o.name, homeTeam));
+    const away = market.outcomes?.find((o: any) => matchTeamName(o.name, awayTeam));
+    if (home?.point != null && away?.point != null) {
+      return {
+        homeSpread:     home.point  as number,
+        awaySpread:     away.point  as number,
+        homeSpreadOdds: home.price  != null ? Math.round(home.price)  : null,
+        awaySpreadOdds: away.price  != null ? Math.round(away.price)  : null,
+      };
+    }
+  }
+  return { homeSpread: null, awaySpread: null, homeSpreadOdds: null, awaySpreadOdds: null };
+}
+
+// ── Team name matching ─────────────────────────────────────────────────────
+// The Odds API and NHL API both use full names ("Toronto Maple Leafs").
+// Case-insensitive substring match handles minor differences.
 export function matchTeamName(oddsName: string, nhlName: string): boolean {
   const a = oddsName.toLowerCase().trim();
   const b = nhlName.toLowerCase().trim();

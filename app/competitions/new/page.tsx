@@ -42,6 +42,7 @@ export default function NewCompetitionPage() {
   const [startDate, setStartDate] = useState(todayISO());
   const [draftStyle, setDraftStyle] = useState<DraftStyle>("standard");
   const [enableOverUnder, setEnableOverUnder] = useState(false);
+  const [enableSpread, setEnableSpread] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +113,7 @@ export default function NewCompetitionPage() {
         duration,
         draft_style: draftStyle,
         enable_over_under: sport === "NHL" ? enableOverUnder : false,
+        enable_spread: sport === "NHL" ? enableSpread : false,
         start_date: startDate,
         end_date: end,
         creator_id: user.id,
@@ -258,36 +260,61 @@ export default function NewCompetitionPage() {
           </div>
         </div>
 
-        {/* Over/Under toggle — NHL only */}
+        {/* Pick type toggles — NHL only */}
         {sport === "NHL" && (
           <div>
             <span className="block text-sm font-medium mb-2">Pick types</span>
-            <button
-              type="button"
-              onClick={() => setEnableOverUnder((v) => !v)}
-              className={`w-full flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-colors ${
-                enableOverUnder
-                  ? "border-rink bg-ice"
-                  : "border-slate-200 hover:border-slate-300"
-              }`}
-            >
-              <div className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                enableOverUnder ? "bg-rink border-rink" : "border-slate-300"
-              }`}>
-                {enableOverUnder && <span className="text-white text-[10px] font-bold">✓</span>}
-              </div>
-              <div>
-                <span className={`text-sm font-semibold ${enableOverUnder ? "text-rink" : "text-slate-700"}`}>
-                  Enable over/under goal picks
-                </span>
-                <p className="text-xs text-slate-400 leading-snug mt-0.5">
-                  Each game also shows a goal total line. Players can use their pick
-                  slot on over/under instead of (or in place of) a winner pick.
-                  Lines are pulled from live odds each day and frozen before puck drop.
-                  If the final total lands exactly on the line, the pick is a loss.
-                </p>
-              </div>
-            </button>
+            <div className="space-y-2">
+              {/* Over/Under toggle */}
+              <button
+                type="button"
+                onClick={() => setEnableOverUnder((v) => !v)}
+                className={`w-full flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-colors ${
+                  enableOverUnder ? "border-rink bg-ice" : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <div className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                  enableOverUnder ? "bg-rink border-rink" : "border-slate-300"
+                }`}>
+                  {enableOverUnder && <span className="text-white text-[10px] font-bold">✓</span>}
+                </div>
+                <div>
+                  <span className={`text-sm font-semibold ${enableOverUnder ? "text-rink" : "text-slate-700"}`}>
+                    Enable over/under goal picks
+                  </span>
+                  <p className="text-xs text-slate-400 leading-snug mt-0.5">
+                    Use a pick slot on total goals (over/under) instead of a winner.
+                    Lines and odds are pulled from live markets and frozen before puck drop.
+                    Exact total = loss.
+                  </p>
+                </div>
+              </button>
+
+              {/* Spread toggle */}
+              <button
+                type="button"
+                onClick={() => setEnableSpread((v) => !v)}
+                className={`w-full flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-colors ${
+                  enableSpread ? "border-rink bg-ice" : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <div className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                  enableSpread ? "bg-rink border-rink" : "border-slate-300"
+                }`}>
+                  {enableSpread && <span className="text-white text-[10px] font-bold">✓</span>}
+                </div>
+                <div>
+                  <span className={`text-sm font-semibold ${enableSpread ? "text-rink" : "text-slate-700"}`}>
+                    Enable spread picks
+                  </span>
+                  <p className="text-xs text-slate-400 leading-snug mt-0.5">
+                    Use a pick slot on the puck line (spread) instead of a winner.
+                    Moneyline odds appear next to all team buttons for context.
+                    Push = loss.
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
         )}
 

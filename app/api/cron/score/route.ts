@@ -74,14 +74,19 @@ export async function GET(req: Request) {
         if (pick.pick_type === "over_under") {
           const finalTotal = (game.homeScore ?? 0) + (game.awayScore ?? 0);
           const line = pick.total_line;
-          if (line == null) {
+          if (line == null) result = "unscored";
+          else if (finalTotal === line) result = "loss";
+          else if (finalTotal > line) result = pick.over_under_choice === "over" ? "win" : "loss";
+          else result = pick.over_under_choice === "under" ? "win" : "loss";
+        } else if (pick.pick_type === "spread") {
+          const spreadLine = pick.spread_line;
+          if (spreadLine == null) {
             result = "unscored";
-          } else if (finalTotal === line) {
-            result = "loss"; // exact total = loss per rules
-          } else if (finalTotal > line) {
-            result = pick.over_under_choice === "over" ? "win" : "loss";
           } else {
-            result = pick.over_under_choice === "under" ? "win" : "loss";
+            const coverMargin = ((game.homeScore ?? 0) - (game.awayScore ?? 0)) + spreadLine;
+            if (coverMargin === 0) result = "loss"; // push = loss
+            else if (pick.spread_choice === "home") result = coverMargin > 0 ? "win" : "loss";
+            else result = coverMargin < 0 ? "win" : "loss";
           }
         } else {
           const winner = winnerAbbrevGame(game);

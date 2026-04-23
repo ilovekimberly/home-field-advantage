@@ -71,17 +71,40 @@ export default async function CompetitionPage({
 
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
 
-  // Game lines for the active date (over/under feature, NHL only)
-  const gameLineRows = comp.enable_over_under
+  // Game lines for the active date (over/under + spread + moneyline, NHL only)
+  const needsLines = comp.enable_over_under || comp.enable_spread;
+  const gameLineRows = needsLines
     ? (await supabase
         .from("game_lines")
-        .select("game_id, total_line")
+        .select("game_id, total_line, over_odds, under_odds, home_ml, away_ml, home_spread, away_spread, home_spread_odds, away_spread_odds")
         .eq("game_date", activeDate)
       ).data ?? []
     : [];
-  const gameLines: Record<string, number> = {};
+
+  type GameLineData = {
+    totalLine?: number | null;
+    overOdds?: number | null;
+    underOdds?: number | null;
+    homeML?: number | null;
+    awayML?: number | null;
+    homeSpread?: number | null;
+    awaySpread?: number | null;
+    homeSpreadOdds?: number | null;
+    awaySpreadOdds?: number | null;
+  };
+  const gameLines: Record<string, GameLineData> = {};
   for (const row of gameLineRows) {
-    gameLines[String(row.game_id)] = row.total_line;
+    gameLines[String(row.game_id)] = {
+      totalLine:      row.total_line,
+      overOdds:       row.over_odds,
+      underOdds:      row.under_odds,
+      homeML:         row.home_ml,
+      awayML:         row.away_ml,
+      homeSpread:     row.home_spread,
+      awaySpread:     row.away_spread,
+      homeSpreadOdds: row.home_spread_odds,
+      awaySpreadOdds: row.away_spread_odds,
+    };
   }
   const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
 
@@ -292,6 +315,7 @@ export default async function CompetitionPage({
           playerBName={opponentProfile?.display_name ?? "Opponent"}
           currentUserId={user.id}
           enableOverUnder={!!comp.enable_over_under}
+          enableSpread={!!comp.enable_spread}
           gameLines={gameLines}
           waitingForDefer={
             isViewingToday &&

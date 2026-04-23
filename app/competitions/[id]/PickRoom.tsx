@@ -26,13 +26,36 @@ type Pick = {
   picked_team_name: string;
   pick_index: number;
   result: string;
-  pick_type?: string;         // 'winner' | 'over_under'
-  over_under_choice?: string; // 'over' | 'under'
+  pick_type?: string;
+  over_under_choice?: string;
   total_line?: number;
+  spread_choice?: string;
+  spread_line?: number;
 };
+type GameLineData = {
+  totalLine?: number | null;
+  overOdds?: number | null;
+  underOdds?: number | null;
+  homeML?: number | null;
+  awayML?: number | null;
+  homeSpread?: number | null;
+  awaySpread?: number | null;
+  homeSpreadOdds?: number | null;
+  awaySpreadOdds?: number | null;
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function formatOdds(odds: number): string {
+  return odds > 0 ? `+${odds}` : `${odds}`;
+}
+
+function formatSpread(spread: number): string {
+  return spread > 0 ? `+${spread}` : `${spread}`;
 }
 
 function PickerChip({ name, isMe }: { name: string; isMe: boolean }) {
@@ -62,7 +85,6 @@ function ScoreBadge({ g }: { g: Game }) {
   const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
   const isFinal = g.final;
   const hasScore = g.homeScore != null && g.awayScore != null;
-
   if (!hasScore && !isLive && !isFinal) return null;
 
   if (isFinal && hasScore) {
@@ -73,13 +95,10 @@ function ScoreBadge({ g }: { g: Game }) {
       </span>
     );
   }
-
   if (isLive && hasScore) {
     const period = periodLabel(g.period, g.periodType);
-    const timeInfo = g.inIntermission
-      ? `INT`
+    const timeInfo = g.inIntermission ? "INT"
       : g.clock ? `${g.clock} · ${period}` : period;
-
     return (
       <span className="inline-flex items-center gap-1.5 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
         <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
@@ -89,15 +108,16 @@ function ScoreBadge({ g }: { g: Game }) {
       </span>
     );
   }
-
   return null;
 }
+
+// ── Main component ─────────────────────────────────────────────────────────
 
 export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
   draftOrder, playerAId, playerBId, playerAName, playerBName,
   currentUserId, waitingForDefer, readOnly,
-  enableOverUnder, gameLines,
+  enableOverUnder, enableSpread, gameLines,
 }: {
   competitionId: string;
   activeDate: string;
@@ -112,23 +132,20 @@ export default function PickRoom({
   waitingForDefer?: boolean;
   readOnly?: boolean;
   enableOverUnder?: boolean;
-  gameLines?: Record<string, number>; // game_id → total line
+  enableSpread?: boolean;
+  gameLines?: Record<string, GameLineData>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
-  // Tick every 30 seconds to update game-start locks.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
 
-  // Auto-refresh every 60 seconds when any game is live.
-  const hasLiveGames = games.some(
-    (g) => g.gameState === "LIVE" || g.gameState === "CRIT"
-  );
+  const hasLiveGames = games.some((g) => g.gameState === "LIVE" || g.gameState === "CRIT");
   useEffect(() => {
     if (!hasLiveGames) return;
     const id = setInterval(() => router.refresh(), 60_000);
@@ -142,85 +159,76 @@ export default function PickRoom({
   const draftDone = nextIndex >= draftOrder.length;
   const pickedGameIds = new Set(existingPicks.map((p) => String(p.game_id)));
 
-  function gameStarted(startTimeUTC: string) {
-    return new Date(startTimeUTC) <= now;
-  }
-
-  async function makePick(gameId: number | string, teamAbbrev: string, teamName: string) {
-    if (!isMyTurn) return;
-    setBusy(true); setError(null);
-    const res = await fetch(`/api/competitions/${competitionId}/picks`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        gameDate: activeDate,
-        gameId,
-        teamAbbrev,
-        teamName,
-        pickIndex: nextIndex,
-        pickType: "winner",
-      }),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Failed to save pick");
-      setBusy(false);
-      return;
-    }
-    router.refresh();
-    setBusy(false);
-  }
-
-  async function makeOverUnderPick(
-    gameId: number | string,
-    choice: "over" | "under",
-    line: number
-  ) {
-    if (!isMyTurn) return;
-    setBusy(true); setError(null);
-    const label = choice === "over" ? `Over ${line}` : `Under ${line}`;
-    const res = await fetch(`/api/competitions/${competitionId}/picks`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        gameDate: activeDate,
-        gameId,
-        teamAbbrev: choice.toUpperCase(),   // "OVER" or "UNDER"
-        teamName: label,                     // "Over 5.5" or "Under 5.5"
-        pickIndex: nextIndex,
-        pickType: "over_under",
-        overUnderChoice: choice,
-        totalLine: line,
-      }),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Failed to save pick");
-      setBusy(false);
-      return;
-    }
-    router.refresh();
-    setBusy(false);
-  }
-
-  const allRemainingLocked = games.length === 0 || games
-    .filter((g) => !pickedGameIds.has(String(g.id)))
-    .every((g) => gameStarted(g.startTimeUTC));
-
-  // Poll every 10 seconds while waiting for the opponent to pick.
-  const waitingForOpponentPick = !readOnly && !draftDone && !isMyTurn && !waitingForDefer && !allRemainingLocked;
+  const waitingForOpponentPick = !readOnly && !draftDone && !isMyTurn && !waitingForDefer
+    && !games.filter((g) => !pickedGameIds.has(String(g.id))).every((g) => new Date(g.startTimeUTC) <= now);
   useEffect(() => {
     if (!waitingForOpponentPick) return;
     const id = setInterval(() => router.refresh(), 10_000);
     return () => clearInterval(id);
   }, [waitingForOpponentPick, router]);
 
-  if (games.length === 0) {
-    return <div className="text-slate-500 italic">No NHL games on {activeDate}.</div>;
+  function gameStarted(startTimeUTC: string) {
+    return new Date(startTimeUTC) <= now;
   }
+
+  async function post(body: object) {
+    setBusy(true); setError(null);
+    const res = await fetch(`/api/competitions/${competitionId}/picks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setError(j.error ?? "Failed to save pick");
+      setBusy(false);
+      return false;
+    }
+    router.refresh();
+    setBusy(false);
+    return true;
+  }
+
+  async function makePick(gameId: number | string, teamAbbrev: string, teamName: string) {
+    if (!isMyTurn) return;
+    await post({ gameDate: activeDate, gameId, teamAbbrev, teamName, pickIndex: nextIndex, pickType: "winner" });
+  }
+
+  async function makeOverUnderPick(gameId: number | string, choice: "over" | "under", line: number) {
+    if (!isMyTurn) return;
+    await post({
+      gameDate: activeDate, gameId,
+      teamAbbrev: choice.toUpperCase(),
+      teamName: `${choice === "over" ? "Over" : "Under"} ${line}`,
+      pickIndex: nextIndex, pickType: "over_under",
+      overUnderChoice: choice, totalLine: line,
+    });
+  }
+
+  async function makeSpreadPick(gameId: number | string, choice: "home" | "away", spreadLine: number, teamAbbrev: string, label: string) {
+    if (!isMyTurn) return;
+    await post({
+      gameDate: activeDate, gameId,
+      teamAbbrev, teamName: label,
+      pickIndex: nextIndex, pickType: "spread",
+      spreadChoice: choice, spreadLine,
+    });
+  }
+
+  const allRemainingLocked = games.length === 0 || games
+    .filter((g) => !pickedGameIds.has(String(g.id)))
+    .every((g) => gameStarted(g.startTimeUTC));
+
+  if (games.length === 0) {
+    return <div className="text-slate-500 italic">No games scheduled for {activeDate}.</div>;
+  }
+
+  const canPick = isMyTurn && !busy && !waitingForDefer;
+  const hasAnyLines = enableOverUnder || enableSpread;
 
   return (
     <div>
+      {/* Status line */}
       <div className="mb-3 text-sm flex items-center justify-between">
         <span>
           {readOnly ? (
@@ -249,10 +257,14 @@ export default function PickRoom({
         )}
       </div>
 
-      {enableOverUnder && (
-        <p className="text-xs text-slate-400 mb-3 bg-slate-50 rounded-lg px-3 py-2">
-          ⚖️ <b>Over/Under available.</b> Use your pick slot on total goals instead of a winner.
-          If the final total lands exactly on the line, the pick is a <b>loss</b>.
+      {/* Lines info banner */}
+      {hasAnyLines && (
+        <p className="text-xs text-slate-400 mb-3 bg-slate-50 rounded-lg px-3 py-2 leading-relaxed">
+          {enableSpread && enableOverUnder
+            ? "⚖️ Spread and over/under picks available — use a pick slot on either instead of a winner. Push or exact total = loss."
+            : enableSpread
+            ? "⚡ Spread picks available — use a pick slot on the puck line instead of a winner. Push = loss."
+            : "⚖️ Over/under picks available — use a pick slot on total goals instead of a winner. Exact total = loss."}
         </p>
       )}
 
@@ -263,25 +275,39 @@ export default function PickRoom({
           const pick = existingPicks.find((p) => String(p.game_id) === String(g.id));
           const taken = pickedGameIds.has(String(g.id));
           const started = gameStarted(g.startTimeUTC);
-          const winner = g.winner;
           const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
           const line = gameLines?.[String(g.id)];
-          const hasLine = enableOverUnder && line != null;
 
-          const isOUPick = pick?.pick_type === "over_under";
-          const isWinnerPick = !isOUPick;
+          const hasTotal  = enableOverUnder && line?.totalLine != null;
+          const hasSpread = enableSpread    && line?.homeSpread != null && line?.awaySpread != null;
+          const homeML = line?.homeML;
+          const awayML = line?.awayML;
 
-          // For live/final O/U result display
+          const pickType = pick?.pick_type ?? "winner";
+          const isOUPick     = pickType === "over_under";
+          const isSpreadPick = pickType === "spread";
+          const isWinnerPick = pickType === "winner";
+
+          // O/U result
           const finalTotal = g.final && g.homeScore != null && g.awayScore != null
-            ? g.homeScore + g.awayScore
+            ? g.homeScore + g.awayScore : null;
+          const ouResult = isOUPick && finalTotal != null && pick?.total_line != null
+            ? (finalTotal === pick.total_line ? "loss"
+              : finalTotal > pick.total_line
+                ? (pick.over_under_choice === "over" ? "win" : "loss")
+                : (pick.over_under_choice === "under" ? "win" : "loss"))
             : null;
 
-          const ouResult = isOUPick && finalTotal != null && pick?.total_line != null
-            ? (finalTotal === pick.total_line
-                ? "loss"  // exact = loss per rules
-                : finalTotal > pick.total_line
-                  ? (pick.over_under_choice === "over" ? "win" : "loss")
-                  : (pick.over_under_choice === "under" ? "win" : "loss"))
+          // Spread result
+          const spreadResult = isSpreadPick && g.final && pick?.spread_line != null
+            && g.homeScore != null && g.awayScore != null
+            ? (() => {
+                const coverMargin = (g.homeScore - g.awayScore) + pick.spread_line;
+                if (coverMargin === 0) return "loss";
+                return pick.spread_choice === "home"
+                  ? (coverMargin > 0 ? "win" : "loss")
+                  : (coverMargin < 0 ? "win" : "loss");
+              })()
             : null;
 
           return (
@@ -293,7 +319,7 @@ export default function PickRoom({
               }`}
             >
               {/* Game header */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm">
                     {g.away.name} @ {g.home.name}
@@ -305,8 +331,8 @@ export default function PickRoom({
                       </span>
                     )}
                     <ScoreBadge g={g} />
-                    {g.final && winner && (
-                      <span className="text-xs text-slate-500">{winner} won</span>
+                    {g.final && g.winner && (
+                      <span className="text-xs text-slate-500">{g.winner} won</span>
                     )}
                   </div>
 
@@ -318,11 +344,9 @@ export default function PickRoom({
                     return (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                         <PickerChip name={pickerName} isMe={pickerIsMe} />
-                        <span className="text-sm text-slate-600">
-                          → <b>{pick.picked_team_name}</b>
-                        </span>
-                        {isWinnerPick && g.final && winner && (
-                          pick.picked_team_abbrev === winner
+                        <span className="text-sm text-slate-600">→ <b>{pick.picked_team_name}</b></span>
+                        {isWinnerPick && g.final && g.winner && (
+                          pick.picked_team_abbrev === g.winner
                             ? <span className="text-green-700 text-sm">✓ win</span>
                             : <span className="text-red-600 text-sm">✗ loss</span>
                         )}
@@ -333,6 +357,11 @@ export default function PickRoom({
                         )}
                         {isOUPick && isLive && finalTotal != null && (
                           <span className="text-slate-400 text-xs">({finalTotal} so far)</span>
+                        )}
+                        {isSpreadPick && g.final && spreadResult && (
+                          spreadResult === "win"
+                            ? <span className="text-green-700 text-sm">✓ win</span>
+                            : <span className="text-red-600 text-sm">✗ loss</span>
                         )}
                         {isWinnerPick && isLive && g.homeScore != null && (
                           <span className="text-slate-400 text-xs">
@@ -346,66 +375,107 @@ export default function PickRoom({
                   })()}
                 </div>
 
-                {/* Winner pick buttons */}
+                {/* Winner pick buttons with moneyline odds */}
                 {!taken && !started && !readOnly && (
-                  <div className="flex gap-2 shrink-0 ml-3">
-                    <button
-                      disabled={!isMyTurn || busy || waitingForDefer}
-                      onClick={() => makePick(g.id, g.away.abbrev, g.away.name)}
-                      className="btn-ghost disabled:opacity-30 text-sm"
-                    >
-                      {g.away.abbrev}
-                    </button>
-                    <button
-                      disabled={!isMyTurn || busy || waitingForDefer}
-                      onClick={() => makePick(g.id, g.home.abbrev, g.home.name)}
-                      className="btn-ghost disabled:opacity-30 text-sm"
-                    >
-                      {g.home.abbrev}
-                    </button>
+                  <div className="flex gap-2 shrink-0">
+                    {([
+                      { team: g.away, ml: awayML },
+                      { team: g.home, ml: homeML },
+                    ] as const).map(({ team, ml }) => (
+                      <button
+                        key={team.abbrev}
+                        disabled={!canPick}
+                        onClick={() => makePick(g.id, team.abbrev, team.name)}
+                        className="btn-ghost disabled:opacity-30 text-sm flex flex-col items-center leading-tight px-3 py-1.5"
+                      >
+                        <span>{team.abbrev}</span>
+                        {ml != null && (
+                          <span className={`text-[10px] font-normal ${ml > 0 ? "text-green-600" : "text-slate-400"}`}>
+                            {formatOdds(ml)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 )}
 
                 {!taken && started && (
-                  <span className="text-xs text-slate-400 ml-3 shrink-0">🔒 Locked</span>
+                  <span className="text-xs text-slate-400 shrink-0">🔒 Locked</span>
                 )}
               </div>
 
               {/* Over/Under section */}
-              {hasLine && (
+              {hasTotal && (
                 <div className={`mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 ${
-                  taken && isWinnerPick ? "opacity-40" : ""
+                  taken && !isOUPick ? "opacity-40" : ""
                 }`}>
                   <span className="text-xs text-slate-500">
-                    ⚖️ Total {line} goals
+                    ⚖️ Total {line!.totalLine}
                     {g.final && finalTotal != null && (
                       <span className="ml-1 text-slate-400">· final: {finalTotal}</span>
                     )}
                   </span>
                   {!taken && !started && !readOnly && (
                     <div className="flex gap-2 shrink-0">
-                      <button
-                        disabled={!isMyTurn || busy || waitingForDefer}
-                        onClick={() => makeOverUnderPick(g.id, "over", line)}
-                        className="btn-ghost disabled:opacity-30 text-xs px-2 py-1"
-                      >
-                        Over {line}
-                      </button>
-                      <button
-                        disabled={!isMyTurn || busy || waitingForDefer}
-                        onClick={() => makeOverUnderPick(g.id, "under", line)}
-                        className="btn-ghost disabled:opacity-30 text-xs px-2 py-1"
-                      >
-                        Under {line}
-                      </button>
+                      {(["over", "under"] as const).map((choice) => {
+                        const odds = choice === "over" ? line?.overOdds : line?.underOdds;
+                        return (
+                          <button
+                            key={choice}
+                            disabled={!canPick}
+                            onClick={() => makeOverUnderPick(g.id, choice, line!.totalLine!)}
+                            className="btn-ghost disabled:opacity-30 flex flex-col items-center leading-tight px-2 py-1"
+                          >
+                            <span className="text-xs">{choice === "over" ? "Over" : "Under"} {line!.totalLine}</span>
+                            {odds != null && (
+                              <span className={`text-[10px] font-normal ${odds > 0 ? "text-green-600" : "text-slate-400"}`}>
+                                {formatOdds(odds)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
-                  {taken && isOUPick && !started && (
-                    <span className="text-xs text-slate-400">Picked</span>
+                  {taken && isOUPick && !started && <span className="text-xs text-slate-400">Picked</span>}
+                  {!taken && started && <span className="text-xs text-slate-400">🔒</span>}
+                </div>
+              )}
+
+              {/* Spread section */}
+              {hasSpread && (
+                <div className={`mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 ${
+                  taken && !isSpreadPick ? "opacity-40" : ""
+                }`}>
+                  <span className="text-xs text-slate-500">⚡ Puck line</span>
+                  {!taken && !started && !readOnly && (
+                    <div className="flex gap-2 shrink-0">
+                      {([
+                        { choice: "away" as const, team: g.away, spread: line!.awaySpread!, odds: line?.awaySpreadOdds },
+                        { choice: "home" as const, team: g.home, spread: line!.homeSpread!, odds: line?.homeSpreadOdds },
+                      ]).map(({ choice, team, spread, odds }) => (
+                        <button
+                          key={choice}
+                          disabled={!canPick}
+                          onClick={() => makeSpreadPick(
+                            g.id, choice, line!.homeSpread!,
+                            team.abbrev,
+                            `${team.abbrev} ${formatSpread(spread)}`
+                          )}
+                          className="btn-ghost disabled:opacity-30 flex flex-col items-center leading-tight px-2 py-1"
+                        >
+                          <span className="text-xs">{team.abbrev} {formatSpread(spread)}</span>
+                          {odds != null && (
+                            <span className={`text-[10px] font-normal ${odds > 0 ? "text-green-600" : "text-slate-400"}`}>
+                              {formatOdds(odds)}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                  {!taken && started && (
-                    <span className="text-xs text-slate-400">🔒</span>
-                  )}
+                  {taken && isSpreadPick && !started && <span className="text-xs text-slate-400">Picked</span>}
+                  {!taken && started && <span className="text-xs text-slate-400">🔒</span>}
                 </div>
               )}
             </li>

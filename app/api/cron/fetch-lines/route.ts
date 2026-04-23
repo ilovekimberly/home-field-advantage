@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchNHLScheduleForDate } from "@/lib/nhl";
-import { fetchNHLTotals, matchTeamName } from "@/lib/odds";
+import { fetchNHLGameLines, matchTeamName } from "@/lib/odds";
 
 // GET /api/cron/fetch-lines
-// Fetches today's NHL game totals from The Odds API and stores them in
-// the game_lines table, keyed by NHL game ID + date.
+// Fetches today's NHL game lines (totals + moneyline + spreads) from The Odds API
+// and stores them in the game_lines table, keyed by NHL game ID + date.
 //
-// Runs once daily at 17:00 UTC (1 PM ET) — well before evening puck drops.
+// Runs once daily around 5 PM ET (22:00 UTC) — well before evening puck drops.
 // Lines are frozen after fetch; players see the same line all day.
-//
-// Matching strategy: The Odds API uses full team names ("Toronto Maple Leafs").
-// The NHL API constructs names the same way. We match by home + away team name.
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -43,10 +40,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: true, reason: "No NHL games today" });
   }
 
-  // ── 2. Fetch lines from The Odds API ──────────────────────────────────
+  // ── 2. Fetch all lines from The Odds API ──────────────────────────────
   let oddsLines;
   try {
-    oddsLines = await fetchNHLTotals();
+    oddsLines = await fetchNHLGameLines();
   } catch (e) {
     console.error("fetch-lines: Odds API failed", e);
     return NextResponse.json({ error: "Odds API failed" }, { status: 502 });
@@ -61,7 +58,6 @@ export async function GET(req: Request) {
   let unmatched = 0;
 
   for (const nhlGame of nhlGames) {
-    // Find a matching Odds API entry by home + away team name.
     const matched = oddsLines.find(
       (o) =>
         matchTeamName(o.homeTeam, nhlGame.homeTeam.name) &&
@@ -69,21 +65,30 @@ export async function GET(req: Request) {
     );
 
     if (!matched) {
-      console.warn(
-        `fetch-lines: no odds match for ${nhlGame.awayTeam.name} @ ${nhlGame.homeTeam.name}`
-      );
+      console.warn(`fetch-lines: no odds match for ${nhlGame.awayTeam.name} @ ${nhlGame.homeTeam.name}`);
       unmatched++;
       continue;
     }
 
     const { error } = await supabase.from("game_lines").upsert(
       {
-        game_id: nhlGame.id,
-        game_date: today,
-        total_line: matched.totalLine,
-        home_team: nhlGame.homeTeam.name,
-        away_team: nhlGame.awayTeam.name,
-        fetched_at: new Date().toISOString(),
+        game_id:          nhlGame.id,
+        game_date:        today,
+        home_team:        nhlGame.homeTeam.name,
+        away_team:        nhlGame.awayTeam.name,
+        fetched_at:       new Date().toISOString(),
+        // Totals
+        total_line:       matched.totalLine,
+        over_odds:        matched.overOdds,
+        under_odds:       matched.underOdds,
+        // Moneyline
+        home_ml:          matched.homeMoneyline,
+        away_ml:          matched.awayMoneyline,
+        // Spread
+        home_spread:      matched.homeSpread,
+        away_spread:      matched.awaySpread,
+        home_spread_odds: matched.homeSpreadOdds,
+        away_spread_odds: matched.awaySpreadOdds,
       },
       { onConflict: "game_id,game_date" }
     );
@@ -95,8 +100,6 @@ export async function GET(req: Request) {
     }
   }
 
-  console.log(
-    `fetch-lines: stored ${stored} lines, ${unmatched} unmatched out of ${nhlGames.length} games`
-  );
+  console.log(`fetch-lines: stored ${stored} lines, ${unmatched} unmatched out of ${nhlGames.length} games`);
   return NextResponse.json({ stored, unmatched, total: nhlGames.length });
 }
