@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -40,6 +40,12 @@ const DURATION_LABEL: Record<string, string> = {
   season: "Full season",
 };
 
+const SPORT_EMOJI: Record<string, string> = {
+  NHL: "🏒",
+  MLB: "⚾",
+  EPL: "⚽",
+};
+
 // Statuses open by default.
 const DEFAULT_OPEN = new Set(["active", "pending", "cancelled"]);
 
@@ -67,7 +73,6 @@ function StatusSection({
     setDeleting(null);
     if (res.ok) {
       onDelete(id);
-      // If we're currently viewing the deleted competition, go home instead of refreshing.
       if (pathname === `/competitions/${id}`) {
         router.push("/");
       } else {
@@ -80,7 +85,6 @@ function StatusSection({
 
   return (
     <div>
-      {/* Section header — clickable to collapse */}
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1.5 w-full px-1 mb-1.5 group"
@@ -109,7 +113,6 @@ function StatusSection({
                 </span>
               </Link>
 
-              {/* Delete button — for cancelled or pending (awaiting opponent) */}
               {(comp.status === "cancelled" || comp.status === "pending") && (
                 <button
                   onClick={(e) => handleDelete(e, comp.id)}
@@ -129,14 +132,24 @@ function StatusSection({
 }
 
 export default function Sidebar({ competitions: initialComps }: Props) {
-  const [open, setOpen] = useState(true);
+  // Start closed; open automatically on desktop screens.
+  const [open, setOpen] = useState(false);
   const [comps, setComps] = useState(initialComps);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setOpen(mq.matches);
+    const handler = (e: MediaQueryListEvent) => {
+      if (!e.matches) setOpen(false); // auto-close when resizing down to mobile
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   function handleDelete(id: string) {
     setComps((prev) => prev.filter((c) => c.id !== id));
   }
 
-  // Group by sport, then by status.
   const bySport: Record<string, Record<string, SidebarComp[]>> = {};
   for (const comp of comps) {
     const sport = comp.sport ?? "NHL";
@@ -147,7 +160,15 @@ export default function Sidebar({ competitions: initialComps }: Props) {
 
   return (
     <>
-      {/* Tab shown only when sidebar is closed */}
+      {/* Mobile backdrop — closes sidebar when tapping outside */}
+      {open && (
+        <div
+          className="fixed inset-0 z-10 bg-black/30 md:hidden"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Pull tab — shown when sidebar is closed */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
@@ -188,7 +209,7 @@ export default function Sidebar({ competitions: initialComps }: Props) {
             {Object.entries(bySport).map(([sport, byStatus]) => (
               <div key={sport}>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
-                  🏒 {sport}
+                  {SPORT_EMOJI[sport] ?? "🏒"} {sport}
                 </div>
                 <div className="space-y-3">
                   {STATUS_ORDER.filter((s) => byStatus[s]?.length).map((status) => (
@@ -206,7 +227,7 @@ export default function Sidebar({ competitions: initialComps }: Props) {
         )}
       </aside>
 
-      {/* Spacer to push main content right when sidebar is open */}
+      {/* Spacer — desktop only, pushes content right when sidebar is open */}
       {open && <div className="w-64 shrink-0 hidden md:block" />}
     </>
   );

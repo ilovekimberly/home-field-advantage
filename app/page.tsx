@@ -3,12 +3,20 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { whoPicksFirst, generateDraftOrder, type Player, type DraftStyle } from "@/lib/picks";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
-
 function daysAgo(n: number) {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().slice(0, 10);
 }
+
+const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽" };
+
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  active:    { label: "Active",           className: "bg-green-100 text-green-700" },
+  pending:   { label: "Awaiting opponent", className: "bg-amber-100 text-amber-700" },
+  complete:  { label: "Complete",         className: "bg-slate-100 text-slate-500" },
+  cancelled: { label: "Cancelled",        className: "bg-red-100 text-red-400" },
+};
 
 export default async function HomePage() {
   const supabase = createSupabaseServerClient();
@@ -33,8 +41,8 @@ export default async function HomePage() {
         <section className="grid gap-4 sm:grid-cols-3">
           {[
             { emoji: "🐍", title: "Snake draft picks", desc: "Take turns picking games each night. Better record picks first." },
-            { emoji: "📊", title: "Auto scoring", desc: "Results come in automatically. No manual updating required." },
-            { emoji: "🏒⚾⚽", title: "3 sports", desc: "NHL, MLB, and the Premier League. More coming soon." },
+            { emoji: "📊", title: "Auto scoring",      desc: "Results come in automatically. No manual updating required." },
+            { emoji: "🏒⚾⚽", title: "3 sports",     desc: "NHL, MLB, and the Premier League. More coming soon." },
           ].map((f) => (
             <div key={f.title} className="card text-center">
               <div className="text-3xl mb-2">{f.emoji}</div>
@@ -50,7 +58,6 @@ export default async function HomePage() {
   const today = todayISO();
   const twoWeeksAgo = daysAgo(14);
 
-  // Fetch all competitions.
   const { data: competitions } = await supabase
     .from("competitions")
     .select("*")
@@ -59,34 +66,19 @@ export default async function HomePage() {
 
   const compIds = (competitions ?? []).map((c) => c.id);
 
-  // Fetch recent picks (last 14 days) across all competitions.
   const { data: recentPicks } = compIds.length > 0
-    ? await supabase
-        .from("picks")
-        .select("*")
+    ? await supabase.from("picks").select("*")
         .in("competition_id", compIds)
         .gte("game_date", twoWeeksAgo)
         .order("game_date", { ascending: false })
     : { data: [] };
 
-  // Fetch all picks (for turn calculation — just today's).
-  const { data: todaysPicks } = compIds.length > 0
-    ? await supabase
-        .from("picks")
-        .select("*")
-        .in("competition_id", compIds)
-        .eq("game_date", today)
-    : { data: [] };
-
-  // Fetch all prior picks for turn calculation.
   const { data: allPicks } = compIds.length > 0
-    ? await supabase
-        .from("picks")
+    ? await supabase.from("picks")
         .select("competition_id, picker_id, result, game_date, pick_index")
         .in("competition_id", compIds)
     : { data: [] };
 
-  // Fetch profiles for all participants.
   const allUserIds = Array.from(new Set(
     (competitions ?? []).flatMap((c) => [c.creator_id, c.opponent_id].filter(Boolean))
   ));
@@ -96,11 +88,8 @@ export default async function HomePage() {
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  // ── Determine which active competitions need my pick tonight ──────────
-  const activeComps = (competitions ?? []).filter(
-    (c) => c.status === "active" && c.opponent_id
-  );
-
+  // ── Which active competitions need my pick tonight ─────────────────────
+  const activeComps = (competitions ?? []).filter((c) => c.status === "active" && c.opponent_id);
   const needsMyPick: { comp: any; opponentName: string }[] = [];
 
   for (const comp of activeComps) {
@@ -111,7 +100,6 @@ export default async function HomePage() {
       today > comp.end_date ? comp.end_date : today;
 
     const dayPicks = picks.filter((p) => p.game_date === activeDate);
-
     const recordA = { wins: 0, losses: 0, pushes: 0 };
     const recordB = { wins: 0, losses: 0, pushes: 0 };
     for (const p of picks) {
@@ -134,7 +122,6 @@ export default async function HomePage() {
     const firstPickerSlot = whoPicksFirst(recordA, recordB, prevFirstPicker, "A");
     const nextIndex = dayPicks.length;
 
-    // Derive deferred from who actually made pick #0 (ground truth).
     let deferred = false;
     if (dayPicks.length > 0) {
       const firstPick = [...dayPicks].sort((a: any, b: any) => a.pick_index - b.pick_index)[0];
@@ -142,8 +129,6 @@ export default async function HomePage() {
       deferred = firstPickSlot !== firstPickerSlot;
     }
 
-    // Use a large numGames so we get the full middle-of-draft order
-    // without needing to fetch the schedule on the home page.
     const draft = generateDraftOrder({
       numGames: 20,
       firstPicker: firstPickerSlot,
@@ -153,9 +138,6 @@ export default async function HomePage() {
 
     const onTheClock = nextIndex < draft.order.length ? draft.order[nextIndex] : null;
     const onTheClockUserId = onTheClock === "A" ? comp.creator_id : comp.opponent_id;
-
-    // Don't prompt if the competition's active date is in the past
-    // (e.g. a daily comp that hasn't been closed by the cron yet).
     const isStale = activeDate < today;
 
     if (!isStale && onTheClock && onTheClockUserId === user.id) {
@@ -168,16 +150,32 @@ export default async function HomePage() {
     }
   }
 
-  // ── Build activity feed ───────────────────────────────────────────────
-  type FeedItem = {
-    date: string;
-    icon: string;
-    text: string;
-    compName: string;
-    compId: string;
-    result?: string;
-  };
+  // ── Standings per competition ──────────────────────────────────────────
+  const compStandings: Record<string, { myWins: number; myLosses: number; theirWins: number; theirLosses: number }> = {};
+  for (const comp of competitions ?? []) {
+    let myWins = 0, myLosses = 0, theirWins = 0, theirLosses = 0;
+    for (const p of allPicks ?? []) {
+      if (p.competition_id !== comp.id || !p.result || p.result === "unscored") continue;
+      const mine = p.picker_id === user.id;
+      if (p.result === "win")  mine ? myWins++    : theirWins++;
+      if (p.result === "loss") mine ? myLosses++  : theirLosses++;
+    }
+    compStandings[comp.id] = { myWins, myLosses, theirWins, theirLosses };
+  }
 
+  // Sort: urgent (active + my turn) → active → pending → complete → cancelled
+  const urgencyScore = (c: any) => {
+    if (c.status === "cancelled") return 5;
+    if (c.status === "complete")  return 4;
+    if (c.status === "pending")   return 3;
+    if (needsMyPick.some((n) => n.comp.id === c.id)) return 1;
+    return 2;
+  };
+  const sortedComps = [...(competitions ?? [])].sort((a, b) => urgencyScore(a) - urgencyScore(b));
+  const visibleComps = sortedComps.filter((c) => c.status !== "cancelled");
+
+  // ── Activity feed ──────────────────────────────────────────────────────
+  type FeedItem = { date: string; icon: string; text: string; compName: string; compId: string };
   const feed: FeedItem[] = [];
 
   for (const pick of recentPicks ?? []) {
@@ -185,29 +183,22 @@ export default async function HomePage() {
     if (!comp) continue;
     const picker = profileMap.get(pick.picker_id);
     const pickerName = pick.picker_id === user.id ? "You" : (picker?.display_name ?? picker?.email ?? "Opponent");
-    const verb = pick.picker_id === user.id ? "picked" : "picked";
-
     let icon = "🏒";
     let resultSuffix = "";
-    if (pick.result === "win") { icon = "✅"; resultSuffix = " — Won!"; }
-    else if (pick.result === "loss") { icon = "❌"; resultSuffix = " — Lost"; }
-    else if (pick.result === "push") { icon = "🤝"; resultSuffix = " — Push"; }
-
+    if (pick.result === "win")  { icon = "✅"; resultSuffix = " — Won!"; }
+    if (pick.result === "loss") { icon = "❌"; resultSuffix = " — Lost"; }
+    if (pick.result === "push") { icon = "🤝"; resultSuffix = " — Push"; }
     feed.push({
       date: pick.game_date,
       icon,
-      text: `${pickerName} ${verb} ${pick.picked_team_abbrev}${resultSuffix}`,
+      text: `${pickerName} picked ${pick.picked_team_abbrev}${resultSuffix}`,
       compName: comp.name,
       compId: comp.id,
-      result: pick.result,
     });
   }
 
-  // Sort feed by date desc, limit to 30.
   feed.sort((a, b) => b.date.localeCompare(a.date));
   const feedItems = feed.slice(0, 30);
-
-  // Group feed by date.
   const feedByDate: Record<string, FeedItem[]> = {};
   for (const item of feedItems) {
     if (!feedByDate[item.date]) feedByDate[item.date] = [];
@@ -218,7 +209,7 @@ export default async function HomePage() {
   return (
     <div className="space-y-8 max-w-2xl">
 
-      {/* ── Quick pick prompt ── */}
+      {/* ── Your turn prompts ── */}
       {needsMyPick.length > 0 && (
         <section>
           <h2 className="text-lg font-bold mb-3">🎯 Your turn to pick</h2>
@@ -240,11 +231,90 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ── No active comps nudge ── */}
-      {activeComps.length === 0 && (competitions ?? []).length === 0 && (
+      {/* ── No competitions yet ── */}
+      {(competitions ?? []).length === 0 && (
         <section className="card text-center py-10">
           <p className="text-slate-500 mb-4">No competitions yet. Challenge a friend to get started.</p>
           <Link href="/competitions/new" className="btn-primary">Create a competition</Link>
+        </section>
+      )}
+
+      {/* ── Competitions dashboard ── */}
+      {visibleComps.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold">Your competitions</h2>
+            <Link href="/competitions/new" className="btn-primary text-sm py-1.5 px-3">+ New</Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {visibleComps.map((comp) => {
+              const s = compStandings[comp.id] ?? { myWins: 0, myLosses: 0, theirWins: 0, theirLosses: 0 };
+              const myTurn = needsMyPick.some((n) => n.comp.id === comp.id);
+              const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
+              const opponent = opponentId ? profileMap.get(opponentId) : null;
+              const opponentName = opponent?.display_name ?? opponent?.email ?? null;
+              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏒";
+              const badge = STATUS_BADGE[comp.status] ?? STATUS_BADGE.active;
+              const totalPicks = s.myWins + s.myLosses;
+              const diff = s.myWins - s.theirWins;
+              const standingLabel =
+                totalPicks === 0 ? null :
+                diff > 0 ? `Up ${diff}` :
+                diff < 0 ? `Down ${Math.abs(diff)}` : "Tied";
+
+              return (
+                <Link
+                  key={comp.id}
+                  href={`/competitions/${comp.id}`}
+                  className={`card hover:shadow-md transition-all flex flex-col gap-3 ${
+                    myTurn ? "ring-2 ring-rink" : ""
+                  }`}
+                >
+                  {/* Top row */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xl shrink-0">{emoji}</span>
+                      <span className="font-semibold text-slate-800 leading-snug truncate">{comp.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {myTurn && (
+                        <span className="text-xs bg-rink text-white px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                          Your turn
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Opponent */}
+                  <div className="text-sm text-slate-500">
+                    {opponentName ? `vs ${opponentName}` : (
+                      <span className="italic text-slate-400">Awaiting opponent</span>
+                    )}
+                  </div>
+
+                  {/* Record */}
+                  {totalPicks > 0 && (
+                    <div className="flex items-center gap-3 pt-2 border-t border-slate-100 text-sm">
+                      <span className="font-bold text-green-700">{s.myWins}W</span>
+                      <span className="font-bold text-red-500">{s.myLosses}L</span>
+                      {standingLabel && (
+                        <span className={`ml-auto text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          diff > 0 ? "bg-green-50 text-green-700" :
+                          diff < 0 ? "bg-red-50 text-red-500" :
+                          "bg-slate-100 text-slate-500"
+                        }`}>
+                          {standingLabel}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </section>
       )}
 
@@ -280,13 +350,13 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ── Empty feed ── */}
       {feedDates.length === 0 && (competitions ?? []).length > 0 && (
         <section>
           <h2 className="text-lg font-bold mb-3">Recent activity</h2>
           <p className="text-slate-400 text-sm">No picks in the last 2 weeks. Activity will show up here once games are played.</p>
         </section>
       )}
+
     </div>
   );
 }
