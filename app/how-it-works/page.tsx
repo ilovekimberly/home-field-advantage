@@ -110,15 +110,17 @@ export default function HowItWorksPage() {
             <div className="grid sm:grid-cols-2 gap-3 mb-4">
               {/* Standard snake */}
               <div className="rounded-2xl bg-slate-900 p-4">
-                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Standard snake — 6 games</div>
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Standard snake — 8 games</div>
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     { label: "Pick 1", you: true },
                     { label: "Pick 2", you: false },
                     { label: "Pick 3", you: false },
                     { label: "Pick 4", you: true },
-                    { label: "Pick 5", you: true },
-                    { label: "Pick 6", you: false },
+                    { label: "Pick 5", you: false },
+                    { label: "Pick 6", you: true },
+                    { label: "Pick 7", you: true },
+                    { label: "Pick 8", you: false },
                   ].map((p, i) => (
                     <div key={i} className={`flex flex-col items-center px-2.5 py-1.5 rounded-lg text-xs font-bold border ${p.you ? "bg-rink border-rink text-white" : "bg-slate-700 border-slate-600 text-slate-200"}`}>
                       <span className="text-[9px] font-normal opacity-70 mb-0.5">{p.label}</span>
@@ -126,12 +128,12 @@ export default function HowItWorksPage() {
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-slate-500 mt-2.5">Pair at the start, alternate through, pair at the end.</p>
+                <p className="text-xs text-slate-500 mt-2.5">Pair at the start, alternate through the middle, pair at the end.</p>
               </div>
 
               {/* Balanced snake */}
               <div className="rounded-2xl bg-slate-900 p-4">
-                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Balanced snake — 6 games</div>
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Balanced snake — 8 games</div>
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     { label: "Pick 1", you: true },
@@ -140,6 +142,8 @@ export default function HowItWorksPage() {
                     { label: "Pick 4", you: true },
                     { label: "Pick 5", you: true },
                     { label: "Pick 6", you: false },
+                    { label: "Pick 7", you: false },
+                    { label: "Pick 8", you: true },
                   ].map((p, i) => (
                     <div key={i} className={`flex flex-col items-center px-2.5 py-1.5 rounded-lg text-xs font-bold border ${p.you ? "bg-rink border-rink text-white" : "bg-slate-700 border-slate-600 text-slate-200"}`}>
                       <span className="text-[9px] font-normal opacity-70 mb-0.5">{p.label}</span>
@@ -147,7 +151,7 @@ export default function HowItWorksPage() {
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-slate-500 mt-2.5">Single first pick, then strict pairs — fairer on larger slates.</p>
+                <p className="text-xs text-slate-500 mt-2.5">Single first pick, then strict pairs throughout — no end-of-draft bunching.</p>
               </div>
             </div>
             <p className="text-xs text-slate-400 mb-4">Both styles always give each player the same number of picks. You choose which pattern to use when you create the competition.</p>
