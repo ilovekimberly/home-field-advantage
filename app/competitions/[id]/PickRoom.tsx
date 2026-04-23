@@ -117,7 +117,7 @@ export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
   draftOrder, playerAId, playerBId, playerAName, playerBName,
   currentUserId, waitingForDefer, readOnly,
-  enableOverUnder, enableSpread, gameLines,
+  enableOverUnder, enableSpread, gameLines, sport,
 }: {
   competitionId: string;
   activeDate: string;
@@ -134,6 +134,7 @@ export default function PickRoom({
   enableOverUnder?: boolean;
   enableSpread?: boolean;
   gameLines?: Record<string, GameLineData>;
+  sport?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -261,10 +262,10 @@ export default function PickRoom({
       {hasAnyLines && (
         <p className="text-xs text-slate-400 mb-3 bg-slate-50 rounded-lg px-3 py-2 leading-relaxed">
           {enableSpread && enableOverUnder
-            ? "⚖️ Spread and over/under picks available — use a pick slot on either instead of a winner. Push or exact total = loss."
+            ? `⚖️ Spread and over/under picks available — use a pick slot on either instead of a winner. Push or exact total = loss.`
             : enableSpread
-            ? "⚡ Spread picks available — use a pick slot on the puck line instead of a winner. Push = loss."
-            : "⚖️ Over/under picks available — use a pick slot on total goals instead of a winner. Exact total = loss."}
+            ? `⚡ Spread picks available — use a pick slot on the ${sport === "MLB" ? "run line" : "puck line"} instead of a winner. Push = loss.`
+            : `⚖️ Over/under picks available — use a pick slot on total ${sport === "MLB" ? "runs" : "goals"} instead of a winner. Exact total = loss.`}
         </p>
       )}
 
@@ -352,8 +353,8 @@ export default function PickRoom({
                         )}
                         {isOUPick && g.final && ouResult && (
                           ouResult === "win"
-                            ? <span className="text-green-700 text-sm">✓ win · {finalTotal} goals</span>
-                            : <span className="text-red-600 text-sm">✗ loss · {finalTotal} goals</span>
+                            ? <span className="text-green-700 text-sm">✓ win · {finalTotal} {sport === "MLB" ? "runs" : "goals"}</span>
+                            : <span className="text-red-600 text-sm">✗ loss · {finalTotal} {sport === "MLB" ? "runs" : "goals"}</span>
                         )}
                         {isOUPick && isLive && finalTotal != null && (
                           <span className="text-slate-400 text-xs">({finalTotal} so far)</span>
@@ -447,7 +448,7 @@ export default function PickRoom({
                 <div className={`mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 ${
                   taken && !isSpreadPick ? "opacity-40" : ""
                 }`}>
-                  <span className="text-xs text-slate-500">⚡ Puck line</span>
+                  <span className="text-xs text-slate-500">⚡ {sport === "MLB" ? "Run line" : "Puck line"}</span>
                   {!taken && !started && !readOnly && (
                     <div className="flex gap-2 shrink-0">
                       {([

@@ -112,8 +112,8 @@ export default function NewCompetitionPage() {
         sport,
         duration,
         draft_style: draftStyle,
-        enable_over_under: sport === "NHL" ? enableOverUnder : false,
-        enable_spread: sport === "NHL" ? enableSpread : false,
+        enable_over_under: (sport === "NHL" || sport === "MLB") ? enableOverUnder : false,
+        enable_spread: (sport === "NHL" || sport === "MLB") ? enableSpread : false,
         start_date: startDate,
         end_date: end,
         creator_id: user.id,
@@ -260,8 +260,8 @@ export default function NewCompetitionPage() {
           </div>
         </div>
 
-        {/* Pick type toggles — NHL only */}
-        {sport === "NHL" && (
+        {/* Pick type toggles — NHL + MLB */}
+        {(sport === "NHL" || sport === "MLB") && (
           <div>
             <span className="block text-sm font-medium mb-2">Pick types</span>
             <div className="space-y-2">
@@ -280,11 +280,11 @@ export default function NewCompetitionPage() {
                 </div>
                 <div>
                   <span className={`text-sm font-semibold ${enableOverUnder ? "text-rink" : "text-slate-700"}`}>
-                    Enable over/under goal picks
+                    Enable over/under picks
                   </span>
                   <p className="text-xs text-slate-400 leading-snug mt-0.5">
-                    Use a pick slot on total goals (over/under) instead of a winner.
-                    Lines and odds are pulled from live markets and frozen before puck drop.
+                    Use a pick slot on the total {sport === "MLB" ? "runs" : "goals"} (over/under) instead of a winner.
+                    Lines and odds are pulled from live markets and frozen before {sport === "MLB" ? "first pitch" : "puck drop"}.
                     Exact total = loss.
                   </p>
                 </div>
@@ -308,7 +308,7 @@ export default function NewCompetitionPage() {
                     Enable spread picks
                   </span>
                   <p className="text-xs text-slate-400 leading-snug mt-0.5">
-                    Use a pick slot on the puck line (spread) instead of a winner.
+                    Use a pick slot on the {sport === "MLB" ? "run line" : "puck line"} (spread) instead of a winner.
                     Moneyline odds appear next to all team buttons for context.
                     Push = loss.
                   </p>

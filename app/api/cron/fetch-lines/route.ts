@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchNHLScheduleForDate } from "@/lib/nhl";
-import { fetchNHLGameLines, matchTeamName } from "@/lib/odds";
+import { fetchScheduleForDate } from "@/lib/schedule";
+import { fetchNHLGameLines, fetchMLBGameLines, matchTeamName } from "@/lib/odds";
 
 // GET /api/cron/fetch-lines
-// Fetches today's NHL game lines (totals + moneyline + spreads) from The Odds API
-// and stores them in the game_lines table, keyed by NHL game ID + date.
+// Fetches today's game lines (totals + moneyline + spreads) from The Odds API
+// for any sport that has active competitions today, and stores them in game_lines.
 //
-// Runs once daily around 5 PM ET (22:00 UTC) — well before evening puck drops.
+// Runs once daily around 5 PM ET (22:00 UTC) — well before evening game starts.
 // Lines are frozen after fetch; players see the same line all day.
+
+type SportKey = "NHL" | "MLB";
+
+const SPORT_FETCHERS: Record<SportKey, () => Promise<any[]>> = {
+  NHL: fetchNHLGameLines,
+  MLB: fetchMLBGameLines,
+};
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -27,79 +34,104 @@ export async function GET(req: Request) {
   const today = new Date().toISOString().slice(0, 10);
   const supabase = createSupabaseAdminClient();
 
-  // ── 1. Fetch today's NHL schedule ─────────────────────────────────────
-  let nhlGames;
-  try {
-    nhlGames = await fetchNHLScheduleForDate(today, true);
-  } catch (e) {
-    console.error("fetch-lines: NHL schedule failed", e);
-    return NextResponse.json({ error: "NHL schedule API failed" }, { status: 502 });
+  // ── Determine which sports have active competitions today ──────────────
+  const { data: activeComps } = await supabase
+    .from("competitions")
+    .select("sport")
+    .eq("status", "active")
+    .lte("start_date", today)
+    .gte("end_date", today);
+
+  const activeSports = Array.from(
+    new Set((activeComps ?? []).map((c) => c.sport ?? "NHL"))
+  ).filter((s) => s === "NHL" || s === "MLB") as SportKey[];
+
+  if (activeSports.length === 0) {
+    return NextResponse.json({ skipped: true, reason: "No active NHL or MLB competitions today" });
   }
 
-  if (!nhlGames || nhlGames.length === 0) {
-    return NextResponse.json({ skipped: true, reason: "No NHL games today" });
-  }
+  const results: Record<string, { stored: number; unmatched: number; total: number }> = {};
 
-  // ── 2. Fetch all lines from The Odds API ──────────────────────────────
-  let oddsLines;
-  try {
-    oddsLines = await fetchNHLGameLines();
-  } catch (e) {
-    console.error("fetch-lines: Odds API failed", e);
-    return NextResponse.json({ error: "Odds API failed" }, { status: 502 });
-  }
-
-  if (!oddsLines || oddsLines.length === 0) {
-    return NextResponse.json({ skipped: true, reason: "No lines available from Odds API" });
-  }
-
-  // ── 3. Match games and upsert into game_lines ─────────────────────────
-  let stored = 0;
-  let unmatched = 0;
-
-  for (const nhlGame of nhlGames) {
-    const matched = oddsLines.find(
-      (o) =>
-        matchTeamName(o.homeTeam, nhlGame.homeTeam.name) &&
-        matchTeamName(o.awayTeam, nhlGame.awayTeam.name)
-    );
-
-    if (!matched) {
-      console.warn(`fetch-lines: no odds match for ${nhlGame.awayTeam.name} @ ${nhlGame.homeTeam.name}`);
-      unmatched++;
+  for (const sport of activeSports) {
+    // ── 1. Fetch today's schedule ────────────────────────────────────────
+    let games;
+    try {
+      games = await fetchScheduleForDate(sport, today, true);
+    } catch (e) {
+      console.error(`fetch-lines: ${sport} schedule failed`, e);
+      results[sport] = { stored: 0, unmatched: 0, total: 0 };
       continue;
     }
 
-    const { error } = await supabase.from("game_lines").upsert(
-      {
-        game_id:          nhlGame.id,
-        game_date:        today,
-        home_team:        nhlGame.homeTeam.name,
-        away_team:        nhlGame.awayTeam.name,
-        fetched_at:       new Date().toISOString(),
-        // Totals
-        total_line:       matched.totalLine,
-        over_odds:        matched.overOdds,
-        under_odds:       matched.underOdds,
-        // Moneyline
-        home_ml:          matched.homeMoneyline,
-        away_ml:          matched.awayMoneyline,
-        // Spread
-        home_spread:      matched.homeSpread,
-        away_spread:      matched.awaySpread,
-        home_spread_odds: matched.homeSpreadOdds,
-        away_spread_odds: matched.awaySpreadOdds,
-      },
-      { onConflict: "game_id,game_date" }
-    );
-
-    if (error) {
-      console.error(`fetch-lines: upsert failed for game ${nhlGame.id}`, error);
-    } else {
-      stored++;
+    if (!games || games.length === 0) {
+      console.log(`fetch-lines: no ${sport} games today`);
+      results[sport] = { stored: 0, unmatched: 0, total: 0 };
+      continue;
     }
+
+    // ── 2. Fetch odds lines ──────────────────────────────────────────────
+    let oddsLines;
+    try {
+      oddsLines = await SPORT_FETCHERS[sport]();
+    } catch (e) {
+      console.error(`fetch-lines: Odds API failed for ${sport}`, e);
+      results[sport] = { stored: 0, unmatched: 0, total: games.length };
+      continue;
+    }
+
+    if (!oddsLines || oddsLines.length === 0) {
+      console.log(`fetch-lines: no ${sport} lines from Odds API`);
+      results[sport] = { stored: 0, unmatched: 0, total: games.length };
+      continue;
+    }
+
+    // ── 3. Match games and upsert into game_lines ────────────────────────
+    let stored = 0;
+    let unmatched = 0;
+
+    for (const game of games) {
+      const matched = oddsLines.find(
+        (o) =>
+          matchTeamName(o.homeTeam, game.homeTeam.name) &&
+          matchTeamName(o.awayTeam, game.awayTeam.name)
+      );
+
+      if (!matched) {
+        console.warn(`fetch-lines: no odds match for ${game.awayTeam.name} @ ${game.homeTeam.name}`);
+        unmatched++;
+        continue;
+      }
+
+      const { error } = await supabase.from("game_lines").upsert(
+        {
+          game_id:          game.id,
+          game_date:        today,
+          home_team:        game.homeTeam.name,
+          away_team:        game.awayTeam.name,
+          fetched_at:       new Date().toISOString(),
+          total_line:       matched.totalLine,
+          over_odds:        matched.overOdds,
+          under_odds:       matched.underOdds,
+          home_ml:          matched.homeMoneyline,
+          away_ml:          matched.awayMoneyline,
+          home_spread:      matched.homeSpread,
+          away_spread:      matched.awaySpread,
+          home_spread_odds: matched.homeSpreadOdds,
+          away_spread_odds: matched.awaySpreadOdds,
+        },
+        { onConflict: "game_id,game_date" }
+      );
+
+      if (error) {
+        console.error(`fetch-lines: upsert failed for game ${game.id}`, error);
+      } else {
+        stored++;
+      }
+    }
+
+    console.log(`fetch-lines [${sport}]: stored ${stored}, unmatched ${unmatched}, total ${games.length}`);
+    results[sport] = { stored, unmatched, total: games.length };
   }
 
-  console.log(`fetch-lines: stored ${stored} lines, ${unmatched} unmatched out of ${nhlGames.length} games`);
-  return NextResponse.json({ stored, unmatched, total: nhlGames.length });
+  return NextResponse.json({ results });
 }

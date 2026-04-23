@@ -35,6 +35,10 @@ export async function fetchNHLGameLines(): Promise<GameLine[]> {
   return fetchGameLines("icehockey_nhl");
 }
 
+export async function fetchMLBGameLines(): Promise<GameLine[]> {
+  return fetchGameLines("baseball_mlb");
+}
+
 // Keep old name as an alias for any existing imports.
 export const fetchNHLTotals = fetchNHLGameLines;
 

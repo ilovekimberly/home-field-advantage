@@ -317,6 +317,7 @@ export default async function CompetitionPage({
           enableOverUnder={!!comp.enable_over_under}
           enableSpread={!!comp.enable_spread}
           gameLines={gameLines}
+          sport={comp.sport ?? "NHL"}
           waitingForDefer={
             isViewingToday &&
             !deferChoiceMade &&
