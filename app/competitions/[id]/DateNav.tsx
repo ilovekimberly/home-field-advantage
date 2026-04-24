@@ -7,12 +7,14 @@ export default function DateNav({
   startDate,
   endDate,
   datesWithPicks,
+  todayPickable = true,
 }: {
   competitionId: string;
   activeDate: string;
   startDate: string;
   endDate: string;
   datesWithPicks: string[];
+  todayPickable?: boolean;
 }) {
   const router = useRouter();
 
@@ -20,9 +22,11 @@ export default function DateNav({
     router.push(`/competitions/${competitionId}?date=${date}`);
   }
 
-  // All dates in the competition window that either have picks or are today/future.
+  // All dates in the competition window that either have picks or are today
+  // (but only include today if previous results are all in).
   const today = new Date().toISOString().slice(0, 10);
-  const allDates = Array.from(new Set([...datesWithPicks, today]))
+  const baseDates = todayPickable ? [...datesWithPicks, today] : [...datesWithPicks];
+  const allDates = Array.from(new Set(baseDates))
     .filter((d) => d >= startDate && d <= endDate)
     .sort();
 

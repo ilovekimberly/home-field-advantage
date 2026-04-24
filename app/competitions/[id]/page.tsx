@@ -63,8 +63,6 @@ export default async function CompetitionPage({
     ? getPickDate(comp.sport ?? "NHL", requestedDate)
     : defaultDate;
 
-  const isViewingToday = activeDate === today || (comp.duration === "daily" && activeDate === comp.start_date);
-
   // All picks for this competition
   const { data: allPicks } = await supabase
     .from("picks").select("*").eq("competition_id", comp.id);
@@ -107,6 +105,16 @@ export default async function CompetitionPage({
     };
   }
   const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
+
+  // Today is only accessible for picks if the most recent previous date has
+  // no pending picks — i.e. yesterday's results are all in.
+  const mostRecentPickDate = datesWithPicks.filter((d) => d < today).slice(-1)[0];
+  const prevDateHasPending = mostRecentPickDate
+    ? (allPicks ?? []).some((p) => p.game_date === mostRecentPickDate && p.result === "pending")
+    : false;
+  const todayPickable = !prevDateHasPending;
+  const isViewingToday = (activeDate === today || (comp.duration === "daily" && activeDate === comp.start_date))
+    && todayPickable;
 
   // Prior records (relative to activeDate)
   const recordA = { wins: 0, losses: 0, pushes: 0 };
@@ -271,7 +279,15 @@ export default async function CompetitionPage({
             startDate={comp.start_date}
             endDate={comp.end_date}
             datesWithPicks={datesWithPicks}
+            todayPickable={todayPickable}
           />
+        )}
+
+        {/* Pending results banner — today locked until yesterday is scored */}
+        {activeDate === today && !todayPickable && mostRecentPickDate && (
+          <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            ⏳ Waiting on results from {new Date(mostRecentPickDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} — picks for tonight open once those are scored.
+          </div>
         )}
 
         {/* Nightly recap from the previous night */}
