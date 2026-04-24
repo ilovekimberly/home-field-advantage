@@ -5,9 +5,9 @@
 //
 //  1. For DAILY competitions, the creator picks first on day 1.
 //     For WEEKLY / SEASON competitions, the player with the better record
-//     across PRIOR dates picks first. Ties go to whoever did NOT pick first
-//     on the previous date (alternating fallback). On day 1 the creator
-//     picks first.
+//     across PRIOR dates picks first. On a tie, priority stays with whoever
+//     held it the previous night (they keep the option to pick first or defer).
+//     On day 1 the creator picks first.
 //  2. The first picker can either:
 //        (a) take the very first pick of the day, or
 //        (b) DEFER and instead take picks #2 AND #3.
@@ -143,7 +143,8 @@ export function whoPicksFirst(
   if (winsA !== winsB) return winsA > winsB ? "A" : "B";
   const lossesA = recordA.losses, lossesB = recordB.losses;
   if (lossesA !== lossesB) return lossesA < lossesB ? "A" : "B";
-  // Tied -> alternate from previous day, or default on day 1.
+  // Tied -> priority stays with whoever had it last night (they keep the option
+  // to pick first or defer again). On day 1 with no prior history, default to creator.
   if (previousFirstPicker == null) return defaultFirst;
-  return previousFirstPicker === "A" ? "B" : "A";
+  return previousFirstPicker;
 }
