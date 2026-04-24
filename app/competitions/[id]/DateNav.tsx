@@ -24,7 +24,7 @@ export default function DateNav({
 
   // All dates in the competition window that either have picks or are today
   // (but only include today if previous results are all in).
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const baseDates = todayPickable ? [...datesWithPicks, today] : [...datesWithPicks];
   const allDates = Array.from(new Set(baseDates))
     .filter((d) => d >= startDate && d <= endDate)

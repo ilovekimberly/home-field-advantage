@@ -9,7 +9,11 @@ import RefreshScores from "./RefreshScores";
 import DateNav from "./DateNav";
 import NightlyRecap from "./NightlyRecap";
 
-function todayISO() { return new Date().toISOString().slice(0, 10); }
+// Use Eastern Time so the date doesn't flip at midnight UTC while US games
+// are still in progress (e.g. 8 PM ET = midnight UTC = "tomorrow" in UTC).
+function todayISO() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
 
 export default async function CompetitionPage({
   params,
@@ -49,27 +53,46 @@ export default async function CompetitionPage({
 
   const today = todayISO();
 
+  // Fetch all picks first — needed to compute todayPickable before activeDate.
+  const { data: allPicks } = await supabase
+    .from("picks").select("*").eq("competition_id", comp.id);
+
+  const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
+
+  // Today is only accessible for picks if the most recent previous date has
+  // no pending picks — i.e. yesterday's results are all in.
+  const mostRecentPickDate = datesWithPicks.filter((d) => d < today).slice(-1)[0];
+  const prevDateHasPending = mostRecentPickDate
+    ? (allPicks ?? []).some((p) => p.game_date === mostRecentPickDate && p.result === "pending")
+    : false;
+  const todayPickable = !prevDateHasPending;
+
   // Default active date (today clamped to comp window), overridable via ?date=
+  // When today isn't pickable, snap the default back to the most recent pick date
+  // so the page doesn't land on a locked "tonight" slot.
   const rawDefault =
     comp.duration === "daily" ? comp.start_date :
     today < comp.start_date ? comp.start_date :
     today > comp.end_date ? comp.end_date : today;
 
+  const clampedDefault = !todayPickable && rawDefault === today
+    ? (mostRecentPickDate ?? comp.start_date)
+    : rawDefault;
+
   // For EPL, snap to gameweek start date.
-  const defaultDate = getPickDate(comp.sport ?? "NHL", rawDefault);
+  const defaultDate = getPickDate(comp.sport ?? "NHL", clampedDefault);
 
   const requestedDate = searchParams.date;
   const activeDate = requestedDate && requestedDate >= comp.start_date && requestedDate <= comp.end_date
     ? getPickDate(comp.sport ?? "NHL", requestedDate)
     : defaultDate;
 
-  // All picks for this competition
-  const { data: allPicks } = await supabase
-    .from("picks").select("*").eq("competition_id", comp.id);
+  const isViewingToday = (activeDate === today || (comp.duration === "daily" && activeDate === comp.start_date))
+    && todayPickable;
 
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
 
-  // Game lines for the active date (over/under + spread + moneyline, NHL only)
+  // Game lines for the active date (over/under + spread + moneyline)
   const needsLines = comp.enable_over_under || comp.enable_spread;
   const gameLineRows = needsLines
     ? (await supabase
@@ -104,17 +127,6 @@ export default async function CompetitionPage({
       awaySpreadOdds: row.away_spread_odds,
     };
   }
-  const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
-
-  // Today is only accessible for picks if the most recent previous date has
-  // no pending picks — i.e. yesterday's results are all in.
-  const mostRecentPickDate = datesWithPicks.filter((d) => d < today).slice(-1)[0];
-  const prevDateHasPending = mostRecentPickDate
-    ? (allPicks ?? []).some((p) => p.game_date === mostRecentPickDate && p.result === "pending")
-    : false;
-  const todayPickable = !prevDateHasPending;
-  const isViewingToday = (activeDate === today || (comp.duration === "daily" && activeDate === comp.start_date))
-    && todayPickable;
 
   // Prior records (relative to activeDate)
   const recordA = { wins: 0, losses: 0, pushes: 0 };
@@ -283,10 +295,10 @@ export default async function CompetitionPage({
           />
         )}
 
-        {/* Pending results banner — today locked until yesterday is scored */}
-        {activeDate === today && !todayPickable && mostRecentPickDate && (
+        {/* Pending results banner — today locked until previous night is scored */}
+        {!todayPickable && mostRecentPickDate && activeDate === mostRecentPickDate && (
           <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-            ⏳ Waiting on results from {new Date(mostRecentPickDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} — picks for tonight open once those are scored.
+            ⏳ Results from tonight are still being scored — picks for tomorrow open once those are final.
           </div>
         )}
 
