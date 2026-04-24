@@ -40,6 +40,18 @@ export async function sendEmail({ to, subject, html }: EmailPayload): Promise<bo
 
 // ── Email templates ────────────────────────────────────────────────────────
 
+const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽" };
+const SPORT_GAME_WORD: Record<string, string> = { NHL: "game", MLB: "game", EPL: "match" };
+const SPORT_START_PHRASE: Record<string, string> = {
+  NHL: "puck drop",
+  MLB: "first pitch",
+  EPL: "kickoff",
+};
+
+function sportEmoji(sport?: string) { return SPORT_EMOJI[sport ?? "NHL"] ?? "🏒"; }
+function gameWord(sport?: string) { return SPORT_GAME_WORD[sport ?? "NHL"] ?? "game"; }
+function startPhrase(sport?: string) { return SPORT_START_PHRASE[sport ?? "NHL"] ?? "puck drop"; }
+
 function wrapper(content: string) {
   return `
     <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#222;">
@@ -71,6 +83,7 @@ export function yourTurnEmail({
   competitionUrl,
   gamesRemaining,
   pickNumber,
+  sport,
 }: {
   toName: string;
   opponentName: string;
@@ -78,9 +91,11 @@ export function yourTurnEmail({
   competitionUrl: string;
   gamesRemaining: number;
   pickNumber: number;
+  sport?: string;
 }) {
+  const gw = gameWord(sport);
   return {
-    subject: `🏒 Your pick #${pickNumber} is up — ${competitionName}`,
+    subject: `${sportEmoji(sport)} Your pick #${pickNumber} is up — ${competitionName}`,
     html: wrapper(`
       <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">You're on the clock!</h1>
       <p style="font-size:16px;line-height:1.6;">
@@ -88,7 +103,7 @@ export function yourTurnEmail({
         <strong>${competitionName}</strong>. It's your turn — pick #${pickNumber}.
       </p>
       <p style="font-size:15px;color:#555;">
-        ${gamesRemaining} game${gamesRemaining !== 1 ? "s" : ""} still available to pick from tonight.
+        ${gamesRemaining} ${gw}${gamesRemaining !== 1 ? "s" : ""} still available to pick from.
       </p>
       ${button(competitionUrl, "Make your pick →")}
     `),
@@ -101,19 +116,21 @@ export function opponentJoinedEmail({
   opponentName,
   competitionName,
   competitionUrl,
+  sport,
 }: {
   toName: string;
   opponentName: string;
   competitionName: string;
   competitionUrl: string;
+  sport?: string;
 }) {
   return {
-    subject: `🏒 ${opponentName} joined your competition!`,
+    subject: `${sportEmoji(sport)} ${opponentName} joined your competition!`,
     html: wrapper(`
       <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">Challenge accepted!</h1>
       <p style="font-size:16px;line-height:1.6;">
         <strong>${opponentName}</strong> just joined <strong>${competitionName}</strong>.
-        Head over to make your first picks when the games start.
+        Head over to make your first picks before ${startPhrase(sport)}.
       </p>
       ${button(competitionUrl, "View competition →")}
     `),
@@ -129,6 +146,7 @@ export function picksOpenEmail({
   firstGameTime,
   gameCount,
   hasPriority,
+  sport,
 }: {
   toName: string;
   opponentName: string;
@@ -136,8 +154,11 @@ export function picksOpenEmail({
   competitionUrl: string;
   firstGameTime: string; // e.g. "7:00 PM ET"
   gameCount: number;
-  hasPriority: boolean; // true = this player picks first / can defer
+  hasPriority: boolean;
+  sport?: string;
 }) {
+  const gw = gameWord(sport);
+  const sp = startPhrase(sport);
   const priorityNote = hasPriority
     ? `<p style="font-size:15px;color:#555;line-height:1.6;">
         You have <strong>pick priority</strong> tonight — head over to choose whether
@@ -149,13 +170,13 @@ export function picksOpenEmail({
        </p>`;
 
   return {
-    subject: `🏒 Tonight's picks are open — ${competitionName}`,
+    subject: `${sportEmoji(sport)} Tonight's picks are open — ${competitionName}`,
     html: wrapper(`
       <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">Picks are open!</h1>
       <p style="font-size:16px;line-height:1.6;">
-        There ${gameCount === 1 ? "is" : "are"} <strong>${gameCount} NHL game${gameCount !== 1 ? "s" : ""}</strong>
-        on the slate tonight for <strong>${competitionName}</strong>.
-        First puck drops at <strong>${firstGameTime}</strong>.
+        There ${gameCount === 1 ? "is" : "are"} <strong>${gameCount} ${gw}${gameCount !== 1 ? "s" : ""}</strong>
+        on the slate for <strong>${competitionName}</strong>.
+        First ${sp} at <strong>${firstGameTime}</strong>.
       </p>
       ${priorityNote}
       ${button(competitionUrl, "Make your picks →")}
@@ -169,20 +190,20 @@ export function competitionCancelledEmail({
   competitionName,
   reason,
   newCompUrl,
+  sport,
 }: {
   toName: string;
   competitionName: string;
-  // 'daily' = games started with no opponent
-  // 'weekly' = 3 days passed with no opponent
   reason: "daily" | "weekly";
   newCompUrl: string;
+  sport?: string;
 }) {
   const explanation = reason === "daily"
     ? "Tonight's games have started and no one joined in time."
     : "3 days have passed and no one accepted the invite.";
 
   return {
-    subject: `🏒 Your competition "${competitionName}" was cancelled`,
+    subject: `${sportEmoji(sport)} Your competition "${competitionName}" was cancelled`,
     html: wrapper(`
       <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">Competition cancelled</h1>
       <p style="font-size:16px;line-height:1.6;">

@@ -67,6 +67,7 @@ export async function GET(req: Request, { params }: { params: { token: string } 
       opponentName: opponentProfile?.display_name ?? "Your opponent",
       competitionName: comp.name,
       competitionUrl: `${siteUrl}/competitions/${comp.id}`,
+      sport: comp.sport ?? "NHL",
     });
     sendEmail({ to: creatorProfile.email, subject, html }).catch(console.error);
   }

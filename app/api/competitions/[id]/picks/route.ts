@@ -77,8 +77,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     deferred = deferRow?.deferred ?? false;
   }
 
+  // Drop games that started before being picked — they're no longer available.
+  const now = new Date();
+  const pickedGameIds = new Set(todays.map((p: any) => String(p.game_id)));
+  const effectiveGameCount = games.filter(
+    (g) => pickedGameIds.has(String(g.id)) || new Date(g.startTimeUTC) > now
+  ).length;
+
   const draft = generateDraftOrder({
-    numGames: games.length,
+    numGames: effectiveGameCount,
     firstPicker,
     deferred,
     draftStyle: (comp.draft_style ?? "standard") as DraftStyle,
@@ -173,6 +180,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           competitionUrl: `${siteUrl}/competitions/${comp.id}`,
           gamesRemaining,
           pickNumber: picksAlreadyMade + 1,
+          sport: comp.sport ?? "NHL",
         });
 
         // Fire and forget — don't block the pick response on email delivery.

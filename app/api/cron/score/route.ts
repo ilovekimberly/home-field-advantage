@@ -179,6 +179,7 @@ export async function GET(req: Request) {
         competitionName: comp.name,
         reason: "daily",
         newCompUrl: `${siteUrl}/competitions/new`,
+        sport: comp.sport ?? "NHL",
       });
       sendEmail({ to: creator.email, subject, html }).catch(console.error);
     }
@@ -209,6 +210,7 @@ export async function GET(req: Request) {
         competitionName: comp.name,
         reason: "weekly",
         newCompUrl: `${siteUrl}/competitions/new`,
+        sport: comp.sport ?? "NHL",
       });
       sendEmail({ to: creator.email, subject, html }).catch(console.error);
     }

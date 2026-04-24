@@ -153,8 +153,16 @@ export default async function CompetitionPage({
   let games: Awaited<ReturnType<typeof fetchScheduleForDate>> = [];
   try { games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate); } catch {}
 
+  // Only count games that are either already picked or haven't started yet.
+  // Games that started before anyone picked them are dropped from the slate.
+  const now = new Date();
+  const pickedGameIds = new Set(todaysPicks.map((p) => String(p.game_id)));
+  const effectiveGameCount = games.filter(
+    (g) => pickedGameIds.has(String(g.id)) || new Date(g.startTimeUTC) > now
+  ).length;
+
   const draft = generateDraftOrder({
-    numGames: games.length,
+    numGames: effectiveGameCount,
     firstPicker: firstPickerSlot,
     deferred,
     draftStyle: (comp.draft_style ?? "standard") as "standard" | "balanced",
@@ -164,7 +172,7 @@ export default async function CompetitionPage({
     isViewingToday &&
     !deferChoiceMade &&
     comp.duration !== "daily" &&
-    games.length > 3 &&
+    effectiveGameCount > 3 &&
     todaysPicks.length === 0 &&
     firstPickerUserId === user.id &&
     !!comp.opponent_id;
@@ -272,7 +280,7 @@ export default async function CompetitionPage({
         )}
 
         <p className="text-sm text-slate-500 mb-4">
-          {games.length} games ·{" "}
+          {effectiveGameCount} games ·{" "}
           {deferChoiceMade
             ? <>first pick: <b>{firstPickerName}</b>{deferred ? " (deferred — takes picks #2 & #3)" : ""}</>
             : comp.duration === "daily" || !comp.opponent_id
@@ -323,7 +331,7 @@ export default async function CompetitionPage({
             !deferChoiceMade &&
             todaysPicks.length === 0 &&
             comp.duration !== "daily" &&
-            games.length > 3 &&
+            effectiveGameCount > 3 &&
             !!comp.opponent_id
           }
           readOnly={!isViewingToday}
