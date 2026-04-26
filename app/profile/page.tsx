@@ -48,7 +48,7 @@ export default async function ProfilePage() {
   const totalPicks = totalWins + totalLosses + totalPushes;
   const winRate = totalPicks > 0 ? Math.round((totalWins / (totalPicks - totalPushes || 1)) * 100) : null;
 
-  // Count perfect nights (days where user had ≥1 pick and all were wins).
+  // Count perfect nights (days where user had ≥1 pick, all are fully scored, and all were wins).
   const myPicksByDate = myPicks.reduce((acc, p) => {
     const key = `${p.competition_id}__${p.game_date}`;
     if (!acc[key]) acc[key] = [];
@@ -56,8 +56,9 @@ export default async function ProfilePage() {
     return acc;
   }, {} as Record<string, typeof myPicks>);
   for (const picks of Object.values(myPicksByDate)) {
-    const scored = picks.filter((p) => p.result === "win" || p.result === "loss");
-    if (scored.length > 0 && scored.every((p) => p.result === "win")) perfectNights++;
+    const anyUnresolved = picks.some((p) => p.result === "pending" || p.result === "unscored");
+    if (anyUnresolved) continue; // Night not fully scored yet — don't count
+    if (picks.length > 0 && picks.every((p) => p.result === "win")) perfectNights++;
   }
 
   // Fetch opponent profiles.
