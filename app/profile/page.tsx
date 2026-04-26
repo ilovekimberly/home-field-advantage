@@ -28,24 +28,37 @@ export default async function ProfilePage() {
 
   const compIds = (competitions ?? []).map((c) => c.id);
 
-  // Fetch all picks for stats.
+  // Fetch ALL picks (both players) so we can compute outcomes and standings.
   const { data: allPicks } = compIds.length > 0
     ? await supabase
         .from("picks")
         .select("competition_id, picker_id, result, game_date")
         .in("competition_id", compIds)
-        .eq("picker_id", user.id)
     : { data: [] };
 
+  const myPicks = (allPicks ?? []).filter((p) => p.picker_id === user.id);
+
   // Overall stats.
-  let totalWins = 0, totalLosses = 0, totalPushes = 0;
-  for (const p of allPicks ?? []) {
+  let totalWins = 0, totalLosses = 0, totalPushes = 0, perfectNights = 0;
+  for (const p of myPicks) {
     if (p.result === "win") totalWins++;
     else if (p.result === "loss") totalLosses++;
     else if (p.result === "push") totalPushes++;
   }
   const totalPicks = totalWins + totalLosses + totalPushes;
   const winRate = totalPicks > 0 ? Math.round((totalWins / (totalPicks - totalPushes || 1)) * 100) : null;
+
+  // Count perfect nights (days where user had ≥1 pick and all were wins).
+  const myPicksByDate = myPicks.reduce((acc, p) => {
+    const key = `${p.competition_id}__${p.game_date}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(p);
+    return acc;
+  }, {} as Record<string, typeof myPicks>);
+  for (const picks of Object.values(myPicksByDate)) {
+    const scored = picks.filter((p) => p.result === "win" || p.result === "loss");
+    if (scored.length > 0 && scored.every((p) => p.result === "win")) perfectNights++;
+  }
 
   // Fetch opponent profiles.
   const opponentIds = Array.from(new Set(
@@ -58,28 +71,32 @@ export default async function ProfilePage() {
     : { data: [] };
   const profileMap = new Map((opponentProfiles ?? []).map((p) => [p.id, p]));
 
-  // Build competition history with outcomes.
+  // Build competition history with proper outcomes using all picks.
   const today = todayISO();
   const history = (competitions ?? []).map((comp) => {
-    const picks = (allPicks ?? []).filter((p) => p.competition_id === comp.id);
-    const myWins = picks.filter((p) => p.result === "win").length;
-    const myLosses = picks.filter((p) => p.result === "loss").length;
+    const compPicks = (allPicks ?? []).filter((p) => p.competition_id === comp.id);
+    const myWins   = compPicks.filter((p) => p.picker_id === user.id && p.result === "win").length;
+    const myLosses = compPicks.filter((p) => p.picker_id === user.id && p.result === "loss").length;
 
     const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
     const opponent = opponentId ? profileMap.get(opponentId) : null;
     const opponentName = opponent?.display_name ?? opponent?.email ?? null;
 
-    let outcome: "winning" | "losing" | "tied" | "pending" | null = null;
-    if (comp.status === "complete" || comp.status === "active") {
-      // We need opponent wins too — approximate from all picks.
-      // (allPicks only has user's picks, so use total picks in comp for opponent)
+    const theirWins   = compPicks.filter((p) => p.picker_id === opponentId && p.result === "win").length;
+    const theirLosses = compPicks.filter((p) => p.picker_id === opponentId && p.result === "loss").length;
+
+    let outcome: "winning" | "losing" | "tied" | null = null;
+    if (myWins + myLosses + theirWins + theirLosses > 0) {
+      if (myWins > theirWins) outcome = "winning";
+      else if (theirWins > myWins) outcome = "losing";
+      else outcome = "tied";
     }
 
     const durationLabel =
       comp.duration === "daily" ? "Single day" :
       comp.duration === "weekly" ? "1 week" : "Full season";
 
-    return { comp, myWins, myLosses, opponentName, durationLabel };
+    return { comp, myWins, myLosses, theirWins, theirLosses, outcome, opponentName, durationLabel };
   });
 
   const activeHistory = history.filter((h) => h.comp.status === "active" || h.comp.status === "pending");
@@ -99,7 +116,7 @@ export default async function ProfilePage() {
       {/* Stats */}
       <section className="card">
         <h2 className="text-lg font-bold mb-4">Overall stats</h2>
-        <div className="grid grid-cols-4 gap-4 text-center">
+        <div className="grid grid-cols-5 gap-3 text-center">
           <div>
             <div className="text-3xl font-bold text-rink">{totalWins}</div>
             <div className="text-xs text-slate-500 mt-1">Wins</div>
@@ -117,6 +134,10 @@ export default async function ProfilePage() {
               {winRate !== null ? `${winRate}%` : "—"}
             </div>
             <div className="text-xs text-slate-500 mt-1">Win rate</div>
+          </div>
+          <div>
+            <div className="text-3xl font-bold text-amber-500">{perfectNights}</div>
+            <div className="text-xs text-slate-500 mt-1">🔥 Perfect nights</div>
           </div>
         </div>
         {totalPicks > 0 && (
@@ -141,19 +162,26 @@ export default async function ProfilePage() {
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-slate-500 mb-2">Active</h3>
               <ul className="space-y-2">
-                {activeHistory.map(({ comp, myWins, myLosses, opponentName, durationLabel }) => (
+                {activeHistory.map(({ comp, myWins, myLosses, theirWins, outcome, opponentName, durationLabel }) => (
                   <li key={comp.id}>
                     <Link href={`/competitions/${comp.id}`} className="card hover:shadow-md transition-shadow block">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-rink">{comp.name}</div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-rink truncate">{comp.name}</div>
                           <div className="text-xs text-slate-500 mt-0.5">
                             {durationLabel} · vs {opponentName ?? "Awaiting opponent"}
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-bold">{myWins}–{myLosses}</div>
-                          <div className="text-xs text-slate-400">my picks</div>
+                        <div className="text-right shrink-0">
+                          <div className="font-bold">{myWins}–{theirWins}</div>
+                          {outcome && (
+                            <div className={`text-xs font-semibold mt-0.5 ${
+                              outcome === "winning" ? "text-green-600" :
+                              outcome === "losing"  ? "text-red-500"   : "text-slate-400"
+                            }`}>
+                              {outcome === "winning" ? "Winning" : outcome === "losing" ? "Losing" : "Tied"}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </Link>
@@ -167,24 +195,31 @@ export default async function ProfilePage() {
             <div>
               <h3 className="text-sm font-semibold text-slate-500 mb-2">Past</h3>
               <ul className="space-y-2">
-                {pastHistory.map(({ comp, myWins, myLosses, opponentName, durationLabel }) => (
+                {pastHistory.map(({ comp, myWins, theirWins, outcome, opponentName, durationLabel }) => (
                   <li key={comp.id}>
                     <Link href={`/competitions/${comp.id}`} className="card hover:shadow-md transition-shadow block">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-slate-700">{comp.name}</div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-700 truncate">{comp.name}</div>
                           <div className="text-xs text-slate-500 mt-0.5">
                             {durationLabel} · {comp.start_date}
                             {opponentName ? ` · vs ${opponentName}` : ""}
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           {comp.status === "cancelled" ? (
                             <span className="text-xs text-slate-400 italic">Cancelled</span>
                           ) : (
                             <>
-                              <div className="font-bold">{myWins}–{myLosses}</div>
-                              <div className="text-xs text-slate-400">my picks</div>
+                              <div className="font-bold">{myWins}–{theirWins}</div>
+                              {outcome && (
+                                <div className={`text-xs font-semibold mt-0.5 ${
+                                  outcome === "winning" ? "text-green-600" :
+                                  outcome === "losing"  ? "text-red-500"   : "text-slate-400"
+                                }`}>
+                                  {outcome === "winning" ? "Won" : outcome === "losing" ? "Lost" : "Tied"}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>

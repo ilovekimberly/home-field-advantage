@@ -7,6 +7,10 @@ export async function fetchMLBScheduleForDate(date: string): Promise<SportGame[]
   const data = await res.json();
 
   const games: SportGame[] = [];
+  // Track seen gamePks so we can detect when the API returns the same
+  // gamePk for both games of a doubleheader and assign a synthetic unique ID.
+  const seenPks = new Set<number>();
+
   for (const dateEntry of data.dates ?? []) {
     for (const g of dateEntry.games ?? []) {
       const state = g.status?.detailedState ?? "";
@@ -40,8 +44,17 @@ export async function fetchMLBScheduleForDate(date: string): Promise<SportGame[]
         ? (g.gameNumber ?? undefined)
         : undefined;
 
+      // If the API reuses the same gamePk for both games of a doubleheader,
+      // give Game 2 a synthetic ID so the two are treated as separate throughout
+      // the system (picks table, odds matching, scoring, etc.).
+      const isDuplicatePk = seenPks.has(g.gamePk);
+      seenPks.add(g.gamePk);
+      const gameId = isDuplicatePk || gameNumber === 2
+        ? `${g.gamePk}-dh2`
+        : g.gamePk;
+
       games.push({
-        id: g.gamePk,
+        id: gameId,
         startTimeUTC: g.gameDate,
         gameNumber,
         homeTeam: {
