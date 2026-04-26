@@ -109,12 +109,12 @@ export async function GET(req: Request) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
     for (const compId of affectedCompIds) {
-      // Fetch all scored picks for this competition grouped by date.
+      // Fetch ALL picks for this competition (not just win/loss) so we can
+      // verify a night is fully scored before calling it a perfect night.
       const { data: compPicks } = await supabase
         .from("picks")
         .select("picker_id, game_date, result")
-        .eq("competition_id", compId)
-        .in("result", ["win", "loss"]);
+        .eq("competition_id", compId);
 
       if (!compPicks || compPicks.length === 0) continue;
 
@@ -125,27 +125,37 @@ export async function GET(req: Request) {
         .single();
       if (!comp) continue;
 
-      // Group by date and check each date for a perfect night.
-      const dates = Array.from(new Set(compPicks.map((p) => p.game_date)));
+      // Only look at dates that have at least one newly-scored pick.
+      const affectedDates = Array.from(new Set(
+        compPicks
+          .filter((p) => p.result === "win" || p.result === "loss")
+          .map((p) => p.game_date)
+      ));
       const players = [
         { id: comp.creator_id, slot: "A" },
         { id: comp.opponent_id, slot: "B" },
       ].filter((p) => p.id);
 
-      for (const date of dates) {
+      for (const date of affectedDates) {
         const datePicks = compPicks.filter((p) => p.game_date === date);
 
         for (const player of players) {
           const myPicks = datePicks.filter((p) => p.picker_id === player.id);
-          if (myPicks.length === 0) continue;
+          // Require at least 2 picks and all must be fully resolved.
+          if (myPicks.length < 2) continue;
+          const anyPending = myPicks.some(
+            (p) => p.result !== "win" && p.result !== "loss" && p.result !== "push"
+          );
+          if (anyPending) continue; // Night not fully scored — wait for next run.
           const isPerfect = myPicks.every((p) => p.result === "win");
           if (!isPerfect) continue;
 
           // Check we haven't already sent a perfect night email for this date+player.
+          // NOTE: select "competition_id" not "id" — the table has no id column.
           const notifKey = `perfect_night_${player.id}_${date}`;
           const { data: alreadySent } = await supabase
             .from("competition_notifications")
-            .select("id")
+            .select("competition_id")
             .eq("competition_id", compId)
             .eq("notification_date", date)
             .eq("notification_type", notifKey)
