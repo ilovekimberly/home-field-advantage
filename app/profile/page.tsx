@@ -56,9 +56,12 @@ export default async function ProfilePage() {
     return acc;
   }, {} as Record<string, typeof myPicks>);
   for (const picks of Object.values(myPicksByDate)) {
-    const anyUnresolved = picks.some((p) => p.result === "pending" || p.result === "unscored");
-    if (anyUnresolved) continue; // Night not fully scored yet — don't count
-    if (picks.length > 0 && picks.every((p) => p.result === "win")) perfectNights++;
+    // Require at least 2 picks — a solo 1-pick win isn't a "perfect night".
+    if (picks.length < 2) continue;
+    // Skip nights that aren't fully resolved yet.
+    const anyUnresolved = picks.some((p) => p.result !== "win" && p.result !== "loss" && p.result !== "push");
+    if (anyUnresolved) continue;
+    if (picks.every((p) => p.result === "win")) perfectNights++;
   }
 
   // Fetch opponent profiles.

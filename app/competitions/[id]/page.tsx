@@ -9,6 +9,7 @@ import RefreshScores from "./RefreshScores";
 import DateNav from "./DateNav";
 import NightlyRecap from "./NightlyRecap";
 import LiveStandings from "./LiveStandings";
+import NightByNight, { type NightEntry } from "./NightByNight";
 
 // Use Eastern Time so the date doesn't flip at midnight UTC while US games
 // are still in progress (e.g. 8 PM ET = midnight UTC = "tomorrow" in UTC).
@@ -234,6 +235,29 @@ export default async function CompetitionPage({
     else if (p.result === "push") rec.pushes++;
   }
 
+  // ── Night-by-night breakdown (weekly/season only) ──────────────────────
+  const nightBreakdown: NightEntry[] = comp.duration !== "daily"
+    ? datesWithPicks.map((date) => {
+        const datePicks = (allPicks ?? []).filter((p) => p.game_date === date);
+        let myWins = 0, myLosses = 0, theirWins = 0, theirLosses = 0;
+        let hasPending = false;
+        for (const p of datePicks) {
+          const mine = p.picker_id === user.id;
+          if (p.result === "win")     mine ? myWins++   : theirWins++;
+          if (p.result === "loss")    mine ? myLosses++ : theirLosses++;
+          if (p.result === "pending" || p.result === "unscored") hasPending = true;
+        }
+        return { date, myWins, myLosses, theirWins, theirLosses, hasPending };
+      }).reverse() // most recent first
+    : [];
+
+  // ── Date score for the active date's header ────────────────────────────
+  const myDateWins   = todaysPicks.filter((p) => p.picker_id === user.id && p.result === "win").length;
+  const myDateLosses = todaysPicks.filter((p) => p.picker_id === user.id && p.result === "loss").length;
+  const theirDateWins   = todaysPicks.filter((p) => p.picker_id !== user.id && p.result === "win").length;
+  const theirDateLosses = todaysPicks.filter((p) => p.picker_id !== user.id && p.result === "loss").length;
+  const dateScoreVisible = (myDateWins + myDateLosses + theirDateWins + theirDateLosses) > 0;
+
   return (
     <div className="space-y-6">
       {/* Competition header */}
@@ -280,11 +304,25 @@ export default async function CompetitionPage({
       {/* Pick slate card */}
       <div className="card">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-bold">
-            {comp.sport === "EPL"
-              ? `Gameweek · ${activeDate}`
-              : new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-          </h2>
+          <div>
+            <h2 className="text-lg font-bold">
+              {comp.sport === "EPL"
+                ? `Gameweek · ${activeDate}`
+                : new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+            </h2>
+            {/* Per-date score — shown once there are scored picks on this date */}
+            {dateScoreVisible && (
+              <p className="text-sm text-slate-500 mt-0.5 tabular-nums">
+                <span className="font-medium text-slate-700">{myName}</span>{" "}
+                <span className="font-semibold">{myDateWins}</span>
+                <span className="text-slate-400">–{myDateLosses}</span>
+                <span className="mx-2 text-slate-300">·</span>
+                <span className="font-medium text-slate-700">{theirName}</span>{" "}
+                <span className="font-semibold">{theirDateWins}</span>
+                <span className="text-slate-400">–{theirDateLosses}</span>
+              </p>
+            )}
+          </div>
           {isViewingToday && <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />}
         </div>
 
@@ -404,6 +442,17 @@ export default async function CompetitionPage({
           nameB={opponentProfile?.display_name ?? "Opponent"}
           initialA={overallRecordA}
           initialB={overallRecordB}
+        />
+      )}
+
+      {/* Night-by-night breakdown — weekly/season comps only */}
+      {nightBreakdown.length > 0 && (
+        <NightByNight
+          competitionId={comp.id}
+          nights={nightBreakdown}
+          myName={myName}
+          theirName={theirName}
+          activeDate={activeDate}
         />
       )}
     </div>
