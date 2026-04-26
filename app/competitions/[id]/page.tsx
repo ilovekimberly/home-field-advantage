@@ -342,6 +342,7 @@ export default async function CompetitionPage({
             periodType: g.periodType,
             clock: g.clock,
             inIntermission: g.inIntermission,
+            gameNumber: g.gameNumber,
           }))}
           existingPicks={todaysPicks}
           draftOrder={draft.order}

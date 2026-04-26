@@ -17,6 +17,7 @@ type Game = {
   periodType?: string;
   clock?: string;
   inIntermission?: boolean;
+  gameNumber?: number;
 };
 type Pick = {
   id: string;
@@ -322,13 +323,20 @@ export default function PickRoom({
               {/* Game header */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm">
+                  <div className="font-semibold text-sm flex items-center gap-2">
                     {g.away.name} @ {g.home.name}
+                    {g.gameNumber != null && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                        Game {g.gameNumber}
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     {!started && (
                       <span className="text-xs text-slate-500">
-                        {new Date(g.startTimeUTC).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {g.gameNumber === 2
+                          ? "Follows Game 1"
+                          : new Date(g.startTimeUTC).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     )}
                     <ScoreBadge g={g} />

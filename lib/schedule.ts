@@ -11,6 +11,8 @@ export type SportGame = {
   periodType?: string;
   clock?: string;
   inIntermission?: boolean;
+  // Doubleheader game number (1 or 2). Undefined for single games.
+  gameNumber?: number;
 };
 
 export type SupportedSport = "NHL" | "MLB" | "EPL";

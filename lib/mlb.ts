@@ -35,9 +35,15 @@ export async function fetchMLBScheduleForDate(date: string): Promise<SportGame[]
         clock = `${half} ${linescore.currentInningOrdinal ?? period}`;
       }
 
+      // gameNumber is 1 or 2 for doubleheaders, undefined for single games.
+      const gameNumber = g.doubleHeader === "Y" || g.doubleHeader === "S"
+        ? (g.gameNumber ?? undefined)
+        : undefined;
+
       games.push({
         id: g.gamePk,
         startTimeUTC: g.gameDate,
+        gameNumber,
         homeTeam: {
           abbrev: home?.team?.abbreviation ?? "HOM",
           name: home?.team?.name ?? "Home",
