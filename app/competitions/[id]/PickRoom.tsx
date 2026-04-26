@@ -280,10 +280,14 @@ export default function PickRoom({
           const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
           const line = gameLines?.[String(g.id)];
 
-          const hasTotal  = enableOverUnder && line?.totalLine != null;
-          const hasSpread = enableSpread    && line?.homeSpread != null && line?.awaySpread != null;
-          const homeML = line?.homeML;
-          const awayML = line?.awayML;
+          // Don't show odds on Game 2 of a doubleheader — the Odds API only
+          // returns one entry per matchup, so Game 2 lines would just be a copy
+          // of Game 1's and may not be accurate.
+          const isDoubleheaderGame2 = g.gameNumber === 2;
+          const hasTotal  = enableOverUnder && line?.totalLine != null && !isDoubleheaderGame2;
+          const hasSpread = enableSpread    && line?.homeSpread != null && line?.awaySpread != null && !isDoubleheaderGame2;
+          const homeML = isDoubleheaderGame2 ? undefined : line?.homeML;
+          const awayML = isDoubleheaderGame2 ? undefined : line?.awayML;
 
           const pickType = pick?.pick_type ?? "winner";
           const isOUPick     = pickType === "over_under";
