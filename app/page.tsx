@@ -236,28 +236,6 @@ export default async function HomePage() {
   return (
     <div className="space-y-8 max-w-2xl">
 
-      {/* ── Your turn prompts ── */}
-      {needsMyPick.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold mb-3">🎯 Your turn to pick</h2>
-          <div className="space-y-2">
-            {needsMyPick.map(({ comp, opponentName }) => (
-              <Link
-                key={comp.id}
-                href={`/competitions/${comp.id}`}
-                className="flex items-center justify-between rounded-xl bg-rink text-white px-5 py-4 hover:bg-rink/90 transition-colors shadow"
-              >
-                <div>
-                  <div className="font-semibold text-base">{comp.name}</div>
-                  <div className="text-sm text-white/70 mt-0.5">vs {opponentName}</div>
-                </div>
-                <span className="text-2xl">→</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* ── No competitions yet ── */}
       {(competitions ?? []).length === 0 && (
         <section className="card text-center py-10">

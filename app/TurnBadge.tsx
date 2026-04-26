@@ -59,7 +59,5 @@ export default async function TurnBadge({ userId }: { userId: string }) {
     }
   }
 
-  if (needsAttention.length === 0) return null;
-
   return <TurnBadgeDropdown competitions={needsAttention} />;
 }
