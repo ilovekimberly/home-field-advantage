@@ -219,6 +219,55 @@ export function competitionCancelledEmail({
   };
 }
 
+// Sent to both players when someone sweeps all their picks in a night.
+export function perfectNightEmail({
+  toName,
+  sweeper,
+  isSweeper,
+  wins,
+  competitionName,
+  competitionUrl,
+  date,
+  sport,
+}: {
+  toName: string;
+  sweeper: string;
+  isSweeper: boolean;
+  wins: number;
+  competitionName: string;
+  competitionUrl: string;
+  date: string;
+  sport?: string;
+}) {
+  const formattedDate = new Date(date + "T12:00:00Z").toLocaleDateString("en-US", {
+    weekday: "long", month: "short", day: "numeric", timeZone: "UTC",
+  });
+  const subject = isSweeper
+    ? `🔥 Perfect night! You swept all ${wins} picks — ${competitionName}`
+    : `🔥 ${sweeper} swept all ${wins} picks last night — ${competitionName}`;
+  const headline = isSweeper ? "🔥 Perfect night!" : `🔥 ${sweeper} had a perfect night!`;
+  const body = isSweeper
+    ? `You swept all <strong>${wins} picks</strong> on ${formattedDate} in <strong>${competitionName}</strong>. Clean sheet!`
+    : `<strong>${sweeper}</strong> swept all <strong>${wins} picks</strong> on ${formattedDate} in <strong>${competitionName}</strong>. Time to bounce back.`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
+  const perfectImages = ["perfect-1.gif", "perfect-2.gif", "perfect-3.gif"];
+  const imgFile = perfectImages[Math.floor(Math.random() * perfectImages.length)];
+  return {
+    subject,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">${headline}</h1>
+      <img
+        src="${siteUrl}/${imgFile}"
+        alt="PERFECT"
+        width="400"
+        style="display:block;max-width:100%;border-radius:8px;margin:12px 0;"
+      />
+      <p style="font-size:16px;line-height:1.6;">${body}</p>
+      ${button(competitionUrl, "View competition →")}
+    `),
+  };
+}
+
 // Sent to the site owner when a support request or suggestion is submitted.
 export function feedbackEmail({
   type,

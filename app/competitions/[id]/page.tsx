@@ -312,6 +312,28 @@ export default async function CompetitionPage({
           <NightlyRecap night={nightlyRecap} />
         )}
 
+        {/* Perfect night banner — shown when browsing a past date */}
+        {!isViewingToday && todaysPicks.length > 0 && (() => {
+          const scored = todaysPicks.filter((p) => p.result === "win" || p.result === "loss");
+          const myScored = scored.filter((p) => p.picker_id === user.id);
+          const theirScored = scored.filter((p) => p.picker_id !== user.id);
+          const iPerfect = myScored.length > 0 && myScored.every((p) => p.result === "win");
+          const theyPerfect = theirScored.length > 0 && theirScored.every((p) => p.result === "win");
+          if (!iPerfect && !theyPerfect) return null;
+          return (
+            <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
+              <span className="text-xl">🔥</span>
+              <span className="font-semibold">
+                {iPerfect && theyPerfect
+                  ? "Both players swept all picks this night!"
+                  : iPerfect
+                  ? "You swept all your picks this night!"
+                  : `${theirName} swept all their picks this night!`}
+              </span>
+            </div>
+          );
+        })()}
+
         <p className="text-sm text-slate-500 mb-4">
           {effectiveGameCount} games ·{" "}
           {deferChoiceMade

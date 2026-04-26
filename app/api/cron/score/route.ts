@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
-import { sendEmail, competitionCancelledEmail } from "@/lib/email";
+import { sendEmail, competitionCancelledEmail, perfectNightEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -104,7 +104,94 @@ export async function GET(req: Request) {
     }
   }
 
-  // ── 2. Mark competitions as complete ──────────────────────────────────
+  // ── 2. Check for perfect nights and notify ────────────────────────────
+  if (affectedCompIds.size > 0) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
+
+    for (const compId of affectedCompIds) {
+      // Fetch all scored picks for this competition grouped by date.
+      const { data: compPicks } = await supabase
+        .from("picks")
+        .select("picker_id, game_date, result")
+        .eq("competition_id", compId)
+        .in("result", ["win", "loss"]);
+
+      if (!compPicks || compPicks.length === 0) continue;
+
+      const { data: comp } = await supabase
+        .from("competitions")
+        .select("id, name, sport, creator_id, opponent_id")
+        .eq("id", compId)
+        .single();
+      if (!comp) continue;
+
+      // Group by date and check each date for a perfect night.
+      const dates = Array.from(new Set(compPicks.map((p) => p.game_date)));
+      const players = [
+        { id: comp.creator_id, slot: "A" },
+        { id: comp.opponent_id, slot: "B" },
+      ].filter((p) => p.id);
+
+      for (const date of dates) {
+        const datePicks = compPicks.filter((p) => p.game_date === date);
+
+        for (const player of players) {
+          const myPicks = datePicks.filter((p) => p.picker_id === player.id);
+          if (myPicks.length === 0) continue;
+          const isPerfect = myPicks.every((p) => p.result === "win");
+          if (!isPerfect) continue;
+
+          // Check we haven't already sent a perfect night email for this date+player.
+          const notifKey = `perfect_night_${player.id}_${date}`;
+          const { data: alreadySent } = await supabase
+            .from("competition_notifications")
+            .select("id")
+            .eq("competition_id", compId)
+            .eq("notification_date", date)
+            .eq("notification_type", notifKey)
+            .maybeSingle();
+          if (alreadySent) continue;
+
+          // Fetch profiles for both players.
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, email, display_name")
+            .in("id", players.map((p) => p.id));
+
+          const sweeperProfile = profiles?.find((p) => p.id === player.id);
+          const opponentProfile = profiles?.find((p) => p.id !== player.id);
+          const sweeperName = sweeperProfile?.display_name ?? sweeperProfile?.email ?? "A player";
+          const compUrl = `${siteUrl}/competitions/${compId}`;
+
+          // Email both players.
+          for (const profile of profiles ?? []) {
+            if (!profile.email) continue;
+            const isSweeper = profile.id === player.id;
+            const { subject, html } = perfectNightEmail({
+              toName: profile.display_name ?? profile.email,
+              sweeper: sweeperName,
+              isSweeper,
+              wins: myPicks.length,
+              competitionName: comp.name,
+              competitionUrl: compUrl,
+              date,
+              sport: comp.sport ?? "NHL",
+            });
+            sendEmail({ to: profile.email, subject, html }).catch(console.error);
+          }
+
+          // Record so we don't send again.
+          await supabase.from("competition_notifications").upsert({
+            competition_id: compId,
+            notification_date: date,
+            notification_type: notifKey,
+          }, { onConflict: "competition_id,notification_date,notification_type" });
+        }
+      }
+    }
+  }
+
+  // ── 4. Mark competitions as complete ──────────────────────────────────
   const yesterday = new Date();
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const yesterdayISO = yesterday.toISOString().slice(0, 10);
@@ -149,7 +236,7 @@ export async function GET(req: Request) {
     }
   }
 
-  // ── 3. Auto-cancel pending comps with no opponent ─────────────────────
+  // ── 5. Auto-cancel pending comps with no opponent ─────────────────────
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
   function addDays(d: string, n: number) {
