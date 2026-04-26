@@ -280,12 +280,12 @@ export default function PickRoom({
           const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
           const line = gameLines?.[String(g.id)];
 
-          // Don't show odds on Game 2 of a doubleheader — the Odds API only
-          // returns one entry per matchup, so Game 2 lines would just be a copy
-          // of Game 1's and may not be accurate.
+          // For Game 2 of a doubleheader the Odds API only has Game 1's lines,
+          // so we still show the O/U and spread pick options but hide the odds
+          // numbers (the +/- values) since they may not be accurate.
           const isDoubleheaderGame2 = g.gameNumber === 2;
-          const hasTotal  = enableOverUnder && line?.totalLine != null && !isDoubleheaderGame2;
-          const hasSpread = enableSpread    && line?.homeSpread != null && line?.awaySpread != null && !isDoubleheaderGame2;
+          const hasTotal  = enableOverUnder && line?.totalLine != null;
+          const hasSpread = enableSpread    && line?.homeSpread != null && line?.awaySpread != null;
           const homeML = isDoubleheaderGame2 ? undefined : line?.homeML;
           const awayML = isDoubleheaderGame2 ? undefined : line?.awayML;
 
@@ -431,7 +431,7 @@ export default function PickRoom({
                   {!taken && !started && !readOnly && (
                     <div className="flex gap-2 shrink-0">
                       {(["over", "under"] as const).map((choice) => {
-                        const odds = choice === "over" ? line?.overOdds : line?.underOdds;
+                        const odds = isDoubleheaderGame2 ? undefined : (choice === "over" ? line?.overOdds : line?.underOdds);
                         return (
                           <button
                             key={choice}
@@ -464,8 +464,8 @@ export default function PickRoom({
                   {!taken && !started && !readOnly && (
                     <div className="flex gap-2 shrink-0">
                       {([
-                        { choice: "away" as const, team: g.away, spread: line!.awaySpread!, odds: line?.awaySpreadOdds },
-                        { choice: "home" as const, team: g.home, spread: line!.homeSpread!, odds: line?.homeSpreadOdds },
+                        { choice: "away" as const, team: g.away, spread: line!.awaySpread!, odds: isDoubleheaderGame2 ? undefined : line?.awaySpreadOdds },
+                        { choice: "home" as const, team: g.home, spread: line!.homeSpread!, odds: isDoubleheaderGame2 ? undefined : line?.homeSpreadOdds },
                       ]).map(({ choice, team, spread, odds }) => (
                         <button
                           key={choice}

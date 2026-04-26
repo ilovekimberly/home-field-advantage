@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Sidebar from "./Sidebar";
+import TurnBadge from "./TurnBadge";
 
 export const metadata: Metadata = {
   title: "My Home Field",
@@ -56,6 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       {user.user_metadata?.name ?? user.email}
                     </span>
                   </Link>
+                  <TurnBadge userId={user.id} />
                   <Link href="/suggest" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-rink transition-colors">💡 Share an Idea</Link>
                   <Link href="/support" className="hidden sm:inline-flex text-lg text-slate-400 hover:text-rink transition-colors" title="Support">❓</Link>
                   <form action="/auth/signout" method="post">
