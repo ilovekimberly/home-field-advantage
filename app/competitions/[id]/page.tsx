@@ -8,6 +8,7 @@ import DeferBanner from "./DeferBanner";
 import RefreshScores from "./RefreshScores";
 import DateNav from "./DateNav";
 import NightlyRecap from "./NightlyRecap";
+import LiveStandings from "./LiveStandings";
 
 // Use Eastern Time so the date doesn't flip at midnight UTC while US games
 // are still in progress (e.g. 8 PM ET = midnight UTC = "tomorrow" in UTC).
@@ -265,10 +266,14 @@ export default async function CompetitionPage({
 
       {/* Standings at top when competition is complete */}
       {comp.status === "complete" && (
-        <Standings
-          recordA={overallRecordA} recordB={overallRecordB}
+        <LiveStandings
+          competitionId={comp.id}
+          playerAId={comp.creator_id}
+          playerBId={comp.opponent_id ?? ""}
           nameA={creatorProfile?.display_name ?? "Creator"}
           nameB={opponentProfile?.display_name ?? "Opponent"}
+          initialA={overallRecordA}
+          initialB={overallRecordB}
         />
       )}
 
@@ -369,10 +374,14 @@ export default async function CompetitionPage({
 
       {/* Standings — always at bottom for active, moved to top for complete */}
       {comp.status !== "complete" && (
-        <Standings
-          recordA={overallRecordA} recordB={overallRecordB}
+        <LiveStandings
+          competitionId={comp.id}
+          playerAId={comp.creator_id}
+          playerBId={comp.opponent_id ?? ""}
           nameA={creatorProfile?.display_name ?? "Creator"}
           nameB={opponentProfile?.display_name ?? "Opponent"}
+          initialA={overallRecordA}
+          initialB={overallRecordB}
         />
       )}
     </div>
