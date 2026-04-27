@@ -5,12 +5,36 @@ import Link from "next/link";
 const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽" };
 
 export default function TurnBadgeDropdown({
-  competitions,
+  competitions: initialCompetitions,
 }: {
   competitions: { id: string; name: string; sport: string }[];
 }) {
   const [open, setOpen] = useState(false);
+  const [competitions, setCompetitions] = useState(initialCompetitions);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Re-fetch from the API so the badge clears after picks are made without a
+  // full page reload (root layout server components don't re-render on router.refresh).
+  async function refresh() {
+    try {
+      const res = await fetch("/api/notifications/turn", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setCompetitions(data.competitions ?? []);
+      }
+    } catch {}
+  }
+
+  // Refresh whenever the dropdown is opened.
+  useEffect(() => {
+    if (open) refresh();
+  }, [open]);
+
+  // Poll every 30 s so the red dot clears even without opening the dropdown.
+  useEffect(() => {
+    const id = setInterval(refresh, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Close when clicking outside.
   useEffect(() => {
