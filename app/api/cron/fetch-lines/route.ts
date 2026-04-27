@@ -34,14 +34,14 @@ export async function GET(req: Request) {
   const today = new Date().toISOString().slice(0, 10);
   const supabase = createSupabaseAdminClient();
 
-  // ── Determine which sports have active competitions ────────────────────
-  // We only require status=active + start_date ≤ today.
-  // No end_date filter — playoff runs extend past the original season cutoff,
-  // and an active competition always needs lines regardless of its end_date.
+  // ── Determine which sports need lines fetched today ───────────────────
+  // Include both 'active' and 'pending' competitions — lines should be ready
+  // as soon as a competition is created, before an opponent joins.
+  // No end_date filter — playoff runs extend past the original season cutoff.
   const { data: activeComps } = await supabase
     .from("competitions")
     .select("sport")
-    .eq("status", "active")
+    .in("status", ["active", "pending"])
     .lte("start_date", today);
 
   const activeSports = Array.from(
