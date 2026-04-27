@@ -1,16 +1,11 @@
 import type { SportGame } from "./schedule";
 
 type PitcherInfo = { name: string; era?: string };
+type PitcherRaw = { id: number; name: string };
 
-function parsePitcher(pitcher: any): PitcherInfo | null {
-  if (!pitcher?.fullName) return null;
-  // Try to pull current-season ERA from the hydrated stats array.
-  const seasonStats = (pitcher.stats ?? []).find(
-    (s: any) => s.group?.displayName === "pitching"
-  );
-  const era = seasonStats?.stats?.era;
-  const eraClean = era && era !== "-.--" && era !== "INF" && era !== "0.00" ? era : undefined;
-  return { name: pitcher.fullName, era: eraClean };
+function parsePitcherRaw(pitcher: any): PitcherRaw | null {
+  if (!pitcher?.id || !pitcher?.fullName) return null;
+  return { id: pitcher.id, name: pitcher.fullName };
 }
 
 function shortName(full: string): string {
@@ -21,8 +16,40 @@ function shortName(full: string): string {
 
 export { shortName };
 
+export type MLBTeamStat = {
+  streak: string;   // e.g. "W3" or "L5"
+  lastTen: string;  // e.g. "7-3"
+};
+
+// Keyed by team abbreviation, e.g. { "NYY": { streak: "W3", lastTen: "7-3" } }
+export type MLBTeamStatsMap = Record<string, MLBTeamStat>;
+
+export async function fetchMLBTeamStats(season: string): Promise<MLBTeamStatsMap> {
+  const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=regularSeason&hydrate=team,records`;
+  const res = await fetch(url, { next: { revalidate: 3600 } }); // cache 1 hour
+  if (!res.ok) return {};
+  const data = await res.json();
+
+  const map: MLBTeamStatsMap = {};
+  for (const division of data.records ?? []) {
+    for (const tr of division.teamRecords ?? []) {
+      const abbrev = tr.team?.abbreviation;
+      if (!abbrev) continue;
+      const streakCode: string = tr.streak?.streakCode ?? "";
+      const lastTenRecord = (tr.records?.splitRecords ?? []).find(
+        (s: any) => s.type === "lastTen"
+      );
+      const lastTen = lastTenRecord
+        ? `${lastTenRecord.wins}-${lastTenRecord.losses}`
+        : "";
+      map[abbrev] = { streak: streakCode, lastTen };
+    }
+  }
+  return map;
+}
+
 export async function fetchMLBScheduleForDate(date: string): Promise<SportGame[]> {
-  const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=team,linescore,probablePitcher(stats)`;
+  const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=team,linescore,probablePitcher`;
   const res = await fetch(url, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`MLB API error: ${res.status}`);
   const data = await res.json();
@@ -93,10 +120,57 @@ export async function fetchMLBScheduleForDate(date: string): Promise<SportGame[]
         awayScore: away?.score,
         period,
         clock,
-        homePitcher: parsePitcher(home?.probablePitcher),
-        awayPitcher: parsePitcher(away?.probablePitcher),
+        homePitcher: parsePitcherRaw(home?.probablePitcher) as any,
+        awayPitcher: parsePitcherRaw(away?.probablePitcher) as any,
       });
     }
   }
+
+  // Batch-fetch current-season ERA for all probable pitchers in one call.
+  const pitcherIds = [
+    ...new Set(
+      games.flatMap((g) => [
+        (g.homePitcher as any)?.id,
+        (g.awayPitcher as any)?.id,
+      ].filter(Boolean))
+    ),
+  ] as number[];
+
+  if (pitcherIds.length > 0) {
+    const season = date.slice(0, 4);
+    try {
+      const statsUrl = `https://statsapi.mlb.com/api/v1/people?personIds=${pitcherIds.join(",")}&hydrate=stats(group=[pitching],type=[season],season=${season})`;
+      const statsRes = await fetch(statsUrl, { next: { revalidate: 3600 } });
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        const eraMap: Record<number, string> = {};
+        for (const person of statsData.people ?? []) {
+          const pitchingStats = (person.stats ?? []).find(
+            (s: any) => s.group?.displayName === "pitching" && s.type?.displayName === "season"
+          );
+          const era: string | undefined = pitchingStats?.splits?.[0]?.stat?.era;
+          if (era && era !== "-.--" && era !== "INF") {
+            eraMap[person.id] = era;
+          }
+        }
+        // Merge ERA back into game pitcher info.
+        for (const game of games) {
+          const hp = game.homePitcher as any;
+          const ap = game.awayPitcher as any;
+          if (hp?.id) game.homePitcher = { name: hp.name, era: eraMap[hp.id] };
+          if (ap?.id) game.awayPitcher = { name: ap.name, era: eraMap[ap.id] };
+        }
+      }
+    } catch {
+      // ERA fetch failed — still return games, just without ERA.
+      for (const game of games) {
+        const hp = game.homePitcher as any;
+        const ap = game.awayPitcher as any;
+        if (hp?.id) game.homePitcher = { name: hp.name };
+        if (ap?.id) game.awayPitcher = { name: ap.name };
+      }
+    }
+  }
+
   return games;
 }
