@@ -48,13 +48,19 @@ export default async function TurnBadge({ userId }: { userId: string }) {
 
     const compPicks = (picks ?? []).filter((p) => p.competition_id === comp.id);
 
+    // No picks yet tonight — remind the first picker.
     if (compPicks.length === 0) {
       needsAttention.push({ id: comp.id, name: comp.name, sport: comp.sport ?? "NHL" });
       continue;
     }
 
-    const lastPick = compPicks[0];
-    if (lastPick.picker_id !== userId) {
+    const myPicks    = compPicks.filter((p) => p.picker_id === userId);
+    const theirPicks = compPicks.filter((p) => p.picker_id !== userId);
+
+    // Only notify if the opponent has strictly more picks than me.
+    // Equal counts means the draft is balanced (possibly complete) — no notification.
+    // This prevents false "your turn" alerts at the end of a completed snake draft.
+    if (myPicks.length < theirPicks.length) {
       needsAttention.push({ id: comp.id, name: comp.name, sport: comp.sport ?? "NHL" });
     }
   }

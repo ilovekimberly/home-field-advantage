@@ -12,18 +12,19 @@ export async function GET() {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const supabase = createSupabaseAdminClient();
 
-  // 1. Check which NHL competitions are active and within date range today
+  // 1. All active competitions — show their raw sport / date fields
   const { data: activeComps } = await supabase
     .from("competitions")
     .select("id, name, sport, status, start_date, end_date")
-    .eq("sport", "NHL")
     .eq("status", "active");
 
+  // Subset that passes the fetch-lines gate (start_date <= today, any end_date)
   const compsInRange = (activeComps ?? []).filter(
-    (c) => c.start_date <= today && c.end_date >= today
+    (c) => c.start_date <= today
   );
-  const compsOutOfRange = (activeComps ?? []).filter(
-    (c) => c.start_date > today || c.end_date < today
+  // Subset that the OLD fetch-lines query would have included (end_date >= today too)
+  const compsOldGate = (activeComps ?? []).filter(
+    (c) => c.start_date <= today && c.end_date >= today
   );
 
   // 2. Fetch today's NHL schedule
@@ -70,10 +71,11 @@ export async function GET() {
 
   return NextResponse.json({
     today,
-    nhLCompetitions: {
-      active: activeComps?.length ?? 0,
-      inRange: compsInRange,
-      outOfRange: compsOutOfRange,
+    allActiveCompetitions: {
+      total: activeComps?.length ?? 0,
+      all: activeComps ?? [],
+      passesNewFetchLinesGate: compsInRange,
+      wouldHavePassedOldGate: compsOldGate,
     },
     schedule: {
       gameCount: scheduleGames.length,
