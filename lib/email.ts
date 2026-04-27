@@ -40,12 +40,13 @@ export async function sendEmail({ to, subject, html }: EmailPayload): Promise<bo
 
 // ── Email templates ────────────────────────────────────────────────────────
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽" };
-const SPORT_GAME_WORD: Record<string, string> = { NHL: "game", MLB: "game", EPL: "match" };
+const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆" };
+const SPORT_GAME_WORD: Record<string, string> = { NHL: "game", MLB: "game", EPL: "match", FIFA: "match" };
 const SPORT_START_PHRASE: Record<string, string> = {
   NHL: "puck drop",
   MLB: "first pitch",
   EPL: "kickoff",
+  FIFA: "kickoff",
 };
 
 function sportEmoji(sport?: string) { return SPORT_EMOJI[sport ?? "NHL"] ?? "🏒"; }
@@ -264,6 +265,55 @@ export function perfectNightEmail({
       />
       <p style="font-size:16px;line-height:1.6;">${body}</p>
       ${button(competitionUrl, "View competition →")}
+    `),
+  };
+}
+
+// Sent to all pool members on the morning of the competition's start date.
+export function poolPicksOpenEmail({
+  toName,
+  competitionName,
+  competitionUrl,
+  sport,
+  startDate,
+}: {
+  toName: string;
+  competitionName: string;
+  competitionUrl: string;
+  sport?: string;
+  startDate: string; // YYYY-MM-DD
+}) {
+  const emoji = sportEmoji(sport);
+  const gw = gameWord(sport);
+  const formattedDate = new Date(startDate + "T12:00:00Z").toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
+  });
+  const isFIFA = sport === "FIFA";
+
+  return {
+    subject: `${emoji} Picks are open — ${competitionName}`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">
+        ${emoji} It's time to pick!
+      </h1>
+      <p style="font-size:16px;line-height:1.6;">
+        Hey ${toName} — picks are now open for <strong>${competitionName}</strong>.
+        The first ${gw}s kick off today, <strong>${formattedDate}</strong>.
+      </p>
+      ${isFIFA ? `
+      <p style="font-size:15px;color:#555;line-height:1.6;">
+        For each match, pick <strong>Home win</strong>, <strong>Away win</strong>, or <strong>Draw</strong>
+        before kickoff. Picks lock the moment the match starts — don't wait too long!
+      </p>
+      ` : `
+      <p style="font-size:15px;color:#555;line-height:1.6;">
+        Pick the winner of each ${gw} before it starts. Picks lock at ${gameWord(sport)} time.
+      </p>
+      `}
+      <p style="font-size:15px;color:#555;line-height:1.6;">
+        After each ${gw} locks, you'll see what everyone else in the pool picked.
+      </p>
+      ${button(competitionUrl, "Make your picks →")}
     `),
   };
 }
