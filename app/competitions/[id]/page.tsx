@@ -310,7 +310,7 @@ export default async function CompetitionPage({
           const mine = p.picker_id === user.id;
           if (p.result === "win")     mine ? myWins++   : theirWins++;
           if (p.result === "loss")    mine ? myLosses++ : theirLosses++;
-          if (p.result === "pending" || p.result === "unscored") hasPending = true;
+          if (p.result === "pending") hasPending = true;
         }
         return { date, myWins, myLosses, theirWins, theirLosses, hasPending };
       }).reverse() // most recent first
