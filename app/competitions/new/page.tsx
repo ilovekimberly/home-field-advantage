@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { SportPhase } from "@/app/api/sport-phase/route";
 
-type Sport = "NHL" | "MLB" | "EPL";
+type Sport = "NHL" | "MLB" | "EPL" | "FIFA";
 type Duration = "daily" | "weekly" | "season" | "playoff";
 type DraftStyle = "standard" | "balanced";
+type Format = "1v1" | "pool";
 
 const SPORTS: { value: Sport; label: string; emoji: string }[] = [
   { value: "NHL", label: "NHL Hockey", emoji: "🏒" },
   { value: "MLB", label: "MLB Baseball", emoji: "⚾" },
   { value: "EPL", label: "Premier League", emoji: "⚽" },
+  { value: "FIFA", label: "World Cup", emoji: "🏆" },
 ];
 
 function todayISO() {
@@ -24,12 +26,13 @@ function addDays(d: string, n: number) {
   return dt.toISOString().slice(0, 10);
 }
 
-// Static fallback end dates (used for EPL and if API call fails).
+// Static fallback end dates (used for EPL/FIFA and if API call fails).
 function staticSeasonEnd(sport: Sport, start: string) {
   const year = new Date(start).getUTCFullYear();
   if (sport === "NHL") return `${year}-04-20`;
   if (sport === "MLB") return `${year}-09-30`;
   if (sport === "EPL") return `${year + 1}-05-20`;
+  if (sport === "FIFA") return "2026-07-19"; // World Cup 2026 final
   return addDays(start, 180);
 }
 
@@ -41,11 +44,16 @@ export default function NewCompetitionPage() {
   const [duration, setDuration] = useState<Duration>("daily");
   const [startDate, setStartDate] = useState(todayISO());
   const [draftStyle, setDraftStyle] = useState<DraftStyle>("standard");
+  const [format, setFormat] = useState<Format>("1v1");
+  const [maxMembers, setMaxMembers] = useState<string>("");
   const [enableOverUnder, setEnableOverUnder] = useState(false);
   const [enableSpread, setEnableSpread] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isPool = format === "pool";
+  const isFIFA = sport === "FIFA";
 
   // Phase detection for NHL and MLB.
   const [phaseInfo, setPhaseInfo] = useState<SportPhase | null>(null);
@@ -114,18 +122,29 @@ export default function NewCompetitionPage() {
       .insert({
         name: name || namePlaceholder,
         sport,
+        format,
         duration: storedDuration,
-        draft_style: draftStyle,
+        draft_style: isPool ? null : draftStyle,
         enable_over_under: (sport === "NHL" || sport === "MLB") ? enableOverUnder : false,
         enable_spread: (sport === "NHL" || sport === "MLB") ? enableSpread : false,
         start_date: startDate,
         end_date: end,
         creator_id: user.id,
+        max_members: isPool && maxMembers ? parseInt(maxMembers) : null,
       })
       .select()
       .single();
     if (error) { setError(error.message); setBusy(false); return; }
-    if (inviteEmail) {
+
+    // For pool competitions, auto-join the creator as the first member.
+    if (isPool) {
+      await supabase.from("competition_members").insert({
+        competition_id: data.id,
+        user_id: user.id,
+      });
+    }
+
+    if (!isPool && inviteEmail) {
       await fetch("/api/invite", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -141,10 +160,35 @@ export default function NewCompetitionPage() {
       <h1 className="text-2xl font-bold mb-6">New competition</h1>
       <form onSubmit={createCompetition} className="space-y-5">
 
+        {/* Format selector */}
+        <div>
+          <span className="block text-sm font-medium mb-2">Format</span>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: "1v1" as Format, label: "Head-to-head", desc: "1v1 snake draft pick'em" },
+              { value: "pool" as Format, label: "Pool", desc: "Everyone picks independently, leaderboard decides the winner" },
+            ]).map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setFormat(f.value)}
+                className={`flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                  format === f.value ? "border-rink bg-ice" : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <span className={`text-sm font-semibold ${format === f.value ? "text-rink" : "text-slate-700"}`}>
+                  {f.label}
+                </span>
+                <span className="text-xs text-slate-400 leading-snug">{f.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Sport selector */}
         <div>
           <span className="block text-sm font-medium mb-2">Sport</span>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {SPORTS.map((s) => (
               <button
                 key={s.value}
@@ -157,7 +201,7 @@ export default function NewCompetitionPage() {
                 }`}
               >
                 <span className="text-2xl">{s.emoji}</span>
-                <span>{s.label}</span>
+                <span className="text-xs text-center leading-tight">{s.label}</span>
               </button>
             ))}
           </div>
@@ -181,6 +225,11 @@ export default function NewCompetitionPage() {
                   {phaseInfo.phase === "playoffs" && "🏆 Playoffs"}
                   {phaseInfo.phase === "season" && "🗓 Regular season"}
                   {phaseInfo.phase === "offseason" && "💤 Off-season"}
+                </span>
+              )}
+              {isFIFA && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  🏆 World Cup 2026 — Jun 11 – Jul 19
                 </span>
               )}
             </div>
@@ -212,6 +261,12 @@ export default function NewCompetitionPage() {
                 <option value="weekly">4 gameweeks</option>
                 <option value="season">Full season (Aug – May)</option>
               </>
+            ) : sport === "FIFA" ? (
+              <>
+                <option value="daily">Single matchday</option>
+                <option value="weekly">Group stage (Jun 11 – Jul 2)</option>
+                <option value="season">Full tournament (Jun 11 – Jul 19)</option>
+              </>
             ) : (
               <>
                 <option value="daily">Single day</option>
@@ -227,8 +282,23 @@ export default function NewCompetitionPage() {
           )}
         </label>
 
-        {/* Draft style */}
-        <div>
+        {/* Pool-specific: max members */}
+        {isPool && (
+          <label className="block">
+            <span className="text-sm font-medium">Max participants <span className="text-slate-400 font-normal">(optional)</span></span>
+            <input
+              type="number"
+              min="2"
+              className="input mt-1"
+              value={maxMembers}
+              onChange={(e) => setMaxMembers(e.target.value)}
+              placeholder="Unlimited"
+            />
+          </label>
+        )}
+
+        {/* Draft style — 1v1 only */}
+        {!isPool && <div>
           <span className="block text-sm font-medium mb-2">Draft style</span>
           <div className="grid grid-cols-2 gap-2">
             {([
@@ -263,10 +333,10 @@ export default function NewCompetitionPage() {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
 
-        {/* Pick type toggles — NHL + MLB */}
-        {(sport === "NHL" || sport === "MLB") && (
+        {/* Pick type toggles — NHL + MLB, 1v1 only */}
+        {!isPool && (sport === "NHL" || sport === "MLB") && (
           <div>
             <span className="block text-sm font-medium mb-2">Pick types</span>
             <div className="space-y-2">
@@ -335,26 +405,30 @@ export default function NewCompetitionPage() {
           />
         </label>
 
-        {/* Invite */}
-        <label className="block">
-          <span className="text-sm font-medium">Invite a friend (optional)</span>
-          <input
-            type="email"
-            className="input mt-1"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="friend@email.com"
-          />
-          <span className="text-xs text-slate-500 mt-1 block">
-            You can also share an invite link from the competition page after creating.
-          </span>
-        </label>
+        {/* Invite — 1v1 gets email field, pool gets a note */}
+        {isPool ? (
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600">
+            After creating, share your invite link with everyone you want in the pool. There's no limit on joins{maxMembers ? ` (you set a cap of ${maxMembers})` : ""}.
+          </div>
+        ) : (
+          <label className="block">
+            <span className="text-sm font-medium">Invite a friend (optional)</span>
+            <input
+              type="email"
+              className="input mt-1"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="friend@email.com"
+            />
+            <span className="text-xs text-slate-500 mt-1 block">
+              You can also share an invite link from the competition page after creating.
+            </span>
+          </label>
+        )}
 
         {error && <div className="text-red-600 text-sm">{error}</div>}
         <button className="btn-primary w-full" disabled={busy}>
-          {busy
-            ? inviteEmail ? "Creating & sending invite…" : "Creating…"
-            : "Create competition"}
+          {busy ? "Creating…" : isPool ? "Create pool" : "Create competition"}
         </button>
       </form>
     </div>

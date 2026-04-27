@@ -23,6 +23,82 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     return NextResponse.redirect(new URL("/?err=bad-invite", req.url));
   }
 
+  // ── Pool competition join ─────────────────────────────────────────────
+  if (comp.format === "pool") {
+    // Creator clicking their own link — just take them to the competition.
+    if (comp.creator_id === user.id) {
+      return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
+    }
+
+    // Check if already a member.
+    const { data: existing } = await supabase
+      .from("competition_members")
+      .select("id")
+      .eq("competition_id", comp.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
+    }
+
+    // Check max_members cap.
+    if (comp.max_members) {
+      const { count } = await supabase
+        .from("competition_members")
+        .select("id", { count: "exact", head: true })
+        .eq("competition_id", comp.id);
+
+      if (count && count >= comp.max_members) {
+        return NextResponse.redirect(new URL("/?err=full", req.url));
+      }
+    }
+
+    // Insert member — use admin to bypass RLS since they're not a member yet.
+    const admin = createSupabaseAdminClient();
+    const { error: insertError } = await admin
+      .from("competition_members")
+      .insert({ competition_id: comp.id, user_id: user.id });
+
+    if (insertError) {
+      console.error("Join route: failed to insert pool member", insertError);
+      return NextResponse.redirect(new URL("/?err=join-failed", req.url));
+    }
+
+    // Activate pool when first non-creator member joins.
+    if (comp.status === "pending") {
+      await admin
+        .from("competitions")
+        .update({ status: "active" })
+        .eq("id", comp.id);
+    }
+
+    // Notify creator.
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, email, display_name")
+      .in("id", [comp.creator_id, user.id]);
+
+    const creatorProfile = profiles?.find((p) => p.id === comp.creator_id);
+    const joinerProfile  = profiles?.find((p) => p.id === user.id);
+
+    if (creatorProfile?.email) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
+      const { subject, html } = opponentJoinedEmail({
+        toName: creatorProfile.display_name ?? creatorProfile.email,
+        opponentName: joinerProfile?.display_name ?? "Someone",
+        competitionName: comp.name,
+        competitionUrl: `${siteUrl}/competitions/${comp.id}`,
+        sport: comp.sport ?? "NHL",
+      });
+      sendEmail({ to: creatorProfile.email, subject, html }).catch(console.error);
+    }
+
+    return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
+  }
+
+  // ── 1v1 competition join (original logic) ─────────────────────────────
+
   // Creator clicking their own link — just take them to the competition.
   if (comp.creator_id === user.id) {
     return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
