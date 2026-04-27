@@ -94,7 +94,7 @@ export async function GET(req: Request, { params }: { params: { token: string } 
       sendEmail({ to: creatorProfile.email, subject, html }).catch(console.error);
     }
 
-    return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
+    return NextResponse.redirect(new URL(`/competitions/${comp.id}?joined=1`, req.url));
   }
 
   // ── 1v1 competition join (original logic) ─────────────────────────────

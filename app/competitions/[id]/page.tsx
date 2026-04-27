@@ -5,6 +5,7 @@ import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
 import PoolPickRoom from "./PoolPickRoom";
 import PoolLeaderboard from "./PoolLeaderboard";
+import PoolWelcomeBanner from "./PoolWelcomeBanner";
 import InvitePanel from "./InvitePanel";
 import DeferBanner from "./DeferBanner";
 import RefreshScores from "./RefreshScores";
@@ -24,7 +25,7 @@ export default async function CompetitionPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { date?: string };
+  searchParams: { date?: string; joined?: string };
 }) {
   const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -359,6 +360,11 @@ export default async function CompetitionPage({
           </div>
         )}
       </div>
+
+      {/* Welcome banner — shown once to new members arriving via invite link */}
+      {isPool && searchParams.joined === "1" && (
+        <PoolWelcomeBanner sport={comp.sport ?? "NHL"} />
+      )}
 
       {/* Pending pool banner — shown to all members while waiting for more to join */}
       {isPool && comp.status === "pending" && (
