@@ -1,24 +1,22 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchNHLScheduleForDate } from "@/lib/nhl";
+import { fetchScheduleForDate } from "@/lib/schedule";
 import { whoPicksFirst, type Player } from "@/lib/picks";
 import { sendEmail, picksOpenEmail, competitionCancelledEmail } from "@/lib/email";
 
 // GET /api/cron/notify
-// Runs every 30 minutes (see vercel.json).
+// Runs every 30 minutes (noon–10 PM UTC via cron-job.org).
 //
-// Logic:
-//  1. Fetch today's NHL schedule.
-//  2. If no games, do nothing.
-//  3. Find the first game's start time. Compute the notification window:
-//     2 hours before the first game, with a 29-minute trailing edge so the
-//     30-min cron cadence catches it cleanly.
-//  4. If we're not in the window yet, do nothing.
-//  5. For every active weekly/season competition that:
-//       - Has both players joined
-//       - Has NOT already sent a 'picks_open' notification today
-//     — determine who picks first, send them (and optionally both players)
-//       the "picks are open" email, and record the notification sent.
+// For each sport that has active competitions today:
+//   1. Fetch that sport's schedule to find the first game time.
+//   2. Check whether we're in the 2-hour notification window
+//      (window is 29 min wide so the 30-min cron catches it exactly once).
+//   3. Send "picks are open" emails to eligible competitions of that sport.
+//
+// Also auto-cancels daily competitions whose sport's first game has already
+// started and still have no opponent.
+
+type SportKey = "NHL" | "MLB";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -34,205 +32,207 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
   }
 
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-
-  // ── 1. Fetch tonight's NHL schedule ───────────────────────────────────
-  let games;
-  try { games = await fetchNHLScheduleForDate(today); }
-  catch (e) {
-    console.error("cron/notify: NHL API failed", e);
-    return NextResponse.json({ error: "NHL API failed" }, { status: 502 });
-  }
-
-  if (!games || games.length === 0) {
-    return NextResponse.json({ skipped: true, reason: "No games today" });
-  }
-
-  // ── 2. Check the 2-hour notification window ────────────────────────────
-  // Sort games by start time, find the earliest.
-  const sorted = [...games].sort(
-    (a, b) => new Date(a.startTimeUTC).getTime() - new Date(b.startTimeUTC).getTime()
-  );
-  const firstGame = sorted[0];
-  const firstGameMs = new Date(firstGame.startTimeUTC).getTime();
-
-  // Window: [firstGame - 2h, firstGame - 2h + 29min]
-  // The 29-minute trailing edge means a cron running every 30 min will
-  // always catch the window without sending twice.
-  const windowOpen  = firstGameMs - 2 * 60 * 60 * 1000;
-  const windowClose = windowOpen  + 29 * 60 * 1000;
+  const now   = new Date();
   const nowMs = now.getTime();
+  const today = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-  if (nowMs < windowOpen) {
-    const minsUntil = Math.round((windowOpen - nowMs) / 60000);
-    return NextResponse.json({ skipped: true, reason: `Window opens in ${minsUntil} min` });
-  }
-  if (nowMs > windowClose) {
-    return NextResponse.json({ skipped: true, reason: "Window already passed" });
-  }
+  const supabase   = createSupabaseAdminClient();
+  const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
-  // Format first game time in ET for the email.
-  const firstGameTimeET = new Date(firstGame.startTimeUTC).toLocaleTimeString("en-US", {
-    hour: "numeric", minute: "2-digit", timeZone: "America/New_York",
-  }) + " ET";
-
-  const supabase = createSupabaseAdminClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
-
-  // ── 3. Auto-cancel daily comps with no opponent once first game starts ─
-  if (nowMs >= firstGameMs) {
-    const { data: pendingDailies } = await supabase
-      .from("competitions")
-      .select("*")
-      .eq("status", "pending")
-      .eq("duration", "daily")
-      .is("opponent_id", null)
-      .eq("start_date", today);
-
-    for (const comp of pendingDailies ?? []) {
-      await supabase
-        .from("competitions")
-        .update({ status: "cancelled" })
-        .eq("id", comp.id);
-
-      const { data: creator } = await supabase
-        .from("profiles")
-        .select("email, display_name")
-        .eq("id", comp.creator_id)
-        .single();
-
-      if (creator?.email) {
-        const { subject, html } = competitionCancelledEmail({
-          toName: creator.display_name ?? creator.email,
-          competitionName: comp.name,
-          reason: "daily",
-          newCompUrl: `${siteUrl}/competitions/new`,
-          sport: comp.sport ?? "NHL",
-        });
-        sendEmail({ to: creator.email, subject, html }).catch(console.error);
-      }
-    }
-
-    if ((pendingDailies ?? []).length > 0) {
-      console.log(`cron/notify: cancelled ${pendingDailies!.length} daily comp(s) with no opponent`);
-    }
-  }
-
-  // ── 4. Find eligible competitions ─────────────────────────────────────
-
-  const { data: comps } = await supabase
+  // ── Find all active/pending competitions that have started ──────────────
+  // No end_date filter — playoff runs extend past original season cutoffs.
+  const { data: allComps } = await supabase
     .from("competitions")
     .select("*")
-    .eq("status", "active")
-    .neq("duration", "daily") // daily comps don't need this nudge
+    .in("status", ["active"])
     .not("opponent_id", "is", null)
-    .lte("start_date", today)
-    .gte("end_date", today);
+    .lte("start_date", today);
 
-  if (!comps || comps.length === 0) {
-    return NextResponse.json({ sent: 0, reason: "No eligible competitions" });
+  const comps = allComps ?? [];
+
+  // Group competition IDs by sport (null sport → NHL).
+  const sportComps: Record<SportKey, typeof comps> = { NHL: [], MLB: [] };
+  for (const comp of comps) {
+    const sport = (comp.sport ?? "NHL") as SportKey;
+    if (sport === "NHL" || sport === "MLB") sportComps[sport].push(comp);
   }
 
-  // Filter out competitions that already got a notification today.
-  const compIds = comps.map((c) => c.id);
-  const { data: alreadySent } = await supabase
-    .from("competition_notifications")
-    .select("competition_id")
-    .in("competition_id", compIds)
-    .eq("notification_date", today)
-    .eq("notification_type", "picks_open");
+  const activeSports = (Object.keys(sportComps) as SportKey[]).filter(
+    (s) => sportComps[s].length > 0
+  );
 
-  const alreadySentIds = new Set((alreadySent ?? []).map((r) => r.competition_id));
-  const eligible = comps.filter((c) => !alreadySentIds.has(c.id));
-
-  if (eligible.length === 0) {
-    return NextResponse.json({ sent: 0, reason: "All competitions already notified today" });
+  if (activeSports.length === 0) {
+    return NextResponse.json({ skipped: true, reason: "No active competitions today" });
   }
 
-  // ── 4. For each eligible competition, figure out who picks first ────────
-  const allCompIds = eligible.map((c) => c.id);
+  // Pre-load all picks and profiles for eligible competitions.
+  const allCompIds = comps.map((c) => c.id);
+
   const { data: allPicks } = await supabase
     .from("picks")
     .select("competition_id, picker_id, result, game_date, pick_index")
     .in("competition_id", allCompIds);
 
-  // Collect all participant profile IDs.
   const profileIds = Array.from(new Set(
-    eligible.flatMap((c) => [c.creator_id, c.opponent_id].filter(Boolean))
+    comps.flatMap((c) => [c.creator_id, c.opponent_id].filter(Boolean))
   ));
   const { data: profiles } = await supabase
     .from("profiles")
     .select("id, email, display_name")
     .in("id", profileIds);
-
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  let sent = 0;
+  // Already-notified competition IDs for today.
+  const { data: alreadySent } = await supabase
+    .from("competition_notifications")
+    .select("competition_id")
+    .in("competition_id", allCompIds)
+    .eq("notification_date", today)
+    .eq("notification_type", "picks_open");
+  const alreadySentIds = new Set((alreadySent ?? []).map((r) => r.competition_id));
 
-  for (const comp of eligible) {
-    const picks = (allPicks ?? []).filter((p) => p.competition_id === comp.id);
+  const results: Record<string, { sent: number; skipped: string | null }> = {};
+  let totalSent = 0;
 
-    // Compute who picks first tonight.
-    const recordA = { wins: 0, losses: 0, pushes: 0 };
-    const recordB = { wins: 0, losses: 0, pushes: 0 };
-    for (const p of picks) {
-      if (p.game_date >= today) continue;
-      const rec = p.picker_id === comp.creator_id ? recordA : recordB;
-      if (p.result === "win") rec.wins++;
-      else if (p.result === "loss") rec.losses++;
-      else if (p.result === "push") rec.pushes++;
-    }
-    const prevDates = Array.from(new Set(
-      picks.filter((p) => p.game_date < today).map((p) => p.game_date)
-    )).sort();
-    const prevDate = prevDates[prevDates.length - 1];
-    let prevFirstPicker: Player | null = null;
-    if (prevDate) {
-      const fp = picks
-        .filter((p) => p.game_date === prevDate)
-        .sort((a: any, b: any) => a.pick_index - b.pick_index)[0];
-      if (fp) prevFirstPicker = fp.picker_id === comp.creator_id ? "A" : "B";
-    }
-    const firstPickerSlot = whoPicksFirst(recordA, recordB, prevFirstPicker, "A");
-    const firstPickerUserId = firstPickerSlot === "A" ? comp.creator_id : comp.opponent_id;
-    const secondPickerUserId = firstPickerSlot === "A" ? comp.opponent_id : comp.creator_id;
-
-    const competitionUrl = `${siteUrl}/competitions/${comp.id}`;
-
-    // Send to both players — first picker gets the priority notice,
-    // second picker gets a "heads up, picks open soon" version.
-    for (const [pickerId, hasPriority] of [
-      [firstPickerUserId, true],
-      [secondPickerUserId, false],
-    ] as [string, boolean][]) {
-      const profile = profileMap.get(pickerId);
-      const opponentProfile = profileMap.get(pickerId === comp.creator_id ? comp.opponent_id : comp.creator_id);
-      if (!profile?.email) continue;
-
-      const { subject, html } = picksOpenEmail({
-        toName: profile.display_name ?? profile.email,
-        opponentName: opponentProfile?.display_name ?? "Your opponent",
-        competitionName: comp.name,
-        competitionUrl,
-        firstGameTime: firstGameTimeET,
-        gameCount: games.length,
-        hasPriority,
-        sport: comp.sport ?? "NHL",
-      });
-
-      const ok = await sendEmail({ to: profile.email, subject, html });
-      if (ok) sent++;
+  for (const sport of activeSports) {
+    // ── 1. Fetch this sport's schedule ──────────────────────────────────
+    let games: Awaited<ReturnType<typeof fetchScheduleForDate>>;
+    try {
+      games = await fetchScheduleForDate(sport, today);
+    } catch (e) {
+      console.error(`cron/notify: ${sport} schedule failed`, e);
+      results[sport] = { sent: 0, skipped: "schedule fetch failed" };
+      continue;
     }
 
-    // Record that we notified this competition today.
-    await supabase.from("competition_notifications").upsert({
-      competition_id: comp.id,
-      notification_date: today,
-      notification_type: "picks_open",
-    }, { onConflict: "competition_id,notification_date,notification_type" });
+    if (!games || games.length === 0) {
+      results[sport] = { sent: 0, skipped: "no games today" };
+      continue;
+    }
+
+    // ── 2. Check the 2-hour notification window ─────────────────────────
+    const sorted     = [...games].sort((a, b) =>
+      new Date(a.startTimeUTC).getTime() - new Date(b.startTimeUTC).getTime()
+    );
+    const firstGame   = sorted[0];
+    const firstGameMs = new Date(firstGame.startTimeUTC).getTime();
+
+    // Window: [firstGame - 2h, firstGame - 2h + 29min]
+    const windowOpen  = firstGameMs - 2 * 60 * 60 * 1000;
+    const windowClose = windowOpen  + 29 * 60 * 1000;
+
+    // ── 3. Auto-cancel daily comps with no opponent once first game starts ─
+    if (nowMs >= firstGameMs) {
+      const pendingDailies = sportComps[sport].filter(
+        (c) => c.status === "pending" && c.duration === "daily" && !c.opponent_id
+      );
+      for (const comp of pendingDailies) {
+        await supabase.from("competitions").update({ status: "cancelled" }).eq("id", comp.id);
+        const creator = profileMap.get(comp.creator_id);
+        if (creator?.email) {
+          const { subject, html } = competitionCancelledEmail({
+            toName:          creator.display_name ?? creator.email,
+            competitionName: comp.name,
+            reason:          "daily",
+            newCompUrl:      `${siteUrl}/competitions/new`,
+            sport:           comp.sport ?? "NHL",
+          });
+          sendEmail({ to: creator.email, subject, html }).catch(console.error);
+        }
+      }
+      if (pendingDailies.length > 0) {
+        console.log(`cron/notify: cancelled ${pendingDailies.length} pending daily ${sport} comp(s)`);
+      }
+    }
+
+    if (nowMs < windowOpen) {
+      const minsUntil = Math.round((windowOpen - nowMs) / 60000);
+      results[sport] = { sent: 0, skipped: `window opens in ${minsUntil} min` };
+      continue;
+    }
+    if (nowMs > windowClose) {
+      results[sport] = { sent: 0, skipped: "window already passed" };
+      continue;
+    }
+
+    // ── 4. Send emails ───────────────────────────────────────────────────
+    const firstGameTimeET = new Date(firstGame.startTimeUTC).toLocaleTimeString("en-US", {
+      hour: "numeric", minute: "2-digit", timeZone: "America/New_York",
+    }) + " ET";
+
+    const eligible = sportComps[sport].filter(
+      (c) => c.duration !== "daily" && !alreadySentIds.has(c.id)
+    );
+
+    let sportSent = 0;
+
+    for (const comp of eligible) {
+      const picks = (allPicks ?? []).filter((p) => p.competition_id === comp.id);
+
+      const recordA = { wins: 0, losses: 0, pushes: 0 };
+      const recordB = { wins: 0, losses: 0, pushes: 0 };
+      for (const p of picks) {
+        if (p.game_date >= today) continue;
+        const rec = p.picker_id === comp.creator_id ? recordA : recordB;
+        if (p.result === "win")  rec.wins++;
+        else if (p.result === "loss")  rec.losses++;
+        else if (p.result === "push") rec.pushes++;
+      }
+
+      const prevDates = Array.from(new Set(
+        picks.filter((p) => p.game_date < today).map((p) => p.game_date)
+      )).sort();
+      const prevDate = prevDates[prevDates.length - 1];
+      let prevFirstPicker: Player | null = null;
+      if (prevDate) {
+        const fp = picks
+          .filter((p) => p.game_date === prevDate)
+          .sort((a: any, b: any) => a.pick_index - b.pick_index)[0];
+        if (fp) prevFirstPicker = fp.picker_id === comp.creator_id ? "A" : "B";
+      }
+
+      const firstPickerSlot    = whoPicksFirst(recordA, recordB, prevFirstPicker, "A");
+      const firstPickerUserId  = firstPickerSlot === "A" ? comp.creator_id : comp.opponent_id;
+      const secondPickerUserId = firstPickerSlot === "A" ? comp.opponent_id : comp.creator_id;
+      const competitionUrl     = `${siteUrl}/competitions/${comp.id}`;
+
+      for (const [pickerId, hasPriority] of [
+        [firstPickerUserId,  true],
+        [secondPickerUserId, false],
+      ] as [string, boolean][]) {
+        const profile         = profileMap.get(pickerId);
+        const opponentProfile = profileMap.get(
+          pickerId === comp.creator_id ? comp.opponent_id : comp.creator_id
+        );
+        if (!profile?.email) continue;
+
+        const { subject, html } = picksOpenEmail({
+          toName:          profile.display_name ?? profile.email,
+          opponentName:    opponentProfile?.display_name ?? "Your opponent",
+          competitionName: comp.name,
+          competitionUrl,
+          firstGameTime:   firstGameTimeET,
+          gameCount:       games.length,
+          hasPriority,
+          sport:           comp.sport ?? "NHL",
+        });
+
+        const ok = await sendEmail({ to: profile.email, subject, html });
+        if (ok) sportSent++;
+      }
+
+      // Record notification sent.
+      await supabase.from("competition_notifications").upsert({
+        competition_id:    comp.id,
+        notification_date: today,
+        notification_type: "picks_open",
+      }, { onConflict: "competition_id,notification_date,notification_type" });
+    }
+
+    console.log(`cron/notify [${sport}]: sent ${sportSent} emails to ${eligible.length} competitions`);
+    results[sport] = { sent: sportSent, skipped: null };
+    totalSent += sportSent;
   }
 
-  console.log(`cron/notify: sent ${sent} emails across ${eligible.length} competitions`);
-  return NextResponse.json({ sent, competitions: eligible.length });
+  return NextResponse.json({ totalSent, results });
 }
