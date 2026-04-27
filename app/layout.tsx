@@ -16,10 +16,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   let competitions: any[] = [];
   if (user) {
+    // Also include pool competitions the user is a member of.
+    const { data: memberRows } = await supabase
+      .from("competition_members")
+      .select("competition_id")
+      .eq("user_id", user.id);
+    const poolCompIds = (memberRows ?? []).map((r: any) => r.competition_id);
+
     const { data } = await supabase
       .from("competitions")
-      .select("id, name, sport, duration, status, start_date, opponent_id")
-      .or(`creator_id.eq.${user.id},opponent_id.eq.${user.id}`)
+      .select("id, name, sport, duration, status, start_date, opponent_id, format")
+      .or(
+        poolCompIds.length > 0
+          ? `creator_id.eq.${user.id},opponent_id.eq.${user.id},id.in.(${poolCompIds.join(",")})`
+          : `creator_id.eq.${user.id},opponent_id.eq.${user.id}`
+      )
       .order("created_at", { ascending: false });
     competitions = data ?? [];
   }

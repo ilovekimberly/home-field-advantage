@@ -15,7 +15,7 @@ export type SportGame = {
   gameNumber?: number;
 };
 
-export type SupportedSport = "NHL" | "MLB" | "EPL";
+export type SupportedSport = "NHL" | "MLB" | "EPL" | "FIFA";
 
 export const SPORT_CONFIG: Record<SupportedSport, {
   label: string;
@@ -42,6 +42,12 @@ export const SPORT_CONFIG: Record<SupportedSport, {
     emoji: "⚽",
     seasonEnd: (y) => `${y + 1}-05-20`,
     pickCadence: "gameweek",
+  },
+  FIFA: {
+    label: "World Cup",
+    emoji: "🏆",
+    seasonEnd: () => "2026-07-19",
+    pickCadence: "day",
   },
 };
 
@@ -72,6 +78,10 @@ export async function fetchScheduleForDate(sport: string, date: string, noCache 
     case "EPL": {
       const { fetchEPLGameweekForDate } = await import("./epl");
       return fetchEPLGameweekForDate(date);
+    }
+    case "FIFA": {
+      const { fetchFIFAScheduleForDate } = await import("./fifa");
+      return fetchFIFAScheduleForDate(date);
     }
     default:
       throw new Error(`Unsupported sport: ${sport}`);

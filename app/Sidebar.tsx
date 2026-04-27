@@ -12,6 +12,7 @@ type SidebarComp = {
   status: string;
   start_date: string;
   opponent_id: string | null;
+  format?: string;
 };
 
 type Props = {
@@ -22,7 +23,7 @@ const STATUS_ORDER = ["active", "pending", "complete", "cancelled"];
 
 const STATUS_LABEL: Record<string, string> = {
   active: "Active",
-  pending: "Awaiting Opponent",
+  pending: "Pending",
   complete: "Completed",
   cancelled: "Cancelled",
 };
@@ -45,6 +46,7 @@ const SPORT_EMOJI: Record<string, string> = {
   NHL: "🏒",
   MLB: "⚾",
   EPL: "⚽",
+  FIFA: "🏆",
 };
 
 // Statuses open by default.

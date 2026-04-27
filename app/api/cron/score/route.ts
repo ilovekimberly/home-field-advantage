@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
+import { fifaOutcome } from "@/lib/fifa";
 import { sendEmail, competitionCancelledEmail, perfectNightEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
@@ -88,6 +89,11 @@ export async function GET(req: Request) {
             else if (pick.spread_choice === "home") result = coverMargin > 0 ? "win" : "loss";
             else result = coverMargin < 0 ? "win" : "loss";
           }
+        } else if (sport === "FIFA") {
+          // FIFA picks use "HOME" / "AWAY" / "DRAW" as picked_team_abbrev.
+          const outcome = fifaOutcome(game);
+          if (outcome === null) result = "pending";
+          else result = outcome === pick.picked_team_abbrev ? "win" : "loss";
         } else {
           const winner = winnerAbbrevGame(game);
           result = winner === null ? "push"
@@ -120,10 +126,13 @@ export async function GET(req: Request) {
 
       const { data: comp } = await supabase
         .from("competitions")
-        .select("id, name, sport, creator_id, opponent_id")
+        .select("id, name, sport, format, creator_id, opponent_id")
         .eq("id", compId)
         .single();
       if (!comp) continue;
+
+      // Skip perfect night emails for pool competitions.
+      if (comp.format === "pool") continue;
 
       // Only look at dates that have at least one newly-scored pick.
       const affectedDates = Array.from(new Set(

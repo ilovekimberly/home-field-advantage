@@ -3,6 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame, getPickDate } from "@/lib/schedule";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
+import PoolPickRoom from "./PoolPickRoom";
+import PoolLeaderboard from "./PoolLeaderboard";
 import InvitePanel from "./InvitePanel";
 import DeferBanner from "./DeferBanner";
 import RefreshScores from "./RefreshScores";
@@ -32,9 +34,23 @@ export default async function CompetitionPage({
     .from("competitions").select("*").eq("id", params.id).single();
   if (!comp) notFound();
 
+  const isPool = comp.format === "pool";
   const isCreator = comp.creator_id === user.id;
   const isOpponent = comp.opponent_id === user.id;
-  if (!isCreator && !isOpponent) {
+
+  // For pool competitions, also check competition_members table.
+  let isPoolMember = false;
+  if (isPool) {
+    const { data: membership } = await supabase
+      .from("competition_members")
+      .select("id")
+      .eq("competition_id", comp.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    isPoolMember = !!membership;
+  }
+
+  if (!isCreator && !isOpponent && !isPoolMember) {
     return (
       <div className="card">
         <h1 className="text-xl font-bold">Not a participant</h1>
@@ -43,14 +59,24 @@ export default async function CompetitionPage({
     );
   }
 
-  // Profiles
-  const ids = [comp.creator_id, comp.opponent_id].filter(Boolean);
-  const { data: profiles } = await supabase.from("profiles").select("*").in("id", ids);
-  const creatorProfile = profiles?.find((p) => p.id === comp.creator_id);
-  const opponentProfile = profiles?.find((p) => p.id === comp.opponent_id);
+  // Profiles — for pools, load all members; for 1v1, just the two players.
+  let poolMembers: { userId: string; name: string; wins: number; losses: number; pushes: number; isMe: boolean }[] = [];
+
+  const ids = isPool
+    ? [] // we'll load member profiles separately
+    : [comp.creator_id, comp.opponent_id].filter(Boolean);
+
+  let profiles: any[] | null = null;
+  if (!isPool) {
+    const { data } = await supabase.from("profiles").select("*").in("id", ids);
+    profiles = data;
+  }
+
+  const creatorProfile = profiles?.find((p: any) => p.id === comp.creator_id);
+  const opponentProfile = profiles?.find((p: any) => p.id === comp.opponent_id);
   const myProfile = isCreator ? creatorProfile : opponentProfile;
   const theirProfile = isCreator ? opponentProfile : creatorProfile;
-  const myName = myProfile?.display_name ?? "You";
+  const myName = isPool ? "You" : (myProfile?.display_name ?? "You");
   const theirName = theirProfile?.display_name ?? "Opponent";
 
   const today = todayISO();
@@ -61,11 +87,44 @@ export default async function CompetitionPage({
 
   const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
 
+  // Pool: load member list + their records for the leaderboard.
+  if (isPool) {
+    const { data: memberRows } = await supabase
+      .from("competition_members")
+      .select("user_id")
+      .eq("competition_id", comp.id);
+
+    const memberIds = (memberRows ?? []).map((r: any) => r.user_id);
+    const { data: memberProfiles } = memberIds.length > 0
+      ? await supabase.from("profiles").select("id, display_name").in("id", memberIds)
+      : { data: [] };
+
+    for (const memberId of memberIds) {
+      const memberPicks = (allPicks ?? []).filter((p) => p.picker_id === memberId);
+      const profile = (memberProfiles ?? []).find((pr: any) => pr.id === memberId);
+      poolMembers.push({
+        userId: memberId,
+        name: profile?.display_name ?? "Member",
+        wins:   memberPicks.filter((p) => p.result === "win").length,
+        losses: memberPicks.filter((p) => p.result === "loss").length,
+        pushes: memberPicks.filter((p) => p.result === "push").length,
+        isMe: memberId === user.id,
+      });
+    }
+  }
+
   // Today is only accessible for picks if the most recent previous date has
   // no pending picks — i.e. yesterday's results are all in.
   const mostRecentPickDate = datesWithPicks.filter((d) => d < today).slice(-1)[0];
-  const prevDateHasPending = mostRecentPickDate
-    ? (allPicks ?? []).some((p) => p.game_date === mostRecentPickDate && p.result === "pending")
+  // For pool competitions, everyone picks independently so we never block today
+  // based on whether a previous date's picks are still pending.
+  const prevDateHasPending = !isPool && mostRecentPickDate
+    ? (allPicks ?? []).some(
+        (p) =>
+          p.game_date === mostRecentPickDate &&
+          p.result === "pending" &&
+          p.picker_id === user.id   // only MY pending picks gate today for 1v1
+      )
     : false;
   const todayPickable = !prevDateHasPending;
 
@@ -272,17 +331,25 @@ export default async function CompetitionPage({
             <h1 className="text-2xl font-bold">{comp.name}</h1>
             <p className="text-sm text-slate-500">
               {comp.duration === "daily" ? "Single day" : comp.duration === "weekly" ? "1 week" : comp.duration === "playoff" ? "Playoffs" : "Full season"} · {comp.start_date} → {comp.end_date}
+              {isPool && (
+                <span className="ml-2 inline-flex items-center gap-1 text-xs text-rink font-medium bg-rink/10 px-2 py-0.5 rounded-full">
+                  Pool · {poolMembers.length} member{poolMembers.length !== 1 ? "s" : ""}
+                </span>
+              )}
             </p>
           </div>
-          <div className="text-right text-sm">
-            <div><b>{creatorProfile?.display_name ?? "Creator"}</b> (creator)</div>
-            <div>
-              {opponentProfile?.display_name ??
-                <span className="italic text-slate-400">awaiting opponent…</span>}
+          {!isPool && (
+            <div className="text-right text-sm">
+              <div><b>{creatorProfile?.display_name ?? "Creator"}</b> (creator)</div>
+              <div>
+                {opponentProfile?.display_name ??
+                  <span className="italic text-slate-400">awaiting opponent…</span>}
+              </div>
             </div>
-          </div>
+          )}
         </div>
-        {!comp.opponent_id && isCreator && (
+        {/* Invite panel: always visible for pool creators; 1v1 only when no opponent yet */}
+        {isCreator && (isPool || !comp.opponent_id) && (
           <div className="mt-4">
             <InvitePanel
               competitionId={comp.id}
@@ -294,7 +361,7 @@ export default async function CompetitionPage({
       </div>
 
       {/* Standings at top when competition is complete */}
-      {comp.status === "complete" && (
+      {comp.status === "complete" && !isPool && (
         <LiveStandings
           competitionId={comp.id}
           playerAId={comp.creator_id}
@@ -303,6 +370,14 @@ export default async function CompetitionPage({
           nameB={opponentProfile?.display_name ?? "Opponent"}
           initialA={overallRecordA}
           initialB={overallRecordB}
+        />
+      )}
+      {/* Pool leaderboard — always shown at top for pool comps */}
+      {isPool && poolMembers.length > 0 && (
+        <PoolLeaderboard
+          competitionId={comp.id}
+          currentUserId={user.id}
+          initialMembers={poolMembers}
         />
       )}
 
@@ -315,8 +390,8 @@ export default async function CompetitionPage({
                 ? `Gameweek · ${activeDate}`
                 : new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
             </h2>
-            {/* Per-date score — shown once there are scored picks on this date */}
-            {dateScoreVisible && (
+            {/* Per-date score — 1v1 only, shown once there are scored picks */}
+            {!isPool && dateScoreVisible && (
               <p className="text-sm text-slate-500 mt-0.5 tabular-nums">
                 <span className="font-medium text-slate-700">{myName}</span>{" "}
                 <span className="font-semibold">{myDateWins}</span>
@@ -351,12 +426,12 @@ export default async function CompetitionPage({
         )}
 
         {/* Nightly recap from the previous night */}
-        {nightlyRecap && isViewingToday && (
+        {!isPool && nightlyRecap && isViewingToday && (
           <NightlyRecap night={nightlyRecap} />
         )}
 
-        {/* Perfect night banner — shown when browsing a past date */}
-        {!isViewingToday && todaysPicks.length > 0 && (() => {
+        {/* Perfect night banner — shown when browsing a past date (1v1 only) */}
+        {!isPool && !isViewingToday && todaysPicks.length > 0 && (() => {
           const scored = todaysPicks.filter((p) => p.result === "win" || p.result === "loss");
           const myScored = scored.filter((p) => p.picker_id === user.id);
           const theirScored = scored.filter((p) => p.picker_id !== user.id);
@@ -377,17 +452,23 @@ export default async function CompetitionPage({
           );
         })()}
 
-        <p className="text-sm text-slate-500 mb-4">
-          {effectiveGameCount} games ·{" "}
-          {deferChoiceMade
-            ? <>first pick: <b>{firstPickerName}</b>{deferred ? " (deferred — takes picks #2 & #3)" : ""}</>
-            : comp.duration === "daily" || !comp.opponent_id
-              ? <>first pick: <b>{firstPickerName}</b></>
-              : <><b>{firstPickerName}</b> has pick priority tonight</>}
-          {draft.unpickedGames > 0 && <> · {draft.unpickedGames} game(s) left unpicked</>}
-        </p>
+        {isPool ? (
+          <p className="text-sm text-slate-500 mb-4">
+            {games.length} game{games.length !== 1 ? "s" : ""} · Pick all independently
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500 mb-4">
+            {effectiveGameCount} games ·{" "}
+            {deferChoiceMade
+              ? <>first pick: <b>{firstPickerName}</b>{deferred ? " (deferred — takes picks #2 & #3)" : ""}</>
+              : comp.duration === "daily" || !comp.opponent_id
+                ? <>first pick: <b>{firstPickerName}</b></>
+                : <><b>{firstPickerName}</b> has pick priority tonight</>}
+            {draft.unpickedGames > 0 && <> · {draft.unpickedGames} game(s) left unpicked</>}
+          </p>
+        )}
 
-        {showDeferBanner && (
+        {!isPool && showDeferBanner && (
           <DeferBanner
             competitionId={comp.id}
             gameDate={activeDate}
@@ -395,50 +476,89 @@ export default async function CompetitionPage({
           />
         )}
 
-        <PickRoom
-          competitionId={comp.id}
-          activeDate={activeDate}
-          games={games.map((g) => ({
-            id: g.id,
-            home: g.homeTeam,
-            away: g.awayTeam,
-            startTimeUTC: g.startTimeUTC,
-            gameState: g.gameState,
-            final: isFinalGame(g),
-            winner: winnerAbbrevGame(g),
-            homeScore: g.homeScore,
-            awayScore: g.awayScore,
-            period: g.period,
-            periodType: g.periodType,
-            clock: g.clock,
-            inIntermission: g.inIntermission,
-            gameNumber: g.gameNumber,
-          }))}
-          existingPicks={todaysPicks}
-          draftOrder={draft.order}
-          playerAId={comp.creator_id}
-          playerBId={comp.opponent_id}
-          playerAName={creatorProfile?.display_name ?? "Creator"}
-          playerBName={opponentProfile?.display_name ?? "Opponent"}
-          currentUserId={user.id}
-          enableOverUnder={!!comp.enable_over_under}
-          enableSpread={!!comp.enable_spread}
-          gameLines={gameLines}
-          sport={comp.sport ?? "NHL"}
-          waitingForDefer={
-            isViewingToday &&
-            !deferChoiceMade &&
-            todaysPicks.length === 0 &&
-            comp.duration !== "daily" &&
-            effectiveGameCount > 3 &&
-            !!comp.opponent_id
-          }
-          readOnly={!isViewingToday}
-        />
+        {isPool && games.length === 0 && activeDate < today ? (
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+            No games were scheduled on this date.
+          </div>
+        ) : isPool && games.length === 0 ? (
+          <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-6 text-center">
+            <p className="text-sm font-medium text-blue-700 mb-1">No games scheduled yet</p>
+            <p className="text-xs text-blue-500">
+              The schedule for{" "}
+              {new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric" })}{" "}
+              hasn't been released. Check back closer to the tournament.
+            </p>
+          </div>
+        ) : isPool ? (
+          <PoolPickRoom
+            competitionId={comp.id}
+            activeDate={activeDate}
+            games={games.map((g) => ({
+              id: g.id,
+              home: g.homeTeam,
+              away: g.awayTeam,
+              startTimeUTC: g.startTimeUTC,
+              gameState: g.gameState,
+              final: isFinalGame(g),
+              winner: winnerAbbrevGame(g),
+              homeScore: g.homeScore,
+              awayScore: g.awayScore,
+              period: g.period,
+              periodType: g.periodType,
+              clock: g.clock,
+              inIntermission: g.inIntermission,
+            }))}
+            myPicks={todaysPicks.filter((p) => p.picker_id === user.id)}
+            currentUserId={user.id}
+            readOnly={!isViewingToday}
+            sport={comp.sport ?? "NHL"}
+          />
+        ) : (
+          <PickRoom
+            competitionId={comp.id}
+            activeDate={activeDate}
+            games={games.map((g) => ({
+              id: g.id,
+              home: g.homeTeam,
+              away: g.awayTeam,
+              startTimeUTC: g.startTimeUTC,
+              gameState: g.gameState,
+              final: isFinalGame(g),
+              winner: winnerAbbrevGame(g),
+              homeScore: g.homeScore,
+              awayScore: g.awayScore,
+              period: g.period,
+              periodType: g.periodType,
+              clock: g.clock,
+              inIntermission: g.inIntermission,
+              gameNumber: g.gameNumber,
+            }))}
+            existingPicks={todaysPicks}
+            draftOrder={draft.order}
+            playerAId={comp.creator_id}
+            playerBId={comp.opponent_id}
+            playerAName={creatorProfile?.display_name ?? "Creator"}
+            playerBName={opponentProfile?.display_name ?? "Opponent"}
+            currentUserId={user.id}
+            enableOverUnder={!!comp.enable_over_under}
+            enableSpread={!!comp.enable_spread}
+            gameLines={gameLines}
+            sport={comp.sport ?? "NHL"}
+            waitingForDefer={
+              isViewingToday &&
+              !deferChoiceMade &&
+              todaysPicks.length === 0 &&
+              comp.duration !== "daily" &&
+              effectiveGameCount > 3 &&
+              !!comp.opponent_id
+            }
+            readOnly={!isViewingToday}
+          />
+        )}
       </div>
 
-      {/* Standings — always at bottom for active, moved to top for complete */}
-      {comp.status !== "complete" && (
+      {/* 1v1 Standings — always at bottom for active, moved to top for complete */}
+      {!isPool && comp.status !== "complete" && (
         <LiveStandings
           competitionId={comp.id}
           playerAId={comp.creator_id}
@@ -450,8 +570,8 @@ export default async function CompetitionPage({
         />
       )}
 
-      {/* Night-by-night breakdown — weekly/season comps only */}
-      {nightBreakdown.length > 0 && (
+      {/* Night-by-night breakdown — weekly/season 1v1 comps only */}
+      {!isPool && nightBreakdown.length > 0 && (
         <NightByNight
           competitionId={comp.id}
           nights={nightBreakdown}

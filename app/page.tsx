@@ -10,14 +10,18 @@ function daysAgo(n: number) {
   return d.toISOString().slice(0, 10);
 }
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽" };
+const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆" };
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  active:    { label: "Active",           className: "bg-green-100 text-green-700" },
-  pending:   { label: "Awaiting opponent", className: "bg-amber-100 text-amber-700" },
-  complete:  { label: "Complete",         className: "bg-slate-100 text-slate-500" },
-  cancelled: { label: "Cancelled",        className: "bg-red-100 text-red-400" },
-};
+function getStatusBadge(comp: any): { label: string; className: string } {
+  const isPool = comp.format === "pool";
+  switch (comp.status) {
+    case "active":    return { label: "Active",                                      className: "bg-green-100 text-green-700" };
+    case "pending":   return { label: isPool ? "Awaiting members" : "Awaiting opponent", className: "bg-amber-100 text-amber-700" };
+    case "complete":  return { label: "Complete",                                    className: "bg-slate-100 text-slate-500" };
+    case "cancelled": return { label: "Cancelled",                                   className: "bg-red-100 text-red-400" };
+    default:          return { label: comp.status,                                   className: "bg-slate-100 text-slate-500" };
+  }
+}
 
 export default async function HomePage() {
   const supabase = createSupabaseServerClient();
@@ -59,10 +63,21 @@ export default async function HomePage() {
   const today = todayISO();
   const twoWeeksAgo = daysAgo(14);
 
+  // Load competitions where user is creator, 1v1 opponent, OR pool member.
+  const { data: memberRows } = await supabase
+    .from("competition_members")
+    .select("competition_id")
+    .eq("user_id", user.id);
+  const poolCompIds = (memberRows ?? []).map((r: any) => r.competition_id);
+
   const { data: competitions } = await supabase
     .from("competitions")
     .select("*")
-    .or(`creator_id.eq.${user.id},opponent_id.eq.${user.id}`)
+    .or(
+      poolCompIds.length > 0
+        ? `creator_id.eq.${user.id},opponent_id.eq.${user.id},id.in.(${poolCompIds.join(",")})`
+        : `creator_id.eq.${user.id},opponent_id.eq.${user.id}`
+    )
     .order("created_at", { ascending: false });
 
   const compIds = (competitions ?? []).map((c) => c.id);
@@ -90,7 +105,8 @@ export default async function HomePage() {
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
   // ── Which active competitions need my pick tonight ─────────────────────
-  const activeComps = (competitions ?? []).filter((c) => c.status === "active" && c.opponent_id);
+  // Pool competitions are excluded — everyone picks independently on their own schedule.
+  const activeComps = (competitions ?? []).filter((c) => c.status === "active" && c.opponent_id && c.format !== "pool");
 
   // Compute the active date for each comp, then batch-fetch schedules grouped
   // by (sport, date) so we only hit the schedule API once per pair.
@@ -210,15 +226,24 @@ export default async function HomePage() {
     if (!comp) continue;
     const picker = profileMap.get(pick.picker_id);
     const pickerName = pick.picker_id === user.id ? "You" : (picker?.display_name ?? picker?.email ?? "Opponent");
-    let icon = "🏒";
+    let icon = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏒";
     let resultSuffix = "";
     if (pick.result === "win")  { icon = "✅"; resultSuffix = " — Won!"; }
     if (pick.result === "loss") { icon = "❌"; resultSuffix = " — Lost"; }
     if (pick.result === "push") { icon = "🤝"; resultSuffix = " — Push"; }
+
+    // Humanize FIFA outcome labels: HOME/AWAY/DRAW → readable
+    let pickLabel = pick.picked_team_abbrev;
+    if (comp.sport === "FIFA") {
+      if (pickLabel === "HOME") pickLabel = `${pick.picked_team_name} (home) to win`;
+      else if (pickLabel === "AWAY") pickLabel = `${pick.picked_team_name} (away) to win`;
+      else if (pickLabel === "DRAW") pickLabel = "Draw";
+    }
+
     feed.push({
       date: pick.game_date,
       icon,
-      text: `${pickerName} picked ${pick.picked_team_abbrev}${resultSuffix}`,
+      text: `${pickerName} picked ${pickLabel}${resultSuffix}`,
       compName: comp.name,
       compId: comp.id,
     });
@@ -253,13 +278,14 @@ export default async function HomePage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {visibleComps.map((comp) => {
+              const isPool = comp.format === "pool";
               const s = compStandings[comp.id] ?? { myWins: 0, myLosses: 0, theirWins: 0, theirLosses: 0 };
               const myTurn = needsMyPick.some((n) => n.comp.id === comp.id);
               const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
               const opponent = opponentId ? profileMap.get(opponentId) : null;
               const opponentName = opponent?.display_name ?? opponent?.email ?? null;
               const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏒";
-              const badge = STATUS_BADGE[comp.status] ?? STATUS_BADGE.active;
+              const badge = getStatusBadge(comp);
               const totalPicks = s.myWins + s.myLosses;
               const diff = s.myWins - s.theirWins;
               const standingLabel =
@@ -282,6 +308,11 @@ export default async function HomePage() {
                       <span className="font-semibold text-slate-800 leading-snug truncate">{comp.name}</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {isPool && (
+                        <span className="text-xs bg-rink/10 text-rink px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                          Pool
+                        </span>
+                      )}
                       {myTurn && (
                         <span className="text-xs bg-rink text-white px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
                           Your turn
@@ -293,15 +324,22 @@ export default async function HomePage() {
                     </div>
                   </div>
 
-                  {/* Opponent */}
-                  <div className="text-sm text-slate-500">
-                    {opponentName ? `vs ${opponentName}` : (
-                      <span className="italic text-slate-400">Awaiting opponent</span>
-                    )}
-                  </div>
+                  {/* Subtitle */}
+                  {isPool ? (
+                    <div className="text-sm text-slate-500">
+                      Group competition · {comp.start_date}
+                      {comp.duration !== "daily" && ` → ${comp.end_date}`}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500">
+                      {opponentName ? `vs ${opponentName}` : (
+                        <span className="italic text-slate-400">Awaiting opponent</span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Record */}
-                  {totalPicks > 0 && (
+                  {!isPool && totalPicks > 0 && (
                     <div className="flex items-center gap-3 pt-2 border-t border-slate-100 text-sm">
                       <span className="font-bold text-green-700">{s.myWins}W</span>
                       <span className="font-bold text-red-500">{s.myLosses}L</span>
@@ -314,6 +352,14 @@ export default async function HomePage() {
                           {standingLabel}
                         </span>
                       )}
+                    </div>
+                  )}
+                  {/* Pool: show my record only */}
+                  {isPool && totalPicks > 0 && (
+                    <div className="flex items-center gap-3 pt-2 border-t border-slate-100 text-sm">
+                      <span className="font-bold text-green-700">{s.myWins}W</span>
+                      <span className="font-bold text-red-500">{s.myLosses}L</span>
+                      <span className="ml-auto text-xs text-slate-400">my picks</span>
                     </div>
                   )}
                 </Link>
