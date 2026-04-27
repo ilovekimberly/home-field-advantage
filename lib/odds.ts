@@ -135,10 +135,23 @@ function extractSpread(bookmakers: any[], homeTeam: string, awayTeam: string) {
 }
 
 // ── Team name matching ─────────────────────────────────────────────────────
-// The Odds API and NHL API both use full names ("Toronto Maple Leafs").
+// The Odds API and NHL/MLB APIs use full names ("Toronto Maple Leafs").
 // Case-insensitive substring match handles minor differences.
-export function matchTeamName(oddsName: string, nhlName: string): boolean {
+//
+// ALIASES: some teams use different names across APIs (e.g. rebrands).
+// Map from the canonical schedule-API name → the Odds API name.
+const TEAM_NAME_ALIASES: Record<string, string> = {
+  // Utah rebranded from "Utah Hockey Club" to "Utah Mammoth" for 2025-26
+  "utah hockey club": "utah mammoth",
+};
+
+export function matchTeamName(oddsName: string, scheduleName: string): boolean {
   const a = oddsName.toLowerCase().trim();
-  const b = nhlName.toLowerCase().trim();
-  return a === b || a.includes(b) || b.includes(a);
+  const b = scheduleName.toLowerCase().trim();
+  // Direct or substring match
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  // Alias check: translate the schedule name and retry
+  const aliased = TEAM_NAME_ALIASES[b];
+  if (aliased) return a === aliased || a.includes(aliased) || aliased.includes(a);
+  return false;
 }
