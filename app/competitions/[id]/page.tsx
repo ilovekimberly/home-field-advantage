@@ -451,7 +451,9 @@ export default async function CompetitionPage({
               </p>
             )}
           </div>
-          {isViewingToday && <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />}
+          {(isViewingToday || todaysPicks.some((p) => p.result === "pending")) && (
+            <RefreshScores cronSecret={process.env.CRON_SECRET ?? ""} />
+          )}
         </div>
 
         {/* Date navigator — only for weekly/season comps */}

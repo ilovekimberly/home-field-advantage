@@ -66,7 +66,19 @@ export async function GET(req: Request) {
           continue;
         }
         if (!isFinalGame(game)) {
-          console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not final, state: ${game.gameState}`);
+          // Postponed games will never finish — mark the pick as unscored so
+          // they don't block the next day from opening for the user.
+          if (game.gameState === "POSTPONED") {
+            console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} postponed — marking unscored`);
+            const { error: updateErr } = await supabase
+              .from("picks").update({ result: "unscored" }).eq("id", pick.id);
+            if (!updateErr) {
+              updated++;
+              affectedCompIds.add(pick.competition_id);
+            }
+          } else {
+            console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not final, state: ${game.gameState}`);
+          }
           continue;
         }
         console.log(`cron/score: [${pick.competition_id}] scoring game ${pick.game_id}, state: ${game.gameState}`);
