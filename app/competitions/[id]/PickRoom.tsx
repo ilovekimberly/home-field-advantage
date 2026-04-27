@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 
 type Team = { abbrev: string; name: string; id: number | string };
 type PitcherInfo = { name: string; era?: string };
+type TeamStat = { streak: string; lastTen: string };
 type Game = {
   id: number | string;
   home: Team;
@@ -127,7 +128,7 @@ export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
   draftOrder, playerAId, playerBId, playerAName, playerBName,
   currentUserId, waitingForDefer, readOnly,
-  enableOverUnder, enableSpread, gameLines, sport,
+  enableOverUnder, enableSpread, gameLines, sport, mlbTeamStats,
 }: {
   competitionId: string;
   activeDate: string;
@@ -145,6 +146,7 @@ export default function PickRoom({
   enableSpread?: boolean;
   gameLines?: Record<string, GameLineData>;
   sport?: string;
+  mlbTeamStats?: Record<string, TeamStat>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -419,27 +421,43 @@ export default function PickRoom({
                   })()}
                 </div>
 
-                {/* Winner pick buttons with moneyline odds */}
+                {/* Winner pick buttons with moneyline odds + streak */}
                 {!taken && !started && !readOnly && (
                   <div className="flex gap-2 shrink-0">
                     {([
                       { team: g.away, ml: awayML },
                       { team: g.home, ml: homeML },
-                    ] as const).map(({ team, ml }) => (
-                      <button
-                        key={team.abbrev}
-                        disabled={!canPick}
-                        onClick={() => makePick(g.id, team.abbrev, team.name)}
-                        className="btn-ghost disabled:opacity-30 text-sm flex flex-col items-center leading-tight px-3 py-1.5"
-                      >
-                        <span>{team.abbrev}</span>
-                        {ml != null && (
-                          <span className={`text-[10px] font-normal ${ml > 0 ? "text-green-600" : "text-slate-400"}`}>
-                            {formatOdds(ml)}
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                    ] as const).map(({ team, ml }) => {
+                      const stats = mlbTeamStats?.[team.abbrev];
+                      const streak = stats?.streak ?? "";
+                      const isWinStreak = streak.startsWith("W");
+                      const isLoseStreak = streak.startsWith("L");
+                      return (
+                        <button
+                          key={team.abbrev}
+                          disabled={!canPick}
+                          onClick={() => makePick(g.id, team.abbrev, team.name)}
+                          className="btn-ghost disabled:opacity-30 text-sm flex flex-col items-center leading-tight px-3 py-1.5 min-w-[52px]"
+                        >
+                          <span>{team.abbrev}</span>
+                          {ml != null && (
+                            <span className={`text-[10px] font-normal ${ml > 0 ? "text-green-600" : "text-slate-400"}`}>
+                              {formatOdds(ml)}
+                            </span>
+                          )}
+                          {streak && (
+                            <span className={`text-[10px] font-semibold ${isWinStreak ? "text-green-600" : isLoseStreak ? "text-red-500" : "text-slate-400"}`}>
+                              {streak}
+                            </span>
+                          )}
+                          {stats?.lastTen && (
+                            <span className="text-[9px] text-slate-400 font-normal">
+                              {stats.lastTen} L10
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame, getPickDate } from "@/lib/schedule";
+import { fetchMLBTeamStats, type MLBTeamStatsMap } from "@/lib/mlb";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
 import PoolPickRoom from "./PoolPickRoom";
@@ -234,6 +235,13 @@ export default async function CompetitionPage({
   // Schedule for activeDate
   let games: Awaited<ReturnType<typeof fetchScheduleForDate>> = [];
   try { games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate); } catch {}
+
+  // MLB team stats (streak + last 10) — fetched once per page load, cached 1hr
+  let mlbTeamStats: MLBTeamStatsMap = {};
+  if (comp.sport === "MLB") {
+    const season = activeDate.slice(0, 4);
+    try { mlbTeamStats = await fetchMLBTeamStats(season); } catch {}
+  }
 
   // Only count games that are either already picked or haven't started yet.
   // Games that started before anyone picked them are dropped from the slate.
@@ -597,6 +605,7 @@ export default async function CompetitionPage({
             enableSpread={!!comp.enable_spread}
             gameLines={gameLines}
             sport={comp.sport ?? "NHL"}
+            mlbTeamStats={mlbTeamStats}
             waitingForDefer={
               isViewingToday &&
               !deferChoiceMade &&
