@@ -13,8 +13,8 @@ export default function HowItWorksPage() {
           How My Home Field works
         </h1>
         <p className="text-slate-500 text-lg leading-relaxed max-w-xl mx-auto">
-          You and a friend draft game picks each night, sit back while results roll in,
-          and settle the debate once and for all.
+          Head-to-head draft battles with a friend, or group pools where everyone
+          picks every game. Two formats, one app, zero spreadsheets.
         </p>
       </section>
 
@@ -27,14 +27,15 @@ export default function HowItWorksPage() {
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Create a competition</h2>
             <p className="text-slate-500 mb-5">
-              Pick your sport, set the duration, and send an invite link to your opponent.
-              That's it — no accounts needed for them to join.
+              Pick your sport, choose a format, and send an invite link to your friends.
+              No account needed for them to join.
             </p>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {[
                 { emoji: "🏒", label: "NHL", sub: "Oct → Apr" },
                 { emoji: "⚾", label: "MLB", sub: "Mar → Sep" },
                 { emoji: "⚽", label: "Premier League", sub: "Aug → May" },
+                { emoji: "🏆", label: "FIFA World Cup", sub: "Group stage → Final" },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl border-2 border-slate-100 bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
                   <span className="text-2xl">{s.emoji}</span>
@@ -52,11 +53,50 @@ export default function HowItWorksPage() {
       {/* Divider */}
       <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
 
-      {/* Step 2 — Duration */}
+      {/* Step 2 — Format */}
       <section>
         <div className="flex items-start gap-6">
           <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
             2
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Choose your format</h2>
+            <p className="text-slate-500 mb-5">
+              Go head-to-head with one friend, or run a pool where everyone picks independently.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="rounded-2xl border-2 border-rink bg-ice px-5 py-5">
+                <div className="text-2xl mb-2">🤺</div>
+                <div className="font-bold text-rink text-base mb-1">1v1 — Head to Head</div>
+                <div className="text-sm text-slate-600 leading-relaxed">
+                  You and one opponent take turns drafting game picks each night. Snake
+                  draft keeps it fair. Best record at the end wins.
+                </div>
+                <div className="mt-3 text-xs text-rink/70 font-medium">NHL · MLB · EPL</div>
+              </div>
+              <div className="rounded-2xl border-2 border-slate-200 bg-white px-5 py-5">
+                <div className="text-2xl mb-2">🏆</div>
+                <div className="font-bold text-slate-800 text-base mb-1">Group Pool</div>
+                <div className="text-sm text-slate-600 leading-relaxed">
+                  Invite a whole group — everyone picks every game independently. The
+                  leaderboard updates in real time as results come in. Perfect for
+                  World Cup season.
+                </div>
+                <div className="mt-3 text-xs text-slate-400 font-medium">FIFA World Cup · more sports soon</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Step 3 — Duration */}
+      <section>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
+            3
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Choose how long it runs</h2>
@@ -68,7 +108,7 @@ export default function HowItWorksPage() {
                 { emoji: "⚡", label: "Single day / Gameweek", desc: "One slate. Settle it tonight. Great for big game nights.", highlight: false },
                 { emoji: "📅", label: "One week / 4 gameweeks", desc: "A short series where every pick night counts.", highlight: false },
                 { emoji: "🏅", label: "Full regular season", desc: "NHL or MLB — all the way to the final game of the regular season.", highlight: false },
-                { emoji: "🏆", label: "Full playoffs", desc: "Only available when the playoffs are active. Every series, every round — until the cup is lifted.", highlight: true },
+                { emoji: "🏆", label: "Full playoffs / tournament", desc: "Only available when the playoffs or tournament are active. Every round — until the cup is lifted.", highlight: true },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -93,11 +133,20 @@ export default function HowItWorksPage() {
       {/* Divider */}
       <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
 
-      {/* Step 3 — Snake draft */}
+      {/* 1v1 Section header */}
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">🤺</span>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest text-rink mb-0.5">1v1 Head-to-Head</div>
+          <div className="text-slate-400 text-sm">How drafting works when it's just you and one opponent</div>
+        </div>
+      </div>
+
+      {/* Step 4 — Snake draft */}
       <section>
         <div className="flex items-start gap-6">
           <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
-            3
+            4
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Draft your picks — snake style</h2>
@@ -173,11 +222,11 @@ export default function HowItWorksPage() {
       {/* Divider */}
       <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
 
-      {/* Step 4 — Defer */}
+      {/* Step 5 — Defer */}
       <section>
         <div className="flex items-start gap-6">
           <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
-            4
+            5
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">The defer move</h2>
@@ -213,11 +262,11 @@ export default function HowItWorksPage() {
       {/* Divider */}
       <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
 
-      {/* Step 5 — Pick types */}
+      {/* Step 6 — Pick types (1v1) */}
       <section>
         <div className="flex items-start gap-6">
           <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
-            5
+            6
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Optional pick types</h2>
@@ -308,11 +357,86 @@ export default function HowItWorksPage() {
       {/* Divider */}
       <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
 
-      {/* Step 6 — Scoring */}
+      {/* Pool Section header */}
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">🏆</span>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-0.5">Group Pool</div>
+          <div className="text-slate-400 text-sm">How picking works when the whole crew is in</div>
+        </div>
+      </div>
+
+      {/* Pool Step — How pool picking works */}
+      <section>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl font-black shadow-md">
+            ★
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Everyone picks every game</h2>
+            <p className="text-slate-500 mb-5">
+              Unlike 1v1, there's no draft in a pool. Every member picks every match on
+              their own, before kickoff. The leaderboard tells the story.
+            </p>
+            <div className="grid gap-3 mb-5">
+              {[
+                {
+                  icon: "⚽",
+                  label: "Home win, Away win, or Draw",
+                  desc: "For each World Cup match you pick one of three outcomes. All three options are worth exactly the same — 1 win if you're right.",
+                  color: "border-green-200 bg-green-50",
+                },
+                {
+                  icon: "🔒",
+                  label: "Picks lock at kickoff",
+                  desc: "Once a match starts your pick is locked in. You can change or retract your pick any time before kickoff — not after.",
+                  color: "border-slate-200 bg-slate-50",
+                },
+                {
+                  icon: "👀",
+                  label: "See everyone's picks after lock",
+                  desc: "Before kickoff, only your own picks are visible. Once the match starts, everyone's picks are revealed — that's when the group chat lights up.",
+                  color: "border-blue-100 bg-blue-50",
+                },
+                {
+                  icon: "📊",
+                  label: "Live leaderboard",
+                  desc: "Wins and losses are tallied automatically as results come in overnight. The leaderboard updates in real time — no manual tracking needed.",
+                  color: "border-slate-200 bg-slate-50",
+                },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>
+                  <span className="text-xl mt-0.5">{item.icon}</span>
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm">{item.label}</div>
+                    <div className="text-sm text-slate-500 mt-0.5">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-5 py-3.5 flex gap-3">
+              <span className="text-xl">💡</span>
+              <div>
+                <div className="font-bold text-amber-900 text-sm">Invite your whole group</div>
+                <div className="text-sm text-amber-700 mt-0.5">
+                  Share one link — anyone who clicks it can join the pool. You can set a member cap
+                  if you want to keep it small. Picks open as soon as the tournament starts.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Step — Scoring (shared) */}
       <section>
         <div className="flex items-start gap-6">
           <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-rink text-white flex items-center justify-center text-xl font-black shadow-md">
-            6
+            7
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Scoring — fully automatic</h2>
@@ -321,10 +445,10 @@ export default function HowItWorksPage() {
             </p>
             <div className="grid gap-3">
               {[
-                { icon: "✅", label: "Your team wins", sub: "You get a W. That's the game.", color: "border-green-200 bg-green-50" },
-                { icon: "❌", label: "Your team loses", sub: "You get an L. Accountability is part of the fun.", color: "border-red-200 bg-red-50" },
-                { icon: "🤝", label: "Draw (EPL only)", sub: "Counts as a push — no win, no loss.", color: "border-slate-200 bg-slate-50" },
-                { icon: "🔒", label: "Game starts → pick locks", sub: "Once the puck drops (or first pitch) that pick is locked in.", color: "border-slate-200 bg-slate-50" },
+                { icon: "✅", label: "Your team / outcome wins", sub: "You get a W. That's the game.", color: "border-green-200 bg-green-50" },
+                { icon: "❌", label: "Your team / outcome loses", sub: "You get an L. Accountability is part of the fun.", color: "border-red-200 bg-red-50" },
+                { icon: "🤝", label: "Draw (EPL 1v1 only)", sub: "In 1v1 EPL competitions, a draw counts as a push — no win, no loss. In FIFA pools, Draw is a pick option worth a full win.", color: "border-slate-200 bg-slate-50" },
+                { icon: "🔒", label: "Game starts → pick locks", sub: "Once the puck drops, first pitch, or kickoff happens — that pick is locked in for good.", color: "border-slate-200 bg-slate-50" },
               ].map((item) => (
                 <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>
                   <span className="text-xl mt-0.5">{item.icon}</span>
@@ -353,9 +477,10 @@ export default function HowItWorksPage() {
             <span>🏒</span>
             <span>⚾</span>
             <span>⚽</span>
+            <span>🏆</span>
           </div>
           <h2 className="text-2xl font-extrabold text-white mb-2">Ready to settle the debate?</h2>
-          <p className="text-white/70 mb-6 text-sm">Create a competition and send your opponent the link. Takes 60 seconds.</p>
+          <p className="text-white/70 mb-6 text-sm">Challenge a friend 1v1, or start a group pool. Either way, takes 60 seconds.</p>
           <Link href="/competitions/new" className="inline-flex items-center gap-2 bg-white text-rink font-bold px-8 py-3 rounded-xl hover:bg-ice transition-colors shadow-md text-base">
             Create a competition →
           </Link>
