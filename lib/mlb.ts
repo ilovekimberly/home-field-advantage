@@ -1,7 +1,28 @@
 import type { SportGame } from "./schedule";
 
+type PitcherInfo = { name: string; era?: string };
+
+function parsePitcher(pitcher: any): PitcherInfo | null {
+  if (!pitcher?.fullName) return null;
+  // Try to pull current-season ERA from the hydrated stats array.
+  const seasonStats = (pitcher.stats ?? []).find(
+    (s: any) => s.group?.displayName === "pitching"
+  );
+  const era = seasonStats?.stats?.era;
+  const eraClean = era && era !== "-.--" && era !== "INF" && era !== "0.00" ? era : undefined;
+  return { name: pitcher.fullName, era: eraClean };
+}
+
+function shortName(full: string): string {
+  const parts = full.trim().split(" ");
+  if (parts.length < 2) return full;
+  return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
+}
+
+export { shortName };
+
 export async function fetchMLBScheduleForDate(date: string): Promise<SportGame[]> {
-  const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=team,linescore`;
+  const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=team,linescore,probablePitcher(stats)`;
   const res = await fetch(url, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`MLB API error: ${res.status}`);
   const data = await res.json();
@@ -72,6 +93,8 @@ export async function fetchMLBScheduleForDate(date: string): Promise<SportGame[]
         awayScore: away?.score,
         period,
         clock,
+        homePitcher: parsePitcher(home?.probablePitcher),
+        awayPitcher: parsePitcher(away?.probablePitcher),
       });
     }
   }

@@ -13,6 +13,9 @@ export type SportGame = {
   inIntermission?: boolean;
   // Doubleheader game number (1 or 2). Undefined for single games.
   gameNumber?: number;
+  // Starting pitchers (MLB only)
+  homePitcher?: { name: string; era?: string } | null;
+  awayPitcher?: { name: string; era?: string } | null;
 };
 
 export type SupportedSport = "NHL" | "MLB" | "EPL" | "FIFA";

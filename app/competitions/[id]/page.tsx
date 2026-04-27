@@ -583,6 +583,8 @@ export default async function CompetitionPage({
               clock: g.clock,
               inIntermission: g.inIntermission,
               gameNumber: g.gameNumber,
+              homePitcher: g.homePitcher,
+              awayPitcher: g.awayPitcher,
             }))}
             existingPicks={todaysPicks}
             draftOrder={draft.order}

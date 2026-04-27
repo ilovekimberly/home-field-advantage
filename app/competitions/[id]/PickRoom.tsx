@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 type Team = { abbrev: string; name: string; id: number | string };
+type PitcherInfo = { name: string; era?: string };
 type Game = {
   id: number | string;
   home: Team;
@@ -18,6 +19,8 @@ type Game = {
   clock?: string;
   inIntermission?: boolean;
   gameNumber?: number;
+  homePitcher?: PitcherInfo | null;
+  awayPitcher?: PitcherInfo | null;
 };
 type Pick = {
   id: string;
@@ -72,6 +75,12 @@ function PickerChip({ name, isMe }: { name: string; isMe: boolean }) {
       {name}
     </span>
   );
+}
+
+function shortPitcherName(full: string): string {
+  const parts = full.trim().split(" ");
+  if (parts.length < 2) return full;
+  return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
 }
 
 function periodLabel(period?: number, periodType?: string) {
@@ -338,6 +347,25 @@ export default function PickRoom({
                       </span>
                     )}
                   </div>
+                  {/* Probable pitchers — MLB only, shown before game starts */}
+                  {(g.awayPitcher || g.homePitcher) && !g.final && (
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
+                      <span>⚾</span>
+                      {g.awayPitcher ? (
+                        <span>
+                          <span className="font-medium text-slate-700">{shortPitcherName(g.awayPitcher.name)}</span>
+                          {g.awayPitcher.era && <span className="text-slate-400"> {g.awayPitcher.era} ERA</span>}
+                        </span>
+                      ) : <span className="text-slate-400">TBD</span>}
+                      <span className="text-slate-300">vs</span>
+                      {g.homePitcher ? (
+                        <span>
+                          <span className="font-medium text-slate-700">{shortPitcherName(g.homePitcher.name)}</span>
+                          {g.homePitcher.era && <span className="text-slate-400"> {g.homePitcher.era} ERA</span>}
+                        </span>
+                      ) : <span className="text-slate-400">TBD</span>}
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     {!started && (
                       <span className="text-xs text-slate-500">
