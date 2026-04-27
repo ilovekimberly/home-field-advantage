@@ -333,8 +333,15 @@ export default async function CompetitionPage({
             <p className="text-sm text-slate-500">
               {comp.duration === "daily" ? "Single day" : comp.duration === "weekly" ? "1 week" : comp.duration === "playoff" ? "Playoffs" : "Full season"} · {comp.start_date} → {comp.end_date}
               {isPool && (
-                <span className="ml-2 inline-flex items-center gap-1 text-xs text-rink font-medium bg-rink/10 px-2 py-0.5 rounded-full">
-                  Pool · {poolMembers.length} member{poolMembers.length !== 1 ? "s" : ""}
+                <span className={`ml-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                  comp.max_members && poolMembers.length >= comp.max_members
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-rink/10 text-rink"
+                }`}>
+                  Pool · {comp.max_members
+                    ? `${poolMembers.length}/${comp.max_members} members`
+                    : `${poolMembers.length} member${poolMembers.length !== 1 ? "s" : ""}`}
+                  {comp.max_members && poolMembers.length >= comp.max_members && " · Full"}
                 </span>
               )}
             </p>
@@ -376,7 +383,9 @@ export default async function CompetitionPage({
                 {isCreator ? "Your pool is open — invite your group!" : "You're in! Waiting for more members."}
               </p>
               <p className="text-sm text-slate-500 mb-3">
-                {poolMembers.length === 1
+                {comp.max_members
+                  ? `${poolMembers.length} of ${comp.max_members} spots filled.`
+                  : poolMembers.length === 1
                   ? "Only you so far."
                   : `${poolMembers.length} member${poolMembers.length !== 1 ? "s" : ""} joined so far.`}
                 {" "}The pool activates once at least one other person joins.
