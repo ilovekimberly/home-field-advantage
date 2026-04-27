@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { SportPhase } from "@/app/api/sport-phase/route";
 
 type Sport = "NHL" | "MLB" | "EPL";
-type Duration = "daily" | "weekly" | "season";
+type Duration = "daily" | "weekly" | "season" | "playoff";
 type DraftStyle = "standard" | "balanced";
 
 const SPORTS: { value: Sport; label: string; emoji: string }[] = [
@@ -105,12 +105,16 @@ export default function NewCompetitionPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError("You must be signed in."); setBusy(false); return; }
     const end = endDateFor(startDate, duration);
+    // Store "playoff" when the sport is currently in playoffs and user picked "season".
+    const storedDuration: Duration =
+      duration === "season" && phaseInfo?.phase === "playoffs" ? "playoff" : duration;
+
     const { data, error } = await supabase
       .from("competitions")
       .insert({
         name: name || namePlaceholder,
         sport,
-        duration,
+        duration: storedDuration,
         draft_style: draftStyle,
         enable_over_under: (sport === "NHL" || sport === "MLB") ? enableOverUnder : false,
         enable_spread: (sport === "NHL" || sport === "MLB") ? enableSpread : false,
@@ -216,7 +220,7 @@ export default function NewCompetitionPage() {
               </>
             )}
           </select>
-          {duration === "season" && (
+          {(duration === "season" || duration === "playoff") && (
             <span className="text-xs text-slate-500 mt-1 block">
               Ends {seasonEnd()}
             </span>

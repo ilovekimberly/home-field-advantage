@@ -38,6 +38,7 @@ const DURATION_LABEL: Record<string, string> = {
   daily: "Single day",
   weekly: "1 week",
   season: "Full season",
+  playoff: "Playoffs",
 };
 
 const SPORT_EMOJI: Record<string, string> = {

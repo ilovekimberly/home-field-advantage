@@ -97,14 +97,26 @@ export default async function ProfilePage() {
     }
 
     const durationLabel =
-      comp.duration === "daily" ? "Single day" :
-      comp.duration === "weekly" ? "1 week" : "Full season";
+      comp.duration === "daily"   ? "Single day" :
+      comp.duration === "weekly"  ? "1 week" :
+      comp.duration === "playoff" ? "Playoffs" : "Full season";
 
     return { comp, myWins, myLosses, theirWins, theirLosses, outcome, opponentName, durationLabel };
   });
 
   const activeHistory = history.filter((h) => h.comp.status === "active" || h.comp.status === "pending");
   const pastHistory = history.filter((h) => h.comp.status === "complete" || h.comp.status === "cancelled");
+
+  // Competition-level wins by duration (only completed comps where user had more wins than opponent).
+  const completedWins = history.filter((h) => h.comp.status === "complete" && h.outcome === "winning");
+  const compWins = {
+    daily:   completedWins.filter((h) => h.comp.duration === "daily").length,
+    weekly:  completedWins.filter((h) => h.comp.duration === "weekly").length,
+    season:  completedWins.filter((h) => h.comp.duration === "season").length,
+    playoff: completedWins.filter((h) => h.comp.duration === "playoff").length,
+  };
+  const totalCompWins = compWins.daily + compWins.weekly + compWins.season + compWins.playoff;
+  const totalCompPlayed = history.filter((h) => h.comp.status === "complete" && h.outcome !== null).length;
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -156,6 +168,31 @@ export default async function ProfilePage() {
           </div>
         )}
       </section>
+
+      {/* Competition wins */}
+      {totalCompPlayed > 0 && (
+        <section className="card">
+          <h2 className="text-lg font-bold mb-1">Competition wins</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            {totalCompWins}–{totalCompPlayed - totalCompWins} across {totalCompPlayed} completed competition{totalCompPlayed !== 1 ? "s" : ""}
+          </p>
+          <div className="grid grid-cols-4 gap-3 text-center">
+            {[
+              { label: "Daily",   count: compWins.daily,   active: true },
+              { label: "Weekly",  count: compWins.weekly,  active: true },
+              { label: "Season",  count: compWins.season,  active: true },
+              { label: "Playoff", count: compWins.playoff, active: false },
+            ].map(({ label, count, active }) => (
+              <div key={label}>
+                <div className={`text-3xl font-bold ${active && count > 0 ? "text-rink" : "text-slate-300"}`}>
+                  {active ? count : "—"}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">{label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Competition history */}
       {history.length > 0 && (

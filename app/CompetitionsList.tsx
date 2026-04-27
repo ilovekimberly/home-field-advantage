@@ -34,8 +34,9 @@ function CompetitionCard({ c, userId }: { c: any; userId: string }) {
     c, userId, c.myWins, c.myLosses, c.theirWins, c.theirLosses, c.isMyTurnTonight,
   );
   const durationLabel =
-    c.duration === "daily" ? "Single day" :
-    c.duration === "weekly" ? "1 week" : "Full season";
+    c.duration === "daily"   ? "Single day" :
+    c.duration === "weekly"  ? "1 week" :
+    c.duration === "playoff" ? "Playoffs" : "Full season";
 
   return (
     <li className="card hover:shadow-md transition-shadow">

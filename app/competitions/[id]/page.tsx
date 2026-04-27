@@ -266,7 +266,7 @@ export default async function CompetitionPage({
           <div>
             <h1 className="text-2xl font-bold">{comp.name}</h1>
             <p className="text-sm text-slate-500">
-              {comp.duration} · {comp.start_date} → {comp.end_date}
+              {comp.duration === "daily" ? "Single day" : comp.duration === "weekly" ? "1 week" : comp.duration === "playoff" ? "Playoffs" : "Full season"} · {comp.start_date} → {comp.end_date}
             </p>
           </div>
           <div className="text-right text-sm">
