@@ -162,14 +162,17 @@ export default function PickRoom({
   const pickedGameIds = new Set(existingPicks.map((p) => String(p.game_id)));
 
   const waitingForOpponentPick = !readOnly && !draftDone && !isMyTurn && !waitingForDefer
-    && !games.filter((g) => !pickedGameIds.has(String(g.id))).every((g) => new Date(g.startTimeUTC) <= now);
+    && !games.filter((g) => !pickedGameIds.has(String(g.id))).every((g) => gameStarted(g.id, g.startTimeUTC));
   useEffect(() => {
     if (!waitingForOpponentPick) return;
     const id = setInterval(() => router.refresh(), 10_000);
     return () => clearInterval(id);
   }, [waitingForOpponentPick, router]);
 
-  function gameStarted(startTimeUTC: string) {
+  function gameStarted(id: string | number, startTimeUTC: string) {
+    // Doubleheader Game 2 IDs end with "-dh2". The MLB API often gives them
+    // the same start time as Game 1, so we treat them as never locked by time.
+    if (String(id).endsWith("-dh2")) return false;
     return new Date(startTimeUTC) <= now;
   }
 
@@ -219,7 +222,7 @@ export default function PickRoom({
 
   const allRemainingLocked = games.length === 0 || games
     .filter((g) => !pickedGameIds.has(String(g.id)))
-    .every((g) => gameStarted(g.startTimeUTC));
+    .every((g) => gameStarted(g.id, g.startTimeUTC));
 
   if (games.length === 0) {
     return <div className="text-slate-500 italic">No games scheduled for {activeDate}.</div>;
@@ -276,7 +279,7 @@ export default function PickRoom({
         {games.map((g) => {
           const pick = existingPicks.find((p) => String(p.game_id) === String(g.id));
           const taken = pickedGameIds.has(String(g.id));
-          const started = gameStarted(g.startTimeUTC);
+          const started = gameStarted(g.id, g.startTimeUTC);
           const isLive = g.gameState === "LIVE" || g.gameState === "CRIT";
           const line = gameLines?.[String(g.id)];
 

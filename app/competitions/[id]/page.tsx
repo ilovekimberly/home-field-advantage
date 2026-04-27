@@ -177,10 +177,15 @@ export default async function CompetitionPage({
 
   // Only count games that are either already picked or haven't started yet.
   // Games that started before anyone picked them are dropped from the slate.
+  // Exception: doubleheader Game 2 IDs end with "-dh2" — the MLB API often
+  // gives them the same start time as Game 1, so we never filter them by time.
   const now = new Date();
   const pickedGameIds = new Set(todaysPicks.map((p) => String(p.game_id)));
   const effectiveGameCount = games.filter(
-    (g) => pickedGameIds.has(String(g.id)) || new Date(g.startTimeUTC) > now
+    (g) =>
+      String(g.id).endsWith("-dh2") ||
+      pickedGameIds.has(String(g.id)) ||
+      new Date(g.startTimeUTC) > now
   ).length;
 
   const draft = generateDraftOrder({
