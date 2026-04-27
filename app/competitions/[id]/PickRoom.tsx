@@ -128,7 +128,7 @@ export default function PickRoom({
   competitionId, activeDate, games, existingPicks,
   draftOrder, playerAId, playerBId, playerAName, playerBName,
   currentUserId, waitingForDefer, readOnly,
-  enableOverUnder, enableSpread, gameLines, sport, mlbTeamStats,
+  enableOverUnder, enableSpread, gameLines, sport, mlbTeamStats, myPickHistory,
 }: {
   competitionId: string;
   activeDate: string;
@@ -147,6 +147,7 @@ export default function PickRoom({
   gameLines?: Record<string, GameLineData>;
   sport?: string;
   mlbTeamStats?: Record<string, TeamStat>;
+  myPickHistory?: Record<string, { wins: number; losses: number }>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -432,28 +433,47 @@ export default function PickRoom({
                       const streak = stats?.streak ?? "";
                       const isWinStreak = streak.startsWith("W");
                       const isLoseStreak = streak.startsWith("L");
+                      const history = myPickHistory?.[team.abbrev];
+                      const hasHistory = history && (history.wins + history.losses) > 0;
+                      const historyPct = hasHistory
+                        ? Math.round((history.wins / (history.wins + history.losses)) * 100)
+                        : null;
                       return (
                         <button
                           key={team.abbrev}
                           disabled={!canPick}
                           onClick={() => makePick(g.id, team.abbrev, team.name)}
-                          className="btn-ghost disabled:opacity-30 text-sm flex flex-col items-center leading-tight px-3 py-1.5 min-w-[52px]"
+                          className="btn-ghost disabled:opacity-30 flex flex-col items-start leading-tight px-3 py-2 min-w-[90px]"
                         >
-                          <span>{team.abbrev}</span>
-                          {ml != null && (
-                            <span className={`text-[10px] font-normal ${ml > 0 ? "text-green-600" : "text-slate-400"}`}>
-                              {formatOdds(ml)}
-                            </span>
+                          {/* Team name + odds on one line */}
+                          <div className="flex items-baseline gap-2 w-full">
+                            <span className="text-sm font-bold">{team.abbrev}</span>
+                            {ml != null && (
+                              <span className={`text-[10px] font-normal ${ml > 0 ? "text-green-600" : "text-slate-400"}`}>
+                                {formatOdds(ml)}
+                              </span>
+                            )}
+                          </div>
+                          {/* Streak + L10 on one line */}
+                          {(streak || stats?.lastTen) && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {streak && (
+                                <span className={`text-[10px] font-semibold ${isWinStreak ? "text-green-600" : isLoseStreak ? "text-red-500" : "text-slate-400"}`}>
+                                  {streak}
+                                </span>
+                              )}
+                              {stats?.lastTen && (
+                                <span className="text-[9px] text-slate-400">{stats.lastTen} L10</span>
+                              )}
+                            </div>
                           )}
-                          {streak && (
-                            <span className={`text-[10px] font-semibold ${isWinStreak ? "text-green-600" : isLoseStreak ? "text-red-500" : "text-slate-400"}`}>
-                              {streak}
-                            </span>
-                          )}
-                          {stats?.lastTen && (
-                            <span className="text-[9px] text-slate-400 font-normal">
-                              {stats.lastTen} L10
-                            </span>
+                          {/* Personal pick history */}
+                          {hasHistory && (
+                            <div className="mt-0.5">
+                              <span className={`text-[9px] font-semibold ${historyPct! >= 55 ? "text-rink" : historyPct! <= 40 ? "text-red-400" : "text-slate-400"}`}>
+                                {history.wins}-{history.losses} you
+                              </span>
+                            </div>
                           )}
                         </button>
                       );

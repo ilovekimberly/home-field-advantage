@@ -89,6 +89,26 @@ export default async function CompetitionPage({
 
   const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
 
+  // Personal pick history — my all-time record picking each team (winner picks only,
+  // across all competitions so the sample size is meaningful).
+  type PickHistoryMap = Record<string, { wins: number; losses: number }>;
+  let myPickHistory: PickHistoryMap = {};
+  if (!isPool && comp.sport === "MLB") {
+    const { data: historyRows } = await supabase
+      .from("picks")
+      .select("picked_team_abbrev, result")
+      .eq("picker_id", user.id)
+      .eq("pick_type", "winner")
+      .in("result", ["win", "loss"]);
+    for (const row of historyRows ?? []) {
+      const abbrev = row.picked_team_abbrev;
+      if (!abbrev) continue;
+      if (!myPickHistory[abbrev]) myPickHistory[abbrev] = { wins: 0, losses: 0 };
+      if (row.result === "win") myPickHistory[abbrev].wins++;
+      else myPickHistory[abbrev].losses++;
+    }
+  }
+
   // Pool: load member list + their records for the leaderboard.
   if (isPool) {
     const { data: memberRows } = await supabase
@@ -606,6 +626,7 @@ export default async function CompetitionPage({
             gameLines={gameLines}
             sport={comp.sport ?? "NHL"}
             mlbTeamStats={mlbTeamStats}
+            myPickHistory={myPickHistory}
             waitingForDefer={
               isViewingToday &&
               !deferChoiceMade &&
