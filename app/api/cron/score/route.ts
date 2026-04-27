@@ -265,12 +265,14 @@ export async function GET(req: Request) {
   }
 
   // Daily comps: cancel if start_date is in the past and no opponent joined.
+  // Pool comps are excluded — they don't need an opponent and should never auto-cancel.
   const { data: expiredDailies } = await supabase
     .from("competitions")
     .select("*")
     .eq("status", "pending")
     .eq("duration", "daily")
     .is("opponent_id", null)
+    .or("format.eq.1v1,format.is.null")
     .lt("start_date", today); // start date already passed
 
   for (const comp of expiredDailies ?? []) {
@@ -292,11 +294,13 @@ export async function GET(req: Request) {
   }
 
   // Weekly/season comps: cancel after 3 days with no opponent.
+  // Pool comps are excluded — they don't need an opponent and should never auto-cancel.
   const { data: expiredComps } = await supabase
     .from("competitions")
     .select("*")
     .eq("status", "pending")
     .is("opponent_id", null)
+    .or("format.eq.1v1,format.is.null")
     .neq("duration", "daily")
     .lte("start_date", addDays(today, -2)); // started 3+ days ago
 

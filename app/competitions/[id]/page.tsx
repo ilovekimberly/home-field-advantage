@@ -348,8 +348,8 @@ export default async function CompetitionPage({
             </div>
           )}
         </div>
-        {/* Invite panel: always visible for pool creators; 1v1 only when no opponent yet */}
-        {isCreator && (isPool || !comp.opponent_id) && (
+        {/* Invite panel: pool active creators can keep sharing; 1v1 only when no opponent yet */}
+        {isCreator && ((isPool && comp.status === "active") || (!isPool && !comp.opponent_id)) && (
           <div className="mt-4">
             <InvitePanel
               competitionId={comp.id}
@@ -359,6 +359,39 @@ export default async function CompetitionPage({
           </div>
         )}
       </div>
+
+      {/* Pending pool banner — shown to all members while waiting for more to join */}
+      {isPool && comp.status === "pending" && (
+        <div className="card border-dashed border-2 border-rink/30 bg-rink/5">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🏆</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-800 mb-0.5">
+                {isCreator ? "Your pool is open — invite your group!" : "You're in! Waiting for more members."}
+              </p>
+              <p className="text-sm text-slate-500 mb-3">
+                {poolMembers.length === 1
+                  ? "Only you so far."
+                  : `${poolMembers.length} member${poolMembers.length !== 1 ? "s" : ""} joined so far.`}
+                {" "}The pool activates once at least one other person joins.
+                {comp.start_date > today && (
+                  <> Picks open on <strong>{new Date(comp.start_date + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric" })}</strong>.</>
+                )}
+              </p>
+              {isCreator && (
+                <InvitePanel
+                  competitionId={comp.id}
+                  inviteToken={comp.invite_token}
+                  siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
+                />
+              )}
+              {!isCreator && (
+                <p className="text-xs text-slate-400 italic">Ask the pool creator to share the invite link with others.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Standings at top when competition is complete */}
       {comp.status === "complete" && !isPool && (
@@ -372,8 +405,8 @@ export default async function CompetitionPage({
           initialB={overallRecordB}
         />
       )}
-      {/* Pool leaderboard — always shown at top for pool comps */}
-      {isPool && poolMembers.length > 0 && (
+      {/* Pool leaderboard — shown for active/complete pool comps */}
+      {isPool && comp.status !== "pending" && poolMembers.length > 0 && (
         <PoolLeaderboard
           competitionId={comp.id}
           currentUserId={user.id}
@@ -381,8 +414,8 @@ export default async function CompetitionPage({
         />
       )}
 
-      {/* Pick slate card */}
-      <div className="card">
+      {/* Pick slate card — hidden for pending pools */}
+      {!(isPool && comp.status === "pending") && <div className="card">
         <div className="flex items-center justify-between mb-1">
           <div>
             <h2 className="text-lg font-bold">
@@ -555,7 +588,7 @@ export default async function CompetitionPage({
             readOnly={!isViewingToday}
           />
         )}
-      </div>
+      </div>}
 
       {/* 1v1 Standings — always at bottom for active, moved to top for complete */}
       {!isPool && comp.status !== "complete" && (
