@@ -60,9 +60,28 @@ export async function GET(req: Request) {
       console.log(`cron/score: ${key} — pick game_ids: ${picks.map(p => p.game_id).join(", ")}`);
 
       for (const pick of picks) {
-        const game = games.find((g) => String(g.id) === String(pick.game_id));
+        // Try exact match first, then fallback for doubleheader ID drift
+        // (pick stored as "823637" but API now returns "823637-dh2" or vice versa).
+        let game = games.find((g) => String(g.id) === String(pick.game_id));
         if (!game) {
-          console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not found in ${key}`);
+          const baseId = String(pick.game_id).replace(/-dh2$/, "");
+          const dh2Id = `${baseId}-dh2`;
+          game = games.find((g) => String(g.id) === dh2Id || String(g.id) === baseId);
+        }
+        if (!game) {
+          // On the final overnight run, a game that can't be found at all will
+          // never be scoreable — mark it unscored so it doesn't block tomorrow.
+          if (isFinalRun) {
+            console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not found on final run — marking unscored`);
+            const { error: updateErr } = await supabase
+              .from("picks").update({ result: "unscored" }).eq("id", pick.id);
+            if (!updateErr) {
+              updated++;
+              affectedCompIds.add(pick.competition_id);
+            }
+          } else {
+            console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not found in ${key}`);
+          }
           continue;
         }
         if (!isFinalGame(game)) {
