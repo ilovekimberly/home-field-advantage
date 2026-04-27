@@ -27,7 +27,10 @@ export default function NightlyRecap({ night }: { night: NightResult }) {
   let headline: string;
   let bg: string;
   if (tied) {
-    headline = `${formattedDate} ended tied — ${myWins}–${myLosses} each`;
+    const tiedRecord = (myLosses === theirLosses)
+      ? `${myWins}–${myLosses} each`
+      : `${myWins}–${myLosses} · ${theirWins}–${theirLosses}`;
+    headline = `${formattedDate} ended tied — ${tiedRecord}`;
     bg = "bg-slate-50 border-slate-200";
   } else if (youWonNight) {
     headline = `You won ${formattedDate} ${myWins}–${theirWins}`;
