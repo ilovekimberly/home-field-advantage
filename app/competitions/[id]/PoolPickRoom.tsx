@@ -28,7 +28,13 @@ type PickRow = {
   result: string;
 };
 
+type Member = { userId: string; name: string };
+
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function initials(name: string) {
+  return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
 
 function periodLabel(period?: number, periodType?: string) {
   if (!period) return "";
@@ -68,19 +74,92 @@ function ScoreBadge({ g }: { g: Game }) {
   return null;
 }
 
-function resultBadge(result: string) {
-  if (result === "win") return <span className="text-xs font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">W</span>;
-  if (result === "loss") return <span className="text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">L</span>;
-  if (result === "push") return <span className="text-xs font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">P</span>;
-  return null;
+function ResultIcon({ result }: { result: string }) {
+  if (result === "win")  return <span className="text-green-500 font-bold text-xs">✓</span>;
+  if (result === "loss") return <span className="text-red-400 font-bold text-xs">✗</span>;
+  if (result === "push") return <span className="text-slate-400 text-xs">~</span>;
+  return <span className="text-slate-300 text-xs">·</span>; // pending
 }
 
-// FIFA outcome button labels
+// FIFA outcome labels
 const FIFA_OUTCOMES = [
   { value: "AWAY", label: "Away" },
   { value: "DRAW", label: "Draw" },
   { value: "HOME", label: "Home" },
 ] as const;
+
+// ── Picks reveal: shows all members' picks for a locked game ───────────────
+
+function PicksReveal({
+  gameId, allDatePicks, members, currentUserId, isFIFA, homeTeam, awayTeam,
+}: {
+  gameId: string;
+  allDatePicks: PickRow[];
+  members: Member[];
+  currentUserId: string;
+  isFIFA: boolean;
+  homeTeam: Team;
+  awayTeam: Team;
+}) {
+  const gamePicks = allDatePicks.filter((p) => String(p.game_id) === gameId);
+  const pickByUser = new Map(gamePicks.map((p) => [p.picker_id, p]));
+
+  function pickLabel(pick: PickRow): string {
+    if (isFIFA) {
+      if (pick.picked_team_abbrev === "HOME") return homeTeam.abbrev;
+      if (pick.picked_team_abbrev === "AWAY") return awayTeam.abbrev;
+      return "Draw";
+    }
+    return pick.picked_team_abbrev;
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-100">
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        Everyone's picks
+      </p>
+      <div className="space-y-1.5">
+        {members.map((m) => {
+          const pick = pickByUser.get(m.userId);
+          const isMe = m.userId === currentUserId;
+
+          return (
+            <div key={m.userId} className={`flex items-center gap-2 rounded-lg px-2 py-1 ${isMe ? "bg-rink/5" : ""}`}>
+              {/* Avatar */}
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                isMe ? "bg-rink text-white" : "bg-slate-200 text-slate-600"
+              }`}>
+                {initials(m.name)}
+              </div>
+
+              {/* Name */}
+              <span className={`text-xs truncate flex-1 min-w-0 ${isMe ? "font-semibold text-slate-700" : "text-slate-600"}`}>
+                {isMe ? "You" : m.name}
+              </span>
+
+              {/* Pick + result */}
+              {pick ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                    pick.result === "win"  ? "bg-green-100 text-green-700" :
+                    pick.result === "loss" ? "bg-red-100 text-red-600" :
+                    pick.result === "push" ? "bg-slate-100 text-slate-500" :
+                    "bg-slate-50 text-slate-500"
+                  }`}>
+                    {pickLabel(pick)}
+                  </span>
+                  <ResultIcon result={pick.result} />
+                </div>
+              ) : (
+                <span className="text-[10px] text-slate-300 italic shrink-0">no pick</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ── Main component ─────────────────────────────────────────────────────────
 
@@ -88,7 +167,8 @@ export default function PoolPickRoom({
   competitionId,
   activeDate,
   games,
-  myPicks,
+  allDatePicks,
+  members,
   currentUserId,
   readOnly,
   sport,
@@ -96,13 +176,14 @@ export default function PoolPickRoom({
   competitionId: string;
   activeDate: string;
   games: Game[];
-  myPicks: PickRow[];
+  allDatePicks: PickRow[];
+  members: Member[];
   currentUserId: string;
   readOnly?: boolean;
   sport?: string;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<string | null>(null); // gameId being submitted
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -111,8 +192,11 @@ export default function PoolPickRoom({
     return () => clearInterval(id);
   }, []);
 
-  // Build a lookup of my picks by game_id
-  const myPickMap = new Map(myPicks.map((p) => [String(p.game_id), p]));
+  const myPickMap = new Map(
+    allDatePicks
+      .filter((p) => p.picker_id === currentUserId)
+      .map((p) => [String(p.game_id), p])
+  );
 
   const isFIFA = sport === "FIFA";
 
@@ -189,7 +273,7 @@ export default function PoolPickRoom({
         const gameIdStr = String(g.id);
         const myPick = myPickMap.get(gameIdStr);
         const started = new Date(g.startTimeUTC) <= now;
-        const locked = started || g.final || (g.gameState === "LIVE") || (g.gameState === "CRIT");
+        const locked = started || g.final || g.gameState === "LIVE" || g.gameState === "CRIT";
         const isBusy = busy === gameIdStr;
 
         return (
@@ -207,29 +291,20 @@ export default function PoolPickRoom({
           >
             {/* Game header row */}
             <div className="flex items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                {locked ? (
-                  <span className="text-xs text-slate-400">
-                    {g.final ? "" : "🔒 Locked"}
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400">
-                    {new Date(g.startTimeUTC).toLocaleTimeString("en-US", {
+              <span className="text-xs text-slate-400">
+                {locked
+                  ? (g.final ? "" : "🔒 Locked")
+                  : new Date(g.startTimeUTC).toLocaleTimeString("en-US", {
                       hour: "numeric",
                       minute: "2-digit",
                       timeZoneName: "short",
                     })}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <ScoreBadge g={g} />
-                {myPick && resultBadge(myPick.result)}
-              </div>
+              </span>
+              <ScoreBadge g={g} />
             </div>
 
             {isFIFA ? (
-              // ── FIFA: Away / Draw / Home buttons ────────────────────────
+              // ── FIFA: Away / Draw / Home ──────────────────────────────────
               <>
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="text-center flex-1 min-w-0 px-1">
@@ -251,10 +326,8 @@ export default function PoolPickRoom({
                       <span className="font-medium">
                         You picked:{" "}
                         <span className="text-rink font-bold">
-                          {myPick.picked_team_abbrev === "HOME"
-                            ? g.home.name
-                            : myPick.picked_team_abbrev === "AWAY"
-                            ? g.away.name
+                          {myPick.picked_team_abbrev === "HOME" ? g.home.name
+                            : myPick.picked_team_abbrev === "AWAY" ? g.away.name
                             : "Draw"}
                         </span>
                       </span>
@@ -267,22 +340,17 @@ export default function PoolPickRoom({
                     {FIFA_OUTCOMES.map(({ value, label }) => {
                       const isSelected = myPick?.picked_team_abbrev === value;
                       const teamName =
-                        value === "HOME"
-                          ? g.home.name
-                          : value === "AWAY"
-                          ? g.away.name
-                          : "Draw";
+                        value === "HOME" ? g.home.name :
+                        value === "AWAY" ? g.away.name : "Draw";
                       return (
                         <button
                           key={value}
                           disabled={isBusy || readOnly}
-                          onClick={() => {
-                            if (isSelected) {
-                              retractPick(g.id);
-                            } else {
-                              submitPick(g.id, value, teamName, value);
-                            }
-                          }}
+                          onClick={() =>
+                            isSelected
+                              ? retractPick(g.id)
+                              : submitPick(g.id, value, teamName, value)
+                          }
                           className={`flex-1 rounded-lg py-3 min-h-[44px] text-sm font-semibold transition-all ${
                             isSelected
                               ? "bg-rink text-white shadow-sm"
@@ -302,7 +370,7 @@ export default function PoolPickRoom({
                 )}
               </>
             ) : (
-              // ── Standard sport: Away vs Home pick buttons ─────────────
+              // ── Standard sport: Away vs Home ──────────────────────────────
               <>
                 <div className="grid grid-cols-2 gap-2">
                   {[
@@ -318,13 +386,10 @@ export default function PoolPickRoom({
                           key={side}
                           className={`rounded-lg px-3 py-2 text-center ${
                             isSelected
-                              ? isWinner
-                                ? "bg-green-100 border border-green-300"
-                                : myPick?.result === "loss"
-                                ? "bg-red-100 border border-red-300"
+                              ? isWinner ? "bg-green-100 border border-green-300"
+                                : myPick?.result === "loss" ? "bg-red-100 border border-red-300"
                                 : "bg-rink/10 border border-rink/30"
-                              : isWinner
-                              ? "bg-slate-50 border border-slate-200"
+                              : isWinner ? "bg-slate-50 border border-slate-200"
                               : "bg-slate-50 border border-slate-100 opacity-50"
                           }`}
                         >
@@ -334,9 +399,7 @@ export default function PoolPickRoom({
                             {side === "away" ? "Away" : "Home"}
                           </div>
                           {isSelected && (
-                            <div className="mt-1 text-xs font-semibold text-slate-600">
-                              Your pick
-                            </div>
+                            <div className="mt-1 text-xs font-semibold text-slate-600">Your pick</div>
                           )}
                         </div>
                       );
@@ -346,13 +409,11 @@ export default function PoolPickRoom({
                       <button
                         key={side}
                         disabled={isBusy || readOnly}
-                        onClick={() => {
-                          if (isSelected) {
-                            retractPick(g.id);
-                          } else {
-                            submitPick(g.id, team.abbrev, team.name);
-                          }
-                        }}
+                        onClick={() =>
+                          isSelected
+                            ? retractPick(g.id)
+                            : submitPick(g.id, team.abbrev, team.name)
+                        }
                         className={`rounded-lg px-3 py-3 min-h-[44px] text-center transition-all ${
                           isSelected
                             ? "bg-rink text-white shadow-sm"
@@ -371,20 +432,31 @@ export default function PoolPickRoom({
                   })}
                 </div>
 
-                {myPick && (
+                {myPick && !locked && (
                   <div className="mt-2 text-xs text-center text-slate-400">
-                    {!locked && (
-                      <button
-                        onClick={() => retractPick(g.id)}
-                        disabled={!!busy || readOnly}
-                        className="underline hover:text-slate-600"
-                      >
-                        Change pick
-                      </button>
-                    )}
+                    <button
+                      onClick={() => retractPick(g.id)}
+                      disabled={!!busy || readOnly}
+                      className="underline hover:text-slate-600"
+                    >
+                      Change pick
+                    </button>
                   </div>
                 )}
               </>
+            )}
+
+            {/* Picks reveal — shown for all members once game locks */}
+            {locked && members.length > 1 && (
+              <PicksReveal
+                gameId={gameIdStr}
+                allDatePicks={allDatePicks}
+                members={members}
+                currentUserId={currentUserId}
+                isFIFA={isFIFA ?? false}
+                homeTeam={g.home}
+                awayTeam={g.away}
+              />
             )}
           </div>
         );

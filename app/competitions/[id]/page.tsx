@@ -541,7 +541,8 @@ export default async function CompetitionPage({
               clock: g.clock,
               inIntermission: g.inIntermission,
             }))}
-            myPicks={todaysPicks.filter((p) => p.picker_id === user.id)}
+            allDatePicks={todaysPicks}
+            members={poolMembers.map((m) => ({ userId: m.userId, name: m.name }))}
             currentUserId={user.id}
             readOnly={!isViewingToday}
             sport={comp.sport ?? "NHL"}
