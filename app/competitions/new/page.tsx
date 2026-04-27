@@ -73,6 +73,11 @@ export default function NewCompetitionPage() {
       .finally(() => setPhaseLoading(false));
   }, [sport]);
 
+  // FIFA always uses pool format — auto-switch when sport changes.
+  useEffect(() => {
+    if (sport === "FIFA") setFormat("pool");
+  }, [sport]);
+
   // When we detect playoffs, the "season" duration now means playoffs —
   // make sure the default still works or auto-adjust if user had "season" selected.
   // (No forced reset; the label just changes.)
@@ -297,8 +302,8 @@ export default function NewCompetitionPage() {
           </label>
         )}
 
-        {/* Draft style — 1v1 only */}
-        {!isPool && <div>
+        {/* Draft style — 1v1 non-FIFA only */}
+        {!isPool && !isFIFA && <div>
           <span className="block text-sm font-medium mb-2">Draft style</span>
           <div className="grid grid-cols-2 gap-2">
             {([
