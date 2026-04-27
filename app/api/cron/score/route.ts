@@ -20,6 +20,8 @@ export async function GET(req: Request) {
 
   const supabase = createSupabaseAdminClient();
   const today = new Date().toISOString().slice(0, 10);
+  const utcHour = new Date().getUTCHours();
+  const isFinalRun = utcHour >= 8;
 
   // ── 1. Score all pending picks ─────────────────────────────────────────
   const { data: pending, error } = await supabase
@@ -312,9 +314,6 @@ export async function GET(req: Request) {
   // Only apply the "force close" fallback on the final cron run of the night
   // (8 AM UTC = 4 AM ET), not the earlier 6:30 AM UTC run. This ensures late
   // west coast games have been scored before we force-close anything.
-  const utcHour = new Date().getUTCHours();
-  const isFinalRun = utcHour >= 8;
-
   const { data: activeComps } = await supabase
     .from("competitions")
     .select("id, end_date")
