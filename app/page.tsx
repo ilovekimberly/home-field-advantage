@@ -3,7 +3,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { whoPicksFirst, generateDraftOrder, type Player, type DraftStyle } from "@/lib/picks";
 import { fetchScheduleForDate, getPickDate } from "@/lib/schedule";
 
-function todayISO() { return new Date().toISOString().slice(0, 10); }
+// Use Eastern Time to match the competition page — picks are stored under the ET date,
+// so the home page must use the same timezone or dayPicks lookups fail after 8 PM ET.
+function todayISO() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
 function daysAgo(n: number) {
   const d = new Date();
   d.setDate(d.getDate() - n);
