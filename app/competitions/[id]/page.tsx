@@ -475,7 +475,7 @@ export default async function CompetitionPage({
                   : poolMembers.length === 1
                   ? "Only you so far."
                   : `${poolMembers.length} member${poolMembers.length !== 1 ? "s" : ""} joined so far.`}
-                {" "}The pool activates once at least one other person joins.
+                {" "}The pool activates once at least one other person joins — the pick slate will appear then.
                 {comp.start_date > today && (
                   <> Picks open on <strong>{new Date(comp.start_date + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric" })}</strong>.</>
                 )}
