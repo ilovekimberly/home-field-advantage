@@ -69,6 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     </span>
                   </Link>
                   <TurnBadge userId={user.id} />
+                  <Link href="/friends" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-rink transition-colors">👥 Friends</Link>
                   <Link href="/suggest" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-rink transition-colors">💡 Share an Idea</Link>
                   <Link href="/support" className="hidden sm:inline-flex text-lg text-slate-400 hover:text-rink transition-colors" title="Support">❓</Link>
                   <form action="/auth/signout" method="post">

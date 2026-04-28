@@ -48,6 +48,7 @@ export default function NewCompetitionPage() {
   const [maxMembers, setMaxMembers] = useState<string>("");
   const [enableOverUnder, setEnableOverUnder] = useState(false);
   const [enableSpread, setEnableSpread] = useState(false);
+  const [visibility, setVisibility] = useState<"private" | "friends">("private");
   const [inviteEmail, setInviteEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +133,7 @@ export default function NewCompetitionPage() {
         draft_style: isPool ? null : draftStyle,
         enable_over_under: (sport === "NHL" || sport === "MLB") ? enableOverUnder : false,
         enable_spread: (sport === "NHL" || sport === "MLB") ? enableSpread : false,
+        visibility,
         start_date: startDate,
         end_date: end,
         creator_id: user.id,
@@ -397,6 +399,32 @@ export default function NewCompetitionPage() {
             </div>
           </div>
         )}
+
+        {/* Visibility */}
+        <div>
+          <span className="text-sm font-medium block mb-2">Visibility</span>
+          <div className="flex gap-3">
+            {(["private", "friends"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVisibility(v)}
+                className={`flex-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                  visibility === v ? "border-rink bg-ice" : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <div className="text-sm font-semibold capitalize">
+                  {v === "private" ? "🔒 Private" : "👥 Friends"}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {v === "private"
+                    ? "Only you and your opponent can see this competition."
+                    : "Friends can see this competition on your profile."}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Start date */}
         <label className="block">

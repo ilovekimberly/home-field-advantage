@@ -63,6 +63,31 @@ export default async function HomePage() {
   const today = todayISO();
   const twoWeeksAgo = daysAgo(14);
 
+  // Friends' public competitions
+  const { data: friendships } = await supabase
+    .from("friendships")
+    .select("requester_id, addressee_id")
+    .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+    .eq("status", "accepted");
+  const friendIds = (friendships ?? []).map((f) =>
+    f.requester_id === user.id ? f.addressee_id : f.requester_id
+  );
+  const { data: friendComps } = friendIds.length > 0
+    ? await supabase
+        .from("competitions")
+        .select("id, name, sport, status, start_date, creator_id")
+        .in("creator_id", friendIds)
+        .eq("visibility", "friends")
+        .in("status", ["active", "pending"])
+        .order("start_date", { ascending: false })
+    : { data: [] };
+
+  // Get friend profiles for display
+  const { data: friendProfiles } = friendIds.length > 0
+    ? await supabase.from("profiles").select("id, display_name, email").in("id", friendIds)
+    : { data: [] };
+  const friendProfileMap = new Map((friendProfiles ?? []).map((p) => [p.id, p]));
+
   // Load competitions where user is creator, 1v1 opponent, OR pool member.
   const { data: memberRows } = await supabase
     .from("competition_members")
@@ -362,6 +387,39 @@ export default async function HomePage() {
                       <span className="ml-auto text-xs text-slate-400">my picks</span>
                     </div>
                   )}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ── Friends' competitions ── */}
+      {(friendComps ?? []).length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold">Friends' competitions</h2>
+            <Link href="/friends" className="text-sm text-rink hover:underline">View friends →</Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(friendComps ?? []).map((comp) => {
+              const friend = friendProfileMap.get(comp.creator_id);
+              const friendName = friend?.display_name ?? friend?.email ?? "Friend";
+              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏒";
+              return (
+                <Link
+                  key={comp.id}
+                  href={`/competitions/${comp.id}`}
+                  className="card hover:shadow-md transition-all flex flex-col gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{emoji}</span>
+                    <span className="font-semibold text-slate-800 truncate">{comp.name}</span>
+                    {comp.status === "active" && (
+                      <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full shrink-0">Live</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">{friendName}'s competition</p>
                 </Link>
               );
             })}
