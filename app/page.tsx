@@ -116,7 +116,7 @@ export default async function HomePage() {
 
   const { data: allPicks } = compIds.length > 0
     ? await supabase.from("picks")
-        .select("competition_id, picker_id, result, game_date, pick_index")
+        .select("competition_id, picker_id, result, game_date, pick_index, game_id")
         .in("competition_id", compIds)
     : { data: [] };
 
@@ -149,15 +149,14 @@ export default async function HomePage() {
   const sportDatePairs = Array.from(
     new Set(activeComps.map((c) => `${c.sport ?? "NHL"}__${compActiveDates[c.id]}`))
   );
-  const gameCountMap: Record<string, number> = {};
+  const gamesMap: Record<string, any[]> = {};
   await Promise.all(
     sportDatePairs.map(async (pair) => {
       const [sport, date] = pair.split("__");
       try {
-        const games = await fetchScheduleForDate(sport, date);
-        gameCountMap[pair] = games.length;
+        gamesMap[pair] = await fetchScheduleForDate(sport, date);
       } catch {
-        gameCountMap[pair] = 20; // safe fallback
+        gamesMap[pair] = []; // unknown — don't falsely flag "Your turn"
       }
     })
   );
@@ -198,9 +197,18 @@ export default async function HomePage() {
       deferred = firstPickSlot !== firstPickerSlot;
     }
 
-    const numGames = gameCountMap[`${comp.sport ?? "NHL"}__${activeDate}`] ?? 20;
+    // Mirror the picks API's effectiveGameCount: only count games that are either
+    // already picked today OR haven't started yet. This prevents "Your turn" from
+    // firing after all picks are done when some games started before picking began.
+    const now = new Date();
+    const todayGames = gamesMap[`${comp.sport ?? "NHL"}__${activeDate}`] ?? [];
+    const pickedGameIds = new Set(dayPicks.map((p: any) => String(p.game_id)));
+    const effectiveGameCount = todayGames.filter(
+      (g: any) => pickedGameIds.has(String(g.id)) || new Date(g.startTimeUTC) > now
+    ).length;
+
     const draft = generateDraftOrder({
-      numGames,
+      numGames: effectiveGameCount,
       firstPicker: firstPickerSlot,
       deferred,
       draftStyle: (comp.draft_style ?? "standard") as DraftStyle,

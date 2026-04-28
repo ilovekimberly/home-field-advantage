@@ -7,14 +7,14 @@ export default function HowItWorksPage() {
       {/* Hero */}
       <section className="text-center py-6">
         <div className="inline-flex items-center gap-2 bg-ice border border-rink/20 text-rink text-sm font-semibold px-4 py-1.5 rounded-full mb-5">
-          🏒 Pick'em · Draft · Compete
+          🏒 Pick'em · Draft · Survive · Compete
         </div>
         <h1 className="text-4xl font-extrabold text-slate-900 mb-4 leading-tight">
           How My Home Field works
         </h1>
         <p className="text-slate-500 text-lg leading-relaxed max-w-xl mx-auto">
-          Head-to-head draft battles with a friend, or group pools where everyone
-          picks every game. Two formats, one app, zero spreadsheets.
+          Head-to-head draft battles, group pools, or an NFL Survivor league where
+          one wrong pick ends your season. Three formats, one app, zero spreadsheets.
         </p>
       </section>
 
@@ -32,17 +32,19 @@ export default function HowItWorksPage() {
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                { emoji: "🏒", label: "NHL", sub: "Oct → Apr" },
-                { emoji: "⚾", label: "MLB", sub: "Mar → Sep" },
-                { emoji: "⚽", label: "Premier League", sub: "Aug → May" },
-                { emoji: "🏆", label: "FIFA World Cup", sub: "Group stage → Final" },
+                { emoji: "🏒", label: "NHL", sub: "Oct → Apr", live: true },
+                { emoji: "⚾", label: "MLB", sub: "Mar → Sep", live: true },
+                { emoji: "🏆", label: "FIFA World Cup", sub: "Group stage → Final", live: true },
+                { emoji: "🏈", label: "NFL", sub: "Sep → Feb · Survivor only", live: false },
+                { emoji: "⚽", label: "Premier League", sub: "Coming soon", live: false },
               ].map((s) => (
-                <div key={s.label} className="rounded-xl border-2 border-slate-100 bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
-                  <span className="text-2xl">{s.emoji}</span>
+                <div key={s.label} className={`rounded-xl border-2 px-4 py-3 flex items-center gap-3 shadow-sm ${s.live ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50 opacity-60"}`}>
+                  <span className={`text-2xl ${!s.live ? "grayscale" : ""}`}>{s.emoji}</span>
                   <div>
                     <div className="font-semibold text-slate-800 text-sm">{s.label}</div>
                     <div className="text-xs text-slate-400">{s.sub}</div>
                   </div>
+                  {!s.live && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-200 rounded-full px-2 py-0.5">Soon</span>}
                 </div>
               ))}
             </div>
@@ -64,7 +66,7 @@ export default function HowItWorksPage() {
             <p className="text-slate-500 mb-5">
               Go head-to-head with one friend, or run a pool where everyone picks independently.
             </p>
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4">
               <div className="rounded-2xl border-2 border-rink bg-ice px-5 py-5">
                 <div className="text-2xl mb-2">🤺</div>
                 <div className="font-bold text-rink text-base mb-1">1v1 — Head to Head</div>
@@ -72,17 +74,25 @@ export default function HowItWorksPage() {
                   You and one opponent take turns drafting game picks each night. Snake
                   draft keeps it fair. Best record at the end wins.
                 </div>
-                <div className="mt-3 text-xs text-rink/70 font-medium">NHL · MLB · EPL</div>
+                <div className="mt-3 text-xs text-rink/70 font-medium">NHL · MLB</div>
               </div>
               <div className="rounded-2xl border-2 border-slate-200 bg-white px-5 py-5">
                 <div className="text-2xl mb-2">🏆</div>
                 <div className="font-bold text-slate-800 text-base mb-1">Group Pool</div>
                 <div className="text-sm text-slate-600 leading-relaxed">
                   Invite a whole group — everyone picks every game independently. The
-                  leaderboard updates in real time as results come in. Perfect for
-                  World Cup season.
+                  leaderboard updates in real time as results come in.
                 </div>
-                <div className="mt-3 text-xs text-slate-400 font-medium">FIFA World Cup · more sports soon</div>
+                <div className="mt-3 text-xs text-slate-400 font-medium">NHL · MLB · FIFA World Cup</div>
+              </div>
+              <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-5">
+                <div className="text-2xl mb-2">🏈</div>
+                <div className="font-bold text-amber-800 text-base mb-1">NFL Survivor</div>
+                <div className="text-sm text-slate-600 leading-relaxed">
+                  Pick one NFL team to win each week. You can't reuse a team. One loss
+                  and you're out. Last person standing wins.
+                </div>
+                <div className="mt-3 text-xs text-amber-600 font-medium">NFL only</div>
               </div>
             </div>
           </div>
@@ -375,27 +385,28 @@ export default function HowItWorksPage() {
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-1">Everyone picks every game</h2>
             <p className="text-slate-500 mb-5">
-              Unlike 1v1, there's no draft in a pool. Every member picks every match on
-              their own, before kickoff. The leaderboard tells the story.
+              Unlike 1v1, there's no draft in a pool. Every member picks every game
+              independently before it starts. The leaderboard tells the story — NHL,
+              MLB, or FIFA World Cup.
             </p>
             <div className="grid gap-3 mb-5">
               {[
                 {
-                  icon: "⚽",
-                  label: "Home win, Away win, or Draw",
-                  desc: "For each World Cup match you pick one of three outcomes. All three options are worth exactly the same — 1 win if you're right.",
+                  icon: "🎯",
+                  label: "Pick a winner (or outcome)",
+                  desc: "For each game, pick who wins. In FIFA pools, Draw is also a valid pick worth a full win if you're right.",
                   color: "border-green-200 bg-green-50",
                 },
                 {
                   icon: "🔒",
-                  label: "Picks lock at kickoff",
-                  desc: "Once a match starts your pick is locked in. You can change or retract your pick any time before kickoff — not after.",
+                  label: "Picks lock at game time",
+                  desc: "Once a game starts your pick is locked in. You can change or retract your pick any time before the first puck drop, first pitch, or kickoff.",
                   color: "border-slate-200 bg-slate-50",
                 },
                 {
                   icon: "👀",
                   label: "See everyone's picks after lock",
-                  desc: "Before kickoff, only your own picks are visible. Once the match starts, everyone's picks are revealed — that's when the group chat lights up.",
+                  desc: "Before a game starts, only your own picks are visible. Once it begins, everyone's picks are revealed — that's when the group chat lights up.",
                   color: "border-blue-100 bg-blue-50",
                 },
                 {
@@ -421,7 +432,95 @@ export default function HowItWorksPage() {
                 <div className="font-bold text-amber-900 text-sm">Invite your whole group</div>
                 <div className="text-sm text-amber-700 mt-0.5">
                   Share one link — anyone who clicks it can join the pool. You can set a member cap
-                  if you want to keep it small. Picks open as soon as the tournament starts.
+                  if you want to keep it small. Picks open as soon as the season starts.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-l-4 border-dashed border-slate-200 ml-6 h-6" />
+
+      {/* Survivor Section header */}
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">🏈</span>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest text-amber-800 mb-0.5">NFL Survivor League</div>
+          <div className="text-slate-400 text-sm">One pick a week. One loss and you're done.</div>
+        </div>
+      </div>
+
+      {/* Survivor Step */}
+      <section>
+        <div className="flex items-start gap-6">
+          <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-amber-700 text-white flex items-center justify-center text-xl font-black shadow-md">
+            ☠
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">Pick one team. Don't repeat. Survive.</h2>
+            <p className="text-slate-500 mb-5">
+              Each week of the NFL season you pick one team to win. Your team loses?
+              You're eliminated. The catch: you can never pick the same team twice.
+              Last person standing wins the whole thing.
+            </p>
+            <div className="grid gap-3 mb-5">
+              {[
+                {
+                  icon: "📅",
+                  label: "One pick per week",
+                  desc: "Every NFL week (Thursday through Monday) you pick exactly one team to win their game outright. No point spread — just win or lose.",
+                  color: "border-amber-200 bg-amber-50",
+                },
+                {
+                  icon: "🔁",
+                  label: "No repeating teams",
+                  desc: "Once you've used a team, they're gone for the rest of the season. Used your safe favorite early? Now the slate looks a lot harder.",
+                  color: "border-orange-200 bg-orange-50",
+                },
+                {
+                  icon: "🔒",
+                  label: "Picks lock before Thursday kickoff",
+                  desc: "The lock time is 1 hour before the earliest game of the week. No changing your pick once the lock hits — plan ahead.",
+                  color: "border-slate-200 bg-slate-50",
+                },
+                {
+                  icon: "👀",
+                  label: "Picks hidden until lock",
+                  desc: "You can see your own pick but everyone else's is hidden until the lock time passes. After lock, all picks are revealed — the group chat gets interesting.",
+                  color: "border-blue-100 bg-blue-50",
+                },
+                {
+                  icon: "💀",
+                  label: "Eliminated when your team loses",
+                  desc: "If the team you picked loses — or if you miss the deadline and don't pick — you're out. No second chances.",
+                  color: "border-red-200 bg-red-50",
+                },
+                {
+                  icon: "🏆",
+                  label: "Tiebreaker options",
+                  desc: "When multiple players survive to the end, the creator can choose how ties are broken: split the prize, the riskiest picker wins, extend into playoffs, or go to overtime (sudden death with fresh picks).",
+                  color: "border-green-200 bg-green-50",
+                },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>
+                  <span className="text-xl mt-0.5">{item.icon}</span>
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm">{item.label}</div>
+                    <div className="text-sm text-slate-500 mt-0.5">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl bg-slate-900 px-5 py-4 flex gap-3">
+              <span className="text-xl">🧠</span>
+              <div>
+                <div className="font-bold text-white text-sm">Strategy tip</div>
+                <div className="text-sm text-slate-400 mt-0.5">
+                  Save the best teams for late in the season when the pressure is highest.
+                  Using the Chiefs or Eagles in Week 1 feels safe — but you'll miss them in January.
                 </div>
               </div>
             </div>
@@ -447,7 +546,7 @@ export default function HowItWorksPage() {
               {[
                 { icon: "✅", label: "Your team / outcome wins", sub: "You get a W. That's the game.", color: "border-green-200 bg-green-50" },
                 { icon: "❌", label: "Your team / outcome loses", sub: "You get an L. Accountability is part of the fun.", color: "border-red-200 bg-red-50" },
-                { icon: "🤝", label: "Draw (EPL 1v1 only)", sub: "In 1v1 EPL competitions, a draw counts as a push — no win, no loss. In FIFA pools, Draw is a pick option worth a full win.", color: "border-slate-200 bg-slate-50" },
+                { icon: "🤝", label: "Draw (FIFA pools only)", sub: "In FIFA pools, Draw is a valid pick option worth a full win if the match ends level. In 1v1 NHL/MLB, draws don't happen.", color: "border-slate-200 bg-slate-50" },
                 { icon: "🔒", label: "Game starts → pick locks", sub: "Once the puck drops, first pitch, or kickoff happens — that pick is locked in for good.", color: "border-slate-200 bg-slate-50" },
               ].map((item) => (
                 <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>
@@ -476,11 +575,11 @@ export default function HowItWorksPage() {
           <div className="flex items-center justify-center gap-3 text-4xl mb-3">
             <span>🏒</span>
             <span>⚾</span>
-            <span>⚽</span>
             <span>🏆</span>
+            <span>🏈</span>
           </div>
           <h2 className="text-2xl font-extrabold text-white mb-2">Ready to settle the debate?</h2>
-          <p className="text-white/70 mb-6 text-sm">Challenge a friend 1v1, or start a group pool. Either way, takes 60 seconds.</p>
+          <p className="text-white/70 mb-6 text-sm">Challenge a friend 1v1, run a group pool, or start an NFL Survivor league. Takes 60 seconds.</p>
           <Link href="/competitions/new" className="inline-flex items-center gap-2 bg-white text-rink font-bold px-8 py-3 rounded-xl hover:bg-ice transition-colors shadow-md text-base">
             Create a competition →
           </Link>
