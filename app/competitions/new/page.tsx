@@ -160,12 +160,23 @@ export default function NewCompetitionPage() {
     if (error) { setError(error.message); setBusy(false); return; }
 
     // For pool + survivor competitions, auto-join the creator as the first member.
+    // Use the server API (admin client) so RLS can't block the insert and we
+    // can surface any error rather than swallowing it silently.
     if (isPool || isSurvivor) {
-      await supabase.from("competition_members").insert({
-        competition_id: data.id,
-        user_id: user.id,
-        survivor_status: isSurvivor ? "alive" : null,
+      const joinRes = await fetch("/api/competitions/join-creator", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          competitionId: data.id,
+          survivorStatus: isSurvivor ? "alive" : null,
+        }),
       });
+      if (!joinRes.ok) {
+        const err = await joinRes.json().catch(() => ({}));
+        setError(err.error ?? "Failed to join competition — please try again.");
+        setBusy(false);
+        return;
+      }
     }
 
     if (!isPool && inviteEmail) {
