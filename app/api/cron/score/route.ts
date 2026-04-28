@@ -329,11 +329,28 @@ export async function GET(req: Request) {
       .limit(1);
 
     const hasPendingPicks = remaining && remaining.length > 0;
-
-    // Always close if no pending picks remain.
-    // Only force-close (marking picks unscored) on the final run of the night.
     const endDatePassed = comp.end_date <= yesterdayISO;
-    const shouldClose = !hasPendingPicks || (isFinalRun && endDatePassed);
+
+    // Use ET date to correctly determine whether games have finished.
+    // Games on 2026-04-28 ET don't end until ~1-2 AM UTC on 2026-04-29,
+    // so UTC date alone isn't sufficient — we need the ET day to have passed.
+    const todayET = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const endDatePassedET = comp.end_date < todayET; // strict: end_date is a previous ET date
+
+    const { count: totalPicks } = await supabase
+      .from("picks")
+      .select("id", { count: "exact", head: true })
+      .eq("competition_id", comp.id);
+    const hasAnyPicks = (totalPicks ?? 0) > 0;
+
+    // Close when:
+    //   (a) Final UTC cron run and end_date was yesterday or earlier — authoritative close.
+    //   (b) The ET day has passed AND either no picks were ever made OR all picks are scored.
+    //       This covers: "all games started, no picks made → close it" and the normal
+    //       happy path where picks exist and are fully scored.
+    const shouldClose =
+      (isFinalRun && endDatePassed) ||
+      (endDatePassedET && (!hasAnyPicks || !hasPendingPicks));
 
     if (shouldClose) {
       if (hasPendingPicks) {
