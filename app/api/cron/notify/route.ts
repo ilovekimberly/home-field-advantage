@@ -121,12 +121,14 @@ export async function GET(req: Request) {
     const windowOpen  = firstGameMs - 2 * 60 * 60 * 1000;
     const windowClose = windowOpen  + 29 * 60 * 1000;
 
-    // ── 3. Auto-cancel daily comps with no opponent once first game starts ─
+    // ── 3. Auto-cancel any 1v1 comp with no opponent once first game starts ─
+    // Covers daily, weekly, season, and playoff — if nobody joined before
+    // puck drop / first pitch, there's no point keeping the invite open.
     if (nowMs >= firstGameMs) {
-      const pendingDailies = sportComps[sport].filter(
-        (c) => c.status === "pending" && c.duration === "daily" && !c.opponent_id
+      const pendingNoOpponent = sportComps[sport].filter(
+        (c) => c.status === "pending" && !c.opponent_id && c.format !== "pool"
       );
-      for (const comp of pendingDailies) {
+      for (const comp of pendingNoOpponent) {
         await supabase.from("competitions").update({ status: "cancelled" }).eq("id", comp.id);
         const creator = profileMap.get(comp.creator_id);
         if (creator?.email) {
@@ -140,8 +142,8 @@ export async function GET(req: Request) {
           sendEmail({ to: creator.email, subject, html }).catch(console.error);
         }
       }
-      if (pendingDailies.length > 0) {
-        console.log(`cron/notify: cancelled ${pendingDailies.length} pending daily ${sport} comp(s)`);
+      if (pendingNoOpponent.length > 0) {
+        console.log(`cron/notify: cancelled ${pendingNoOpponent.length} pending 1v1 ${sport} comp(s) with no opponent`);
       }
     }
 
