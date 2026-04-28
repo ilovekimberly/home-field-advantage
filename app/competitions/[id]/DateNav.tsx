@@ -8,6 +8,7 @@ export default function DateNav({
   endDate,
   datesWithPicks,
   todayPickable = true,
+  sport = "NHL",
 }: {
   competitionId: string;
   activeDate: string;
@@ -15,8 +16,10 @@ export default function DateNav({
   endDate: string;
   datesWithPicks: string[];
   todayPickable?: boolean;
+  sport?: string;
 }) {
   const router = useRouter();
+  const isNFL = sport === "NFL";
 
   function navigate(date: string) {
     router.push(`/competitions/${competitionId}?date=${date}`);
@@ -34,14 +37,19 @@ export default function DateNav({
   const prevDate = currentIdx > 0 ? allDates[currentIdx - 1] : null;
   const nextDate = currentIdx < allDates.length - 1 ? allDates[currentIdx + 1] : null;
 
-  // Format date nicely: "Mon Apr 7"
+  // Format date label — NFL shows "Wk of [date]", others show "Mon Apr 7"
   function fmt(d: string) {
-    return new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
+    const formatted = new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
+      month: "short", day: "numeric", timeZone: "UTC",
+    });
+    return isNFL ? `Wk of ${formatted}` : new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
       weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
     });
   }
 
-  const isToday = activeDate === today;
+  const isCurrentWeek = isNFL
+    ? activeDate === today || Math.abs(new Date(activeDate).getTime() - new Date(today).getTime()) < 7 * 86400000
+    : activeDate === today;
 
   return (
     <div className="flex items-center justify-between gap-2 mb-4">
@@ -56,7 +64,9 @@ export default function DateNav({
 
       <div className="text-center">
         <div className="font-semibold text-rink">{fmt(activeDate)}</div>
-        {isToday && <div className="text-xs text-slate-400">Tonight</div>}
+        {isCurrentWeek && (
+          <div className="text-xs text-slate-400">{isNFL ? "This week" : "Tonight"}</div>
+        )}
       </div>
 
       <button

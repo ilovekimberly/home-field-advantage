@@ -66,7 +66,7 @@ export default function NewCompetitionPage() {
   const [phaseLoading, setPhaseLoading] = useState(false);
 
   useEffect(() => {
-    if (sport === "EPL" || sport === "NFL" || sport === "FIFA") {
+    if (sport === "EPL" || sport === "FIFA") {
       setPhaseInfo(null);
       return;
     }
@@ -107,8 +107,8 @@ export default function NewCompetitionPage() {
   }
 
   function endDateFor(start: string, dur: Duration) {
-    if (dur === "daily") return addDays(start, sport === "EPL" ? 3 : 0);
-    if (dur === "weekly") return addDays(start, sport === "EPL" ? 27 : 6);
+    if (dur === "daily") return addDays(start, sport === "EPL" ? 3 : sport === "NFL" ? 6 : 0);
+    if (dur === "weekly") return addDays(start, sport === "EPL" ? 27 : sport === "NFL" ? 27 : 6);
     return seasonEnd();
   }
 
@@ -231,8 +231,8 @@ export default function NewCompetitionPage() {
             ))}
           </div>
 
-          {/* Phase badge for NHL / MLB */}
-          {(sport === "NHL" || sport === "MLB") && (
+          {/* Phase badge for NHL / MLB / NFL */}
+          {(sport === "NHL" || sport === "MLB" || sport === "NFL") && (
             <div className="mt-2 h-5">
               {phaseLoading && (
                 <span className="text-xs text-slate-400">Detecting current phase…</span>
@@ -291,6 +291,12 @@ export default function NewCompetitionPage() {
                 <option value="daily">Single matchday</option>
                 <option value="weekly">Group stage (Jun 11 – Jul 2)</option>
                 <option value="season">Full tournament (Jun 11 – Jul 19)</option>
+              </>
+            ) : sport === "NFL" ? (
+              <>
+                <option value="daily">Single week</option>
+                <option value="weekly">4 weeks</option>
+                <option value="season">{seasonOptionLabel}</option>
               </>
             ) : (
               <>
@@ -389,8 +395,8 @@ export default function NewCompetitionPage() {
           </div>
         </div>}
 
-        {/* Pick type toggles — NHL + MLB, 1v1 only (not survivor) */}
-        {!isPool && !isSurvivor && (sport === "NHL" || sport === "MLB") && (
+        {/* Pick type toggles — NHL, MLB + NFL, 1v1 only (not survivor) */}
+        {!isPool && !isSurvivor && (sport === "NHL" || sport === "MLB" || sport === "NFL") && (
           <div>
             <span className="block text-sm font-medium mb-2">Pick types</span>
             <div className="space-y-2">
@@ -412,8 +418,8 @@ export default function NewCompetitionPage() {
                     Enable over/under picks
                   </span>
                   <p className="text-xs text-slate-400 leading-snug mt-0.5">
-                    Use a pick slot on the total {sport === "MLB" ? "runs" : "goals"} (over/under) instead of a winner.
-                    Lines and odds are pulled from live markets and frozen before {sport === "MLB" ? "first pitch" : "puck drop"}.
+                    Use a pick slot on the total {sport === "MLB" ? "runs" : sport === "NFL" ? "points" : "goals"} (over/under) instead of a winner.
+                    Lines and odds are pulled from live markets and frozen before {sport === "MLB" ? "first pitch" : sport === "NFL" ? "kickoff" : "puck drop"}.
                     Exact total = loss.
                   </p>
                 </div>
@@ -437,7 +443,7 @@ export default function NewCompetitionPage() {
                     Enable spread picks
                   </span>
                   <p className="text-xs text-slate-400 leading-snug mt-0.5">
-                    Use a pick slot on the {sport === "MLB" ? "run line" : "puck line"} (spread) instead of a winner.
+                    Use a pick slot on the {sport === "MLB" ? "run line" : sport === "NFL" ? "point spread" : "puck line"} instead of a winner.
                     Moneyline odds appear next to all team buttons for context.
                     Push = loss.
                   </p>

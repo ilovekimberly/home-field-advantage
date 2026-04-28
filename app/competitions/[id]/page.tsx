@@ -543,6 +543,7 @@ export default async function CompetitionPage({
             endDate={comp.end_date}
             datesWithPicks={datesWithPicks}
             todayPickable={todayPickable}
+            sport={comp.sport ?? "NHL"}
           />
         )}
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate } from "@/lib/schedule";
-import { fetchNHLGameLines, fetchMLBGameLines, matchTeamName } from "@/lib/odds";
+import { fetchScheduleForDate, getPickDate } from "@/lib/schedule";
+import { fetchNHLGameLines, fetchMLBGameLines, fetchNFLGameLines, matchTeamName } from "@/lib/odds";
 
 // GET /api/cron/fetch-lines
 // Fetches today's game lines (totals + moneyline + spreads) from The Odds API
@@ -9,12 +9,14 @@ import { fetchNHLGameLines, fetchMLBGameLines, matchTeamName } from "@/lib/odds"
 //
 // Runs once daily around 5 PM ET (22:00 UTC) — well before evening game starts.
 // Lines are frozen after fetch; players see the same line all day.
+// For NFL: lines cover the whole week and are stored under the Tuesday anchor date.
 
-type SportKey = "NHL" | "MLB";
+type SportKey = "NHL" | "MLB" | "NFL";
 
 const SPORT_FETCHERS: Record<SportKey, () => Promise<any[]>> = {
   NHL: fetchNHLGameLines,
   MLB: fetchMLBGameLines,
+  NFL: fetchNFLGameLines,
 };
 
 export async function GET(req: Request) {
@@ -46,19 +48,22 @@ export async function GET(req: Request) {
 
   const activeSports = Array.from(
     new Set((activeComps ?? []).map((c) => c.sport ?? "NHL"))
-  ).filter((s) => s === "NHL" || s === "MLB") as SportKey[];
+  ).filter((s) => s === "NHL" || s === "MLB" || s === "NFL") as SportKey[];
 
   if (activeSports.length === 0) {
-    return NextResponse.json({ skipped: true, reason: "No active NHL or MLB competitions today" });
+    return NextResponse.json({ skipped: true, reason: "No active NHL, MLB, or NFL competitions today" });
   }
 
   const results: Record<string, { stored: number; unmatched: number; total: number }> = {};
 
   for (const sport of activeSports) {
-    // ── 1. Fetch today's schedule ────────────────────────────────────────
+    // For NFL, use the Tuesday anchor; for others, use today.
+    const pickDate = getPickDate(sport, today);
+
+    // ── 1. Fetch schedule ────────────────────────────────────────────────
     let games;
     try {
-      games = await fetchScheduleForDate(sport, today, true);
+      games = await fetchScheduleForDate(sport, pickDate, true);
     } catch (e) {
       console.error(`fetch-lines: ${sport} schedule failed`, e);
       results[sport] = { stored: 0, unmatched: 0, total: 0 };
@@ -66,7 +71,7 @@ export async function GET(req: Request) {
     }
 
     if (!games || games.length === 0) {
-      console.log(`fetch-lines: no ${sport} games today`);
+      console.log(`fetch-lines: no ${sport} games for ${pickDate}`);
       results[sport] = { stored: 0, unmatched: 0, total: 0 };
       continue;
     }
@@ -107,7 +112,7 @@ export async function GET(req: Request) {
       const { error } = await supabase.from("game_lines").upsert(
         {
           game_id:          game.id,
-          game_date:        today,
+          game_date:        pickDate, // Tuesday anchor for NFL, today for others
           home_team:        game.homeTeam.name,
           away_team:        game.awayTeam.name,
           fetched_at:       new Date().toISOString(),

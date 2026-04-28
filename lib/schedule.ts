@@ -63,11 +63,21 @@ export const SPORT_CONFIG: Record<SupportedSport, {
 
 // Returns the canonical "pick date" for a given sport and calendar date.
 // For NHL/MLB this is the date itself. For EPL it's the Friday that starts
-// the gameweek so all picks within the same gameweek share one game_date.
+// the gameweek. For NFL it's the Tuesday that starts the NFL week, so all
+// games Thu–Mon of the same week share one game_date.
 export function getPickDate(sport: string, date: string): string {
   if (sport === "EPL") {
     const { getGameweekStartDate } = require("./epl");
     return getGameweekStartDate(date);
+  }
+  if (sport === "NFL") {
+    // NFL weeks run Tuesday through Monday.
+    // Snap back to the most recent Tuesday.
+    const d = new Date(date + "T12:00:00Z");
+    const dow = d.getUTCDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    const daysBack = (dow - 2 + 7) % 7; // 0 on Tue, 1 on Wed, … 6 on Mon
+    d.setUTCDate(d.getUTCDate() - daysBack);
+    return d.toISOString().slice(0, 10);
   }
   return date;
 }

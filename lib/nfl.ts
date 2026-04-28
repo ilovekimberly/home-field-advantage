@@ -29,11 +29,18 @@ export async function fetchNFLScoreboard(options?: {
   week?: number;
   season?: number;
   seasonType?: number;
+  // YYYYMMDD — ESPN will return the week containing this date
+  calendarDate?: string;
 }): Promise<{ weekInfo: NFLWeekInfo; games: SportGame[] }> {
   const params: string[] = [];
-  if (options?.season)     params.push(`dates=${options.season}`);
-  if (options?.seasonType) params.push(`seasontype=${options.seasonType}`);
-  if (options?.week)       params.push(`week=${options.week}`);
+  if (options?.calendarDate) {
+    // Pass full date; ESPN resolves to the correct week automatically
+    params.push(`dates=${options.calendarDate}`);
+  } else {
+    if (options?.season)     params.push(`dates=${options.season}`);
+    if (options?.seasonType) params.push(`seasontype=${options.seasonType}`);
+    if (options?.week)       params.push(`week=${options.week}`);
+  }
 
   const url =
     `${ESPN_BASE}/scoreboard` +
@@ -86,10 +93,12 @@ export async function fetchNFLScoreboard(options?: {
   return { weekInfo, games };
 }
 
-// Used by fetchScheduleForDate — returns current week's games.
-// The `date` parameter is ignored (NFL is week-based not day-based).
-export async function fetchNFLScheduleForDate(_date: string): Promise<SportGame[]> {
-  const { games } = await fetchNFLScoreboard();
+// Used by fetchScheduleForDate — returns the week containing `date`.
+// Passes the date to ESPN so historical/future weeks load correctly.
+export async function fetchNFLScheduleForDate(date: string): Promise<SportGame[]> {
+  // Convert YYYY-MM-DD to YYYYMMDD for ESPN
+  const calendarDate = date.replace(/-/g, "");
+  const { games } = await fetchNFLScoreboard({ calendarDate });
   return games;
 }
 

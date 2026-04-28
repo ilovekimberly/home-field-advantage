@@ -144,6 +144,38 @@ async function detectMLBPhase(today: string): Promise<SportPhase> {
   return { phase: "offseason", seasonEndDate, playoffEndDate, label: "Full season" };
 }
 
+// ── NFL ───────────────────────────────────────────────────────────────────────
+async function detectNFLPhase(today: string): Promise<SportPhase> {
+  const year = parseInt(today.slice(0, 4));
+  // NFL regular season: Sep–Jan; playoffs: Jan–Feb
+  const seasonEndDate  = `${year + 1}-01-06`;
+  const playoffEndDate = `${year + 1}-02-15`;
+
+  try {
+    const { fetchNFLScoreboard } = await import("@/lib/nfl");
+    const { weekInfo } = await fetchNFLScoreboard();
+
+    if (weekInfo.seasonType === 3) {
+      return { phase: "playoffs", seasonEndDate, playoffEndDate, label: "Full playoffs" };
+    }
+    if (weekInfo.seasonType === 2) {
+      return { phase: "season", seasonEndDate, playoffEndDate, label: "Full regular season" };
+    }
+    // Preseason (type 1) or unknown → offseason
+    return { phase: "offseason", seasonEndDate, playoffEndDate, label: "Full season" };
+  } catch {
+    // Date-based fallback
+    const month = parseInt(today.slice(5, 7));
+    if (month >= 1 && month <= 2) {
+      return { phase: "playoffs", seasonEndDate, playoffEndDate, label: "Full playoffs" };
+    }
+    if (month >= 9 || month === 1) {
+      return { phase: "season", seasonEndDate, playoffEndDate, label: "Full regular season" };
+    }
+    return { phase: "offseason", seasonEndDate, playoffEndDate, label: "Full season" };
+  }
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -157,6 +189,10 @@ export async function GET(req: Request) {
     }
     if (sport === "MLB") {
       const result = await detectMLBPhase(today);
+      return NextResponse.json(result);
+    }
+    if (sport === "NFL") {
+      const result = await detectNFLPhase(today);
       return NextResponse.json(result);
     }
     return NextResponse.json({ error: "unsupported sport" }, { status: 400 });
