@@ -214,21 +214,32 @@ export default function NewCompetitionPage() {
         {!isSurvivor && <div>
           <span className="block text-sm font-medium mb-2">Sport</span>
           <div className="grid grid-cols-5 gap-2">
-            {SPORTS.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setSport(s.value)}
-                className={`flex flex-col items-center gap-1 rounded-xl border-2 py-3 text-sm font-medium transition-colors ${
-                  sport === s.value
-                    ? "border-rink bg-ice text-rink"
-                    : "border-slate-200 hover:border-slate-300 text-slate-600"
-                }`}
-              >
-                <span className="text-2xl">{s.emoji}</span>
-                <span className="text-xs text-center leading-tight">{s.label}</span>
-              </button>
-            ))}
+            {SPORTS.map((s) => {
+              const comingSoon = s.value === "NFL" || s.value === "EPL";
+              return (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => !comingSoon && setSport(s.value)}
+                  disabled={comingSoon}
+                  className={`relative flex flex-col items-center gap-1 rounded-xl border-2 py-3 text-sm font-medium transition-colors ${
+                    comingSoon
+                      ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
+                      : sport === s.value
+                      ? "border-rink bg-ice text-rink"
+                      : "border-slate-200 hover:border-slate-300 text-slate-600"
+                  }`}
+                >
+                  <span className={`text-2xl ${comingSoon ? "grayscale opacity-40" : ""}`}>{s.emoji}</span>
+                  <span className="text-xs text-center leading-tight">{s.label}</span>
+                  {comingSoon && (
+                    <span className="text-[9px] font-semibold text-slate-400 leading-none mt-0.5">
+                      Coming soon
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Phase badge for NHL / MLB / NFL */}
