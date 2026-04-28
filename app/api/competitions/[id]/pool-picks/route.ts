@@ -24,8 +24,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!comp) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (comp.format !== "pool") return NextResponse.json({ error: "not a pool" }, { status: 400 });
 
-  // Check membership (pool members are in competition_members)
-  const { data: membership } = await supabase
+  // Check membership using admin client — self-referential RLS on
+  // competition_members causes the regular client to return empty results.
+  const admin = createSupabaseAdminClient();
+  const { data: membership } = await admin
     .from("competition_members")
     .select("id")
     .eq("competition_id", comp.id)
