@@ -145,7 +145,7 @@ export default function NewCompetitionPage() {
         sport,
         format,
         duration: storedDuration,
-        draft_style: (isPool || isSurvivor) ? null : draftStyle,
+        draft_style: (isPool || isSurvivor) ? "standard" : draftStyle,
         enable_over_under: (sport === "NHL" || sport === "MLB") && !isSurvivor ? enableOverUnder : false,
         enable_spread: (sport === "NHL" || sport === "MLB") && !isSurvivor ? enableSpread : false,
         visibility,

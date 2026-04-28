@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // GET /api/notifications/turn
-// Returns the competitions where the current user needs to pick today.
+// Returns the competitions where the current user needs to pick today,
+// plus any pending friend requests.
 // Called client-side by TurnBadgeDropdown so the badge refreshes without
 // a full page reload (root layout server components don't re-render on
 // router.refresh()).
@@ -10,7 +11,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET() {
   const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ competitions: [] });
+  if (!user) return NextResponse.json({ competitions: [], friendRequests: [] });
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
@@ -65,5 +66,28 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ competitions: needsAttention });
+  // Pending friend requests sent TO the current user.
+  const { data: friendRows } = await supabase
+    .from("friendships")
+    .select("id, requester_id")
+    .eq("addressee_id", user.id)
+    .eq("status", "pending");
+
+  const requesterIds = (friendRows ?? []).map((r) => r.requester_id);
+  let friendRequests: { id: string; name: string }[] = [];
+  if (requesterIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", requesterIds);
+    const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+    friendRequests = (friendRows ?? []).map((r) => ({
+      id: r.id,
+      name: (profileMap.get(r.requester_id)?.display_name as string)
+        ?? (profileMap.get(r.requester_id)?.email as string)
+        ?? "Someone",
+    }));
+  }
+
+  return NextResponse.json({ competitions: needsAttention, friendRequests });
 }

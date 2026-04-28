@@ -2,7 +2,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import TurnBadgeDropdown from "./TurnBadgeDropdown";
 
 // Server component — fetches which competitions need the user's attention
-// and passes them to the client dropdown component.
+// (your turn to pick + pending friend requests) and passes them to the
+// client dropdown component.
 
 export default async function TurnBadge({ userId }: { userId: string }) {
   const supabase = createSupabaseServerClient();
@@ -65,5 +66,33 @@ export default async function TurnBadge({ userId }: { userId: string }) {
     }
   }
 
-  return <TurnBadgeDropdown competitions={needsAttention} />;
+  // Pending friend requests sent TO this user.
+  const { data: friendRows } = await supabase
+    .from("friendships")
+    .select("id, requester_id")
+    .eq("addressee_id", userId)
+    .eq("status", "pending");
+
+  const requesterIds = (friendRows ?? []).map((r) => r.requester_id);
+  let friendRequests: { id: string; name: string }[] = [];
+  if (requesterIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", requesterIds);
+    const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+    friendRequests = (friendRows ?? []).map((r) => ({
+      id: r.id,
+      name: (profileMap.get(r.requester_id)?.display_name as string)
+        ?? (profileMap.get(r.requester_id)?.email as string)
+        ?? "Someone",
+    }));
+  }
+
+  return (
+    <TurnBadgeDropdown
+      competitions={needsAttention}
+      friendRequests={friendRequests}
+    />
+  );
 }
