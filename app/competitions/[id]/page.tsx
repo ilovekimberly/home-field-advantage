@@ -13,6 +13,7 @@ import RefreshScores from "./RefreshScores";
 import DateNav from "./DateNav";
 import NightlyRecap from "./NightlyRecap";
 import LiveStandings from "./LiveStandings";
+import CancelButton from "./CancelButton";
 import NightByNight, { type NightEntry } from "./NightByNight";
 
 // Use Eastern Time so the date doesn't flip at midnight UTC while US games
@@ -86,6 +87,11 @@ export default async function CompetitionPage({
   // Fetch all picks first — needed to compute todayPickable before activeDate.
   const { data: allPicks } = await supabase
     .from("picks").select("*").eq("competition_id", comp.id);
+
+  // Creator can cancel only if no picks have been made yet.
+  const canCancel = isCreator
+    && (comp.status === "pending" || comp.status === "active")
+    && (allPicks ?? []).length === 0;
 
   const datesWithPicks = Array.from(new Set((allPicks ?? []).map((p) => p.game_date))).sort();
 
@@ -384,6 +390,9 @@ export default async function CompetitionPage({
             </div>
           )}
         </div>
+        {/* Cancel button — only before any picks are made */}
+        {canCancel && <CancelButton competitionId={comp.id} />}
+
         {/* Invite panel: pool active creators can keep sharing; 1v1 only when no opponent yet */}
         {isCreator && ((isPool && comp.status === "active") || (!isPool && !comp.opponent_id)) && (
           <div className="mt-4">
