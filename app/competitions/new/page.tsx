@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { SportPhase } from "@/app/api/sport-phase/route";
 
-type Sport = "NHL" | "MLB" | "EPL" | "FIFA";
+type Sport = "NHL" | "MLB" | "EPL" | "FIFA" | "NFL";
 type Duration = "daily" | "weekly" | "season" | "playoff";
 type DraftStyle = "standard" | "balanced";
-type Format = "1v1" | "pool";
+type Format = "1v1" | "pool" | "survivor";
+type Tiebreaker = "split" | "riskiest" | "playoffs" | "overtime";
 
 const SPORTS: { value: Sport; label: string; emoji: string }[] = [
   { value: "NHL", label: "NHL Hockey", emoji: "🏒" },
   { value: "MLB", label: "MLB Baseball", emoji: "⚾" },
+  { value: "NFL", label: "NFL Football", emoji: "🏈" },
   { value: "EPL", label: "Premier League", emoji: "⚽" },
   { value: "FIFA", label: "World Cup", emoji: "🏆" },
 ];
@@ -31,6 +33,7 @@ function staticSeasonEnd(sport: Sport, start: string) {
   const year = new Date(start).getUTCFullYear();
   if (sport === "NHL") return `${year}-04-20`;
   if (sport === "MLB") return `${year}-09-30`;
+  if (sport === "NFL") return `${year + 1}-02-15`; // after Super Bowl
   if (sport === "EPL") return `${year + 1}-05-20`;
   if (sport === "FIFA") return "2026-07-19"; // World Cup 2026 final
   return addDays(start, 180);
@@ -49,19 +52,21 @@ export default function NewCompetitionPage() {
   const [enableOverUnder, setEnableOverUnder] = useState(false);
   const [enableSpread, setEnableSpread] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "friends">("private");
+  const [tiebreaker, setTiebreaker] = useState<Tiebreaker>("split");
   const [inviteEmail, setInviteEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isPool = format === "pool";
-  const isFIFA = sport === "FIFA";
+  const isPool     = format === "pool";
+  const isSurvivor = format === "survivor";
+  const isFIFA     = sport === "FIFA";
 
   // Phase detection for NHL and MLB.
   const [phaseInfo, setPhaseInfo] = useState<SportPhase | null>(null);
   const [phaseLoading, setPhaseLoading] = useState(false);
 
   useEffect(() => {
-    if (sport === "EPL") {
+    if (sport === "EPL" || sport === "NFL" || sport === "FIFA") {
       setPhaseInfo(null);
       return;
     }
@@ -78,6 +83,14 @@ export default function NewCompetitionPage() {
   useEffect(() => {
     if (sport === "FIFA") setFormat("pool");
   }, [sport]);
+
+  // Survivor always uses NFL — auto-switch sport when format changes.
+  useEffect(() => {
+    if (isSurvivor) {
+      setSport("NFL");
+      setDuration("season");
+    }
+  }, [isSurvivor]);
 
   // When we detect playoffs, the "season" duration now means playoffs —
   // make sure the default still works or auto-adjust if user had "season" selected.
@@ -109,8 +122,10 @@ export default function NewCompetitionPage() {
 
   // Auto-suggest a name when sport or duration changes.
   const namePlaceholder =
+    isSurvivor    ? "Office Survivor 2025" :
     sport === "NHL" ? "Friday Night Faceoff" :
     sport === "MLB" ? "Summer Slugfest" :
+    sport === "NFL" ? "Thursday Night Survivor" :
     "Premier Picks";
 
   async function createCompetition(e: React.FormEvent) {
@@ -130,24 +145,26 @@ export default function NewCompetitionPage() {
         sport,
         format,
         duration: storedDuration,
-        draft_style: isPool ? null : draftStyle,
-        enable_over_under: (sport === "NHL" || sport === "MLB") ? enableOverUnder : false,
-        enable_spread: (sport === "NHL" || sport === "MLB") ? enableSpread : false,
+        draft_style: (isPool || isSurvivor) ? null : draftStyle,
+        enable_over_under: (sport === "NHL" || sport === "MLB") && !isSurvivor ? enableOverUnder : false,
+        enable_spread: (sport === "NHL" || sport === "MLB") && !isSurvivor ? enableSpread : false,
         visibility,
         start_date: startDate,
         end_date: end,
         creator_id: user.id,
         max_members: isPool && maxMembers ? parseInt(maxMembers) : null,
+        tiebreaker: isSurvivor ? tiebreaker : null,
       })
       .select()
       .single();
     if (error) { setError(error.message); setBusy(false); return; }
 
-    // For pool competitions, auto-join the creator as the first member.
-    if (isPool) {
+    // For pool + survivor competitions, auto-join the creator as the first member.
+    if (isPool || isSurvivor) {
       await supabase.from("competition_members").insert({
         competition_id: data.id,
         user_id: user.id,
+        survivor_status: isSurvivor ? "alive" : null,
       });
     }
 
@@ -170,10 +187,11 @@ export default function NewCompetitionPage() {
         {/* Format selector */}
         <div>
           <span className="block text-sm font-medium mb-2">Format</span>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {([
               { value: "1v1" as Format, label: "Head-to-head", desc: "1v1 snake draft pick'em" },
-              { value: "pool" as Format, label: "Pool", desc: "Everyone picks independently, leaderboard decides the winner" },
+              { value: "pool" as Format, label: "Pool", desc: "Everyone picks independently, leaderboard wins" },
+              { value: "survivor" as Format, label: "Survivor 🏈", desc: "NFL survivor — one team per week, can't repeat" },
             ]).map((f) => (
               <button
                 key={f.value}
@@ -192,10 +210,10 @@ export default function NewCompetitionPage() {
           </div>
         </div>
 
-        {/* Sport selector */}
-        <div>
+        {/* Sport selector — hidden for survivor (NFL is the only survivor sport) */}
+        {!isSurvivor && <div>
           <span className="block text-sm font-medium mb-2">Sport</span>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {SPORTS.map((s) => (
               <button
                 key={s.value}
@@ -241,7 +259,7 @@ export default function NewCompetitionPage() {
               )}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Name */}
         <label className="block">
@@ -254,8 +272,8 @@ export default function NewCompetitionPage() {
           />
         </label>
 
-        {/* Duration */}
-        <label className="block">
+        {/* Duration — hidden for survivor (always full season) */}
+        {!isSurvivor && <label className="block">
           <span className="text-sm font-medium">Length</span>
           <select
             className="input mt-1"
@@ -287,7 +305,7 @@ export default function NewCompetitionPage() {
               Ends {seasonEnd()}
             </span>
           )}
-        </label>
+        </label>}
 
         {/* Pool-specific: max members */}
         {isPool && (
@@ -304,8 +322,37 @@ export default function NewCompetitionPage() {
           </label>
         )}
 
+        {/* Tiebreaker — survivor only */}
+        {isSurvivor && (
+          <div>
+            <span className="block text-sm font-medium mb-2">If multiple survivors remain at the end</span>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: "split" as Tiebreaker, label: "Split the pot", desc: "All survivors share the prize equally." },
+                { value: "riskiest" as Tiebreaker, label: "Riskiest pick wins", desc: "Whoever picked the biggest underdog in the final week wins." },
+                { value: "playoffs" as Tiebreaker, label: "Keep going (playoffs)", desc: "Continue picking into the NFL postseason." },
+                { value: "overtime" as Tiebreaker, label: "Sudden death", desc: "Reset used teams — keep picking until only one remains." },
+              ]).map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setTiebreaker(t.value)}
+                  className={`flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                    tiebreaker === t.value ? "border-rink bg-ice" : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className={`text-sm font-semibold ${tiebreaker === t.value ? "text-rink" : "text-slate-700"}`}>
+                    {t.label}
+                  </span>
+                  <span className="text-xs text-slate-400 leading-snug">{t.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Draft style — 1v1 non-FIFA only */}
-        {!isPool && !isFIFA && <div>
+        {!isPool && !isSurvivor && !isFIFA && <div>
           <span className="block text-sm font-medium mb-2">Draft style</span>
           <div className="grid grid-cols-2 gap-2">
             {([
@@ -342,8 +389,8 @@ export default function NewCompetitionPage() {
           </div>
         </div>}
 
-        {/* Pick type toggles — NHL + MLB, 1v1 only */}
-        {!isPool && (sport === "NHL" || sport === "MLB") && (
+        {/* Pick type toggles — NHL + MLB, 1v1 only (not survivor) */}
+        {!isPool && !isSurvivor && (sport === "NHL" || sport === "MLB") && (
           <div>
             <span className="block text-sm font-medium mb-2">Pick types</span>
             <div className="space-y-2">
@@ -438,10 +485,12 @@ export default function NewCompetitionPage() {
           />
         </label>
 
-        {/* Invite — 1v1 gets email field, pool gets a note */}
-        {isPool ? (
+        {/* Invite — pool + survivor get a link note, 1v1 gets email field */}
+        {(isPool || isSurvivor) ? (
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600">
-            After creating, share your invite link with everyone you want in the pool. There's no limit on joins{maxMembers ? ` (you set a cap of ${maxMembers})` : ""}.
+            {isSurvivor
+              ? "After creating, share your invite link with everyone joining the survivor pool."
+              : `After creating, share your invite link with everyone you want in the pool. There's no limit on joins${maxMembers ? ` (you set a cap of ${maxMembers})` : ""}.`}
           </div>
         ) : (
           <label className="block">
@@ -461,7 +510,7 @@ export default function NewCompetitionPage() {
 
         {error && <div className="text-red-600 text-sm">{error}</div>}
         <button className="btn-primary w-full" disabled={busy}>
-          {busy ? "Creating…" : isPool ? "Create pool" : "Create competition"}
+          {busy ? "Creating…" : isSurvivor ? "Create survivor league" : isPool ? "Create pool" : "Create competition"}
         </button>
       </form>
     </div>

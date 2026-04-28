@@ -97,6 +97,75 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     return NextResponse.redirect(new URL(`/competitions/${comp.id}?joined=1`, req.url));
   }
 
+  // ── Survivor competition join ─────────────────────────────────────────
+  if (comp.format === "survivor") {
+    if (comp.creator_id === user.id) {
+      return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
+    }
+
+    // Already a member?
+    const { data: existing } = await supabase
+      .from("competition_members")
+      .select("id")
+      .eq("competition_id", comp.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
+    }
+
+    // Competition still accepting members?
+    if (comp.status === "cancelled" || comp.status === "complete") {
+      return NextResponse.redirect(new URL("/?err=full", req.url));
+    }
+
+    const admin = createSupabaseAdminClient();
+    const { error: insertError } = await admin
+      .from("competition_members")
+      .insert({
+        competition_id:  comp.id,
+        user_id:         user.id,
+        survivor_status: "alive",
+      });
+
+    if (insertError) {
+      console.error("Join route: failed to insert survivor member", insertError);
+      return NextResponse.redirect(new URL("/?err=join-failed", req.url));
+    }
+
+    // Activate when first non-creator joins
+    if (comp.status === "pending") {
+      await admin
+        .from("competitions")
+        .update({ status: "active" })
+        .eq("id", comp.id);
+    }
+
+    // Notify creator
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, email, display_name")
+      .in("id", [comp.creator_id, user.id]);
+
+    const creatorProfile = profiles?.find((p) => p.id === comp.creator_id);
+    const joinerProfile  = profiles?.find((p) => p.id === user.id);
+
+    if (creatorProfile?.email) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
+      const { subject, html } = opponentJoinedEmail({
+        toName:          creatorProfile.display_name ?? creatorProfile.email,
+        opponentName:    joinerProfile?.display_name ?? "Someone",
+        competitionName: comp.name,
+        competitionUrl:  `${siteUrl}/competitions/${comp.id}`,
+        sport: "NFL",
+      });
+      sendEmail({ to: creatorProfile.email, subject, html }).catch(console.error);
+    }
+
+    return NextResponse.redirect(new URL(`/competitions/${comp.id}?joined=1`, req.url));
+  }
+
   // ── 1v1 competition join (original logic) ─────────────────────────────
 
   // Creator clicking their own link — just take them to the competition.

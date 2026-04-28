@@ -318,6 +318,138 @@ export function poolPicksOpenEmail({
   };
 }
 
+// ── Survivor league emails ─────────────────────────────────────────────────
+
+type SurvivorPickReveal = {
+  userId: string;
+  name: string;
+  teamAbbrev: string;
+  teamName: string;
+  status: "alive" | "eliminated";
+};
+
+// Sent to all alive survivors at Thursday kickoff — reveals everyone's pick.
+export function survivorKickoffRevealEmail({
+  toName,
+  competitionName,
+  competitionUrl,
+  weekLabel,
+  picks,
+}: {
+  toName: string;
+  competitionName: string;
+  competitionUrl: string;
+  weekLabel: string; // e.g. "Week 3"
+  picks: SurvivorPickReveal[];
+}) {
+  const aliveCount = picks.filter((p) => p.status === "alive").length;
+  const rows = picks
+    .map(
+      (p) => `
+      <tr>
+        <td style="padding:8px 12px;font-size:14px;color:#222;border-bottom:1px solid #f0f0f0;">
+          ${p.name}${p.status === "eliminated" ? " <span style='font-size:11px;color:#aaa;'>(out)</span>" : ""}
+        </td>
+        <td style="padding:8px 12px;font-size:14px;color:#0b1f3a;font-weight:600;border-bottom:1px solid #f0f0f0;">
+          ${p.teamAbbrev} — ${p.teamName}
+        </td>
+      </tr>`
+    )
+    .join("");
+
+  return {
+    subject: `🏈 ${weekLabel} picks are locked — ${competitionName}`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">
+        🏈 ${weekLabel} picks are in!
+      </h1>
+      <p style="font-size:16px;line-height:1.6;">
+        Hey ${toName} — picks are now locked for <strong>${competitionName}</strong>.
+        Here's who everyone is riding with this week (${aliveCount} survivor${aliveCount !== 1 ? "s" : ""} still alive):
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #eee;border-radius:8px;overflow:hidden;">
+        <thead>
+          <tr style="background:#f8f9fa;">
+            <th style="padding:8px 12px;text-align:left;font-size:12px;color:#888;font-weight:600;">PLAYER</th>
+            <th style="padding:8px 12px;text-align:left;font-size:12px;color:#888;font-weight:600;">TEAM</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="font-size:13px;color:#888;line-height:1.6;">
+        Results will update as games finish. Check back to see who survives the week.
+      </p>
+      ${button(competitionUrl, "View survivor board →")}
+    `),
+  };
+}
+
+// Sent to a player who got eliminated (their team lost).
+export function survivorEliminationEmail({
+  toName,
+  competitionName,
+  competitionUrl,
+  weekLabel,
+  teamName,
+  survivorsLeft,
+}: {
+  toName: string;
+  competitionName: string;
+  competitionUrl: string;
+  weekLabel: string;
+  teamName: string;
+  survivorsLeft: number;
+}) {
+  return {
+    subject: `💀 You've been eliminated — ${competitionName}`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">💀 Eliminated</h1>
+      <p style="font-size:16px;line-height:1.6;">
+        Tough break, ${toName}. The <strong>${teamName}</strong> didn't come through in
+        <strong>${weekLabel}</strong>, and you've been eliminated from
+        <strong>${competitionName}</strong>.
+      </p>
+      <p style="font-size:15px;color:#555;line-height:1.6;">
+        ${survivorsLeft} player${survivorsLeft !== 1 ? "s are" : " is"} still alive. Better luck next year!
+      </p>
+      ${button(competitionUrl, "Watch how it plays out →")}
+    `),
+  };
+}
+
+// Sent to the winner(s) of a survivor competition.
+export function survivorWinnerEmail({
+  toName,
+  competitionName,
+  competitionUrl,
+  isSplit,
+  coWinners,
+}: {
+  toName: string;
+  competitionName: string;
+  competitionUrl: string;
+  isSplit: boolean;
+  coWinners?: string[];
+}) {
+  const headline = isSplit
+    ? `🏆 You survived (and so did a few others)`
+    : `🏆 You're the last one standing!`;
+  const body = isSplit && coWinners?.length
+    ? `You've survived alongside ${coWinners.join(", ")} — the pot is split!`
+    : `You're the last survivor in <strong>${competitionName}</strong>. Congratulations!`;
+
+  return {
+    subject: `🏆 Survivor winner — ${competitionName}`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">${headline}</h1>
+      <p style="font-size:16px;line-height:1.6;">
+        Hey ${toName} — ${body}
+      </p>
+      ${button(competitionUrl, "View final standings →")}
+    `),
+  };
+}
+
 // Sent to the site owner when a support request or suggestion is submitted.
 export function feedbackEmail({
   type,

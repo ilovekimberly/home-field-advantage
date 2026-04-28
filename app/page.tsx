@@ -10,16 +10,16 @@ function daysAgo(n: number) {
   return d.toISOString().slice(0, 10);
 }
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆" };
+const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆", NFL: "🏈" };
 
 function getStatusBadge(comp: any): { label: string; className: string } {
-  const isPool = comp.format === "pool";
+  const isGroupComp = comp.format === "pool" || comp.format === "survivor";
   switch (comp.status) {
-    case "active":    return { label: "Active",                                      className: "bg-green-100 text-green-700" };
-    case "pending":   return { label: isPool ? "Awaiting members" : "Awaiting opponent", className: "bg-amber-100 text-amber-700" };
-    case "complete":  return { label: "Complete",                                    className: "bg-slate-100 text-slate-500" };
-    case "cancelled": return { label: "Cancelled",                                   className: "bg-red-100 text-red-400" };
-    default:          return { label: comp.status,                                   className: "bg-slate-100 text-slate-500" };
+    case "active":    return { label: "Active",                                                className: "bg-green-100 text-green-700" };
+    case "pending":   return { label: isGroupComp ? "Awaiting members" : "Awaiting opponent", className: "bg-amber-100 text-amber-700" };
+    case "complete":  return { label: "Complete",                                              className: "bg-slate-100 text-slate-500" };
+    case "cancelled": return { label: "Cancelled",                                             className: "bg-red-100 text-red-400" };
+    default:          return { label: comp.status,                                             className: "bg-slate-100 text-slate-500" };
   }
 }
 
@@ -131,7 +131,9 @@ export default async function HomePage() {
 
   // ── Which active competitions need my pick tonight ─────────────────────
   // Pool competitions are excluded — everyone picks independently on their own schedule.
-  const activeComps = (competitions ?? []).filter((c) => c.status === "active" && c.opponent_id && c.format !== "pool");
+  const activeComps = (competitions ?? []).filter(
+    (c) => c.status === "active" && c.opponent_id && c.format !== "pool" && c.format !== "survivor"
+  );
 
   // Compute the active date for each comp, then batch-fetch schedules grouped
   // by (sport, date) so we only hit the schedule API once per pair.
@@ -303,7 +305,8 @@ export default async function HomePage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {visibleComps.map((comp) => {
-              const isPool = comp.format === "pool";
+              const isPool     = comp.format === "pool";
+              const isSurvivor = comp.format === "survivor";
               const s = compStandings[comp.id] ?? { myWins: 0, myLosses: 0, theirWins: 0, theirLosses: 0 };
               const myTurn = needsMyPick.some((n) => n.comp.id === comp.id);
               const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
@@ -338,6 +341,11 @@ export default async function HomePage() {
                           Pool
                         </span>
                       )}
+                      {isSurvivor && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                          🏈 Survivor
+                        </span>
+                      )}
                       {myTurn && (
                         <span className="text-xs bg-rink text-white px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
                           Your turn
@@ -350,9 +358,9 @@ export default async function HomePage() {
                   </div>
 
                   {/* Subtitle */}
-                  {isPool ? (
+                  {(isPool || isSurvivor) ? (
                     <div className="text-sm text-slate-500">
-                      Group competition · {comp.start_date}
+                      {isSurvivor ? "NFL Survivor league" : "Group competition"} · {comp.start_date}
                       {comp.duration !== "daily" && ` → ${comp.end_date}`}
                     </div>
                   ) : (

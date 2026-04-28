@@ -18,7 +18,7 @@ export type SportGame = {
   awayPitcher?: { name: string; era?: string } | null;
 };
 
-export type SupportedSport = "NHL" | "MLB" | "EPL" | "FIFA";
+export type SupportedSport = "NHL" | "MLB" | "EPL" | "FIFA" | "NFL";
 
 export const SPORT_CONFIG: Record<SupportedSport, {
   label: string;
@@ -51,6 +51,13 @@ export const SPORT_CONFIG: Record<SupportedSport, {
     emoji: "🏆",
     seasonEnd: () => "2026-07-19",
     pickCadence: "day",
+  },
+  NFL: {
+    label: "NFL Football",
+    emoji: "🏈",
+    // NFL regular season ends early January; survivor runs through Super Bowl
+    seasonEnd: (y) => `${y + 1}-02-15`,
+    pickCadence: "gameweek",
   },
 };
 
@@ -85,6 +92,10 @@ export async function fetchScheduleForDate(sport: string, date: string, noCache 
     case "FIFA": {
       const { fetchFIFAScheduleForDate } = await import("./fifa");
       return fetchFIFAScheduleForDate(date);
+    }
+    case "NFL": {
+      const { fetchNFLScheduleForDate } = await import("./nfl");
+      return fetchNFLScheduleForDate(date);
     }
     default:
       throw new Error(`Unsupported sport: ${sport}`);

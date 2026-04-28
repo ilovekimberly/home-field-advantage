@@ -7,6 +7,7 @@ import PickRoom from "./PickRoom";
 import PoolPickRoom from "./PoolPickRoom";
 import PoolLeaderboard from "./PoolLeaderboard";
 import PoolWelcomeBanner from "./PoolWelcomeBanner";
+import SurvivorPickRoom from "./SurvivorPickRoom";
 import InvitePanel from "./InvitePanel";
 import DeferBanner from "./DeferBanner";
 import RefreshScores from "./RefreshScores";
@@ -51,6 +52,46 @@ export default async function CompetitionPage({
       .eq("user_id", user.id)
       .maybeSingle();
     isPoolMember = !!membership;
+  }
+
+  // ── Survivor competitions: dedicated UI, no 1v1/pool machinery needed ──
+  const isSurvivor = comp.format === "survivor";
+
+  if (isSurvivor) {
+    // Check membership (survivor uses competition_members, like pool)
+    const { data: survivorMembership } = await supabase
+      .from("competition_members")
+      .select("id")
+      .eq("competition_id", comp.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
+
+    if (!isCreator && !survivorMembership) {
+      return (
+        <div className="card">
+          <h1 className="text-xl font-bold">Not a participant</h1>
+          <p>You're not part of this competition. If you have an invite link, open it to join.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Invite panel — creator always sees it while competition is active */}
+        {isCreator && comp.status !== "cancelled" && comp.status !== "complete" && (
+          <div className="card">
+            <InvitePanel
+              competitionId={comp.id}
+              inviteToken={comp.invite_token ?? ""}
+              siteUrl={siteUrl}
+            />
+          </div>
+        )}
+        <SurvivorPickRoom competitionId={comp.id} userId={user.id} />
+      </div>
+    );
   }
 
   if (!isCreator && !isOpponent && !isPoolMember) {
