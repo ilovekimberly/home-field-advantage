@@ -187,12 +187,14 @@ export default async function CompetitionPage({
   const mostRecentPickDate = datesWithPicks.filter((d) => d < today).slice(-1)[0];
   // For pool competitions, everyone picks independently so we never block today
   // based on whether a previous date's picks are still pending.
+  // Gate today if either player has pending (unscored) picks from the previous date.
+  // We don't restrict based on un-made picks (no row = opponent just didn't pick),
+  // but we do wait for scored results so the draft order for today is accurate.
   const prevDateHasPending = !isPool && mostRecentPickDate
     ? (allPicks ?? []).some(
         (p) =>
           p.game_date === mostRecentPickDate &&
-          p.result === "pending" &&
-          p.picker_id === user.id   // only MY pending picks gate today for 1v1
+          p.result === "pending"
       )
     : false;
   const todayPickable = !prevDateHasPending;
