@@ -24,9 +24,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!comp) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (comp.format !== "pool") return NextResponse.json({ error: "not a pool" }, { status: 400 });
 
-  // Check membership using admin client — self-referential RLS on
-  // competition_members causes the regular client to return empty results.
+  // Use admin client throughout — self-referential RLS on competition_members
+  // causes the regular client to return empty results.
   const admin = createSupabaseAdminClient();
+
+  // Check membership
   const { data: membership } = await admin
     .from("competition_members")
     .select("id")
@@ -93,7 +95,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     .eq("game_date", gameDate)
     .eq("picker_id", user.id);
 
-  const admin = createSupabaseAdminClient();
   const { error: insErr } = await admin.from("picks").insert({
     competition_id: comp.id,
     game_date: gameDate,
