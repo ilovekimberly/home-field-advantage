@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame, getPickDate } from "@/lib/schedule";
 import { fetchMLBTeamStats, type MLBTeamStatsMap } from "@/lib/mlb";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
@@ -43,9 +43,12 @@ export default async function CompetitionPage({
   const isOpponent = comp.opponent_id === user.id;
 
   // For pool competitions, also check competition_members table.
+  // Use admin client to bypass the self-referential RLS policy which causes
+  // Supabase to return empty results even when the user is a member.
   let isPoolMember = false;
   if (isPool) {
-    const { data: membership } = await supabase
+    const admin = createSupabaseAdminClient();
+    const { data: membership } = await admin
       .from("competition_members")
       .select("id")
       .eq("competition_id", comp.id)
@@ -59,7 +62,8 @@ export default async function CompetitionPage({
 
   if (isSurvivor) {
     // Check membership (survivor uses competition_members, like pool)
-    const { data: survivorMembership } = await supabase
+    const admin = createSupabaseAdminClient();
+    const { data: survivorMembership } = await admin
       .from("competition_members")
       .select("id")
       .eq("competition_id", comp.id)
@@ -157,8 +161,11 @@ export default async function CompetitionPage({
   }
 
   // Pool: load member list + their records for the leaderboard.
+  // Use admin client — the self-referential RLS SELECT policy blocks regular
+  // client queries even for members, returning empty results.
   if (isPool) {
-    const { data: memberRows } = await supabase
+    const admin = createSupabaseAdminClient();
+    const { data: memberRows } = await admin
       .from("competition_members")
       .select("user_id")
       .eq("competition_id", comp.id);
