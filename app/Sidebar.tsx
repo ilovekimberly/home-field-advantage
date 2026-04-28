@@ -137,7 +137,11 @@ function StatusSection({
 export default function Sidebar({ competitions: initialComps }: Props) {
   // Start closed; open automatically on desktop screens.
   const [open, setOpen] = useState(false);
-  const [comps, setComps] = useState(initialComps);
+  // Track only locally-deleted IDs so the list always reflects fresh server
+  // props (useState(initialComps) would freeze on first render and miss new
+  // competitions created during the session).
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const comps = initialComps.filter((c) => !deletedIds.has(c.id));
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -150,7 +154,7 @@ export default function Sidebar({ competitions: initialComps }: Props) {
   }, []);
 
   function handleDelete(id: string) {
-    setComps((prev) => prev.filter((c) => c.id !== id));
+    setDeletedIds((prev) => new Set([...prev, id]));
   }
 
   const bySport: Record<string, Record<string, SidebarComp[]>> = {};
