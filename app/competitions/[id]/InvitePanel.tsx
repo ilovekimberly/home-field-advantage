@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { FriendsInviterImmediate } from "@/app/components/FriendsInviter";
 
 export default function InvitePanel({
   competitionId,
@@ -39,6 +40,9 @@ export default function InvitePanel({
   return (
     <div className="rounded-lg bg-ice p-4 space-y-3">
       <p className="text-sm font-medium text-rink">Invite your opponent</p>
+
+      {/* Friends quick-invite — only renders if user has accepted friends */}
+      <FriendsInviterImmediate competitionId={competitionId} />
 
       {/* Shareable link */}
       <div className="flex gap-2 items-center">

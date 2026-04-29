@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { SportPhase } from "@/app/api/sport-phase/route";
+import { FriendsInviterSelect } from "@/app/components/FriendsInviter";
 
 type Sport = "NHL" | "MLB" | "EPL" | "FIFA" | "NFL";
 type Duration = "daily" | "weekly" | "season" | "playoff";
@@ -54,6 +55,8 @@ export default function NewCompetitionPage() {
   const [visibility, setVisibility] = useState<"private" | "friends">("private");
   const [tiebreaker, setTiebreaker] = useState<Tiebreaker>("split");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [poolInviteEmails, setPoolInviteEmails] = useState<string[]>([""]);
+  const [selectedFriendEmails, setSelectedFriendEmails] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -185,6 +188,21 @@ export default function NewCompetitionPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ competitionId: data.id, toEmail: inviteEmail }),
       }).catch(() => {});
+    }
+
+    // For pool + survivor: send invite emails to typed addresses + selected friends.
+    if (isPool || isSurvivor) {
+      const typed = poolInviteEmails.map((e) => e.trim()).filter(Boolean);
+      const toInvite = Array.from(new Set([...typed, ...selectedFriendEmails]));
+      await Promise.all(
+        toInvite.map((toEmail) =>
+          fetch("/api/invite", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ competitionId: data.id, toEmail }),
+          }).catch(() => {})
+        )
+      );
     }
     router.refresh();
     router.push(`/competitions/${data.id}`);
@@ -513,12 +531,60 @@ export default function NewCompetitionPage() {
           />
         </label>
 
-        {/* Invite — pool + survivor get a link note, 1v1 gets email field */}
+        {/* Invite — pool + survivor get multi-email inputs; 1v1 gets single email */}
         {(isPool || isSurvivor) ? (
-          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600">
-            {isSurvivor
-              ? "After creating, share your invite link with everyone joining the survivor pool."
-              : `After creating, share your invite link with everyone you want in the pool. There's no limit on joins${maxMembers ? ` (you set a cap of ${maxMembers})` : ""}.`}
+          <div>
+            <span className="text-sm font-medium block mb-2">
+              Invite people <span className="text-slate-400 font-normal">(optional)</span>
+            </span>
+            {/* Friends quick-pick — only renders if user has accepted friends */}
+            <FriendsInviterSelect
+              selectedEmails={selectedFriendEmails}
+              onToggle={(email) =>
+                setSelectedFriendEmails((prev) => {
+                  const next = new Set(prev);
+                  next.has(email) ? next.delete(email) : next.add(email);
+                  return next;
+                })
+              }
+            />
+
+            <div className="space-y-2">
+              {poolInviteEmails.map((email, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    type="email"
+                    className="input flex-1 text-sm"
+                    placeholder="friend@email.com"
+                    value={email}
+                    onChange={(e) => {
+                      const next = [...poolInviteEmails];
+                      next[i] = e.target.value;
+                      setPoolInviteEmails(next);
+                    }}
+                  />
+                  {poolInviteEmails.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setPoolInviteEmails(poolInviteEmails.filter((_, j) => j !== i))}
+                      className="text-slate-400 hover:text-slate-600 px-2"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setPoolInviteEmails([...poolInviteEmails, ""])}
+                className="text-sm text-rink hover:underline"
+              >
+                + Add another
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              They'll get an email with a join link. You can also share the link directly after creating.
+            </p>
           </div>
         ) : (
           <label className="block">

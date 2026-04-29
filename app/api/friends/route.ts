@@ -28,7 +28,7 @@ export async function GET() {
   for (const row of rows ?? []) {
     const peerId  = row.requester_id === user.id ? row.addressee_id : row.requester_id;
     const profile = profileMap.get(peerId);
-    const entry   = { id: row.id, userId: peerId, name: profile?.display_name ?? profile?.email ?? "User", status: row.status };
+    const entry   = { id: row.id, userId: peerId, name: profile?.display_name ?? profile?.email ?? "User", email: profile?.email ?? null, status: row.status };
 
     if (row.status === "accepted") {
       friends.push(entry);
