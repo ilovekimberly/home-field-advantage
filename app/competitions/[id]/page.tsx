@@ -34,7 +34,11 @@ export default async function CompetitionPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: comp } = await supabase
+  // Use admin client to fetch the competition so RLS on the competitions table
+  // doesn't block pool members (who are neither creator nor opponent_id) from
+  // loading the page — they'd get null back and trigger a spurious 404.
+  const adminForComp = createSupabaseAdminClient();
+  const { data: comp } = await adminForComp
     .from("competitions").select("*").eq("id", params.id).single();
   if (!comp) notFound();
 
