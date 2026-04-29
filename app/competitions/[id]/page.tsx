@@ -443,8 +443,15 @@ export default async function CompetitionPage({
         {/* Cancel button — only before any picks are made */}
         {canCancel && <CancelButton competitionId={comp.id} />}
 
-        {/* Invite panel: pool active creators can keep sharing; 1v1 only when no opponent yet */}
-        {isCreator && ((isPool && comp.status === "active") || (!isPool && !comp.opponent_id)) && (
+        {/* Invite panel: pool active creators can keep sharing until all games start;
+            for daily pools there's no point inviting once picks are locked.
+            1v1 shows only while waiting for an opponent. */}
+        {(() => {
+          const allGamesStarted = games.length > 0 && games.every(g => new Date(g.startTimeUTC) <= now);
+          const poolInviteOpen = isPool && comp.status === "active" &&
+            !(comp.duration === "daily" && allGamesStarted);
+          return isCreator && (poolInviteOpen || (!isPool && !comp.opponent_id));
+        })() && (
           <div className="mt-4">
             <InvitePanel
               competitionId={comp.id}
