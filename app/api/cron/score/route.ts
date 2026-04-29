@@ -257,7 +257,7 @@ export async function GET(req: Request) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
     for (const comp of poolsStartingToday ?? []) {
-      const notifType = "pool_picks_open";
+      const notifType = "picks_open"; // must match notify-pools cron's dedup key
 
       // Check if we already sent this notification today.
       const { data: alreadySent } = await supabase
@@ -269,8 +269,8 @@ export async function GET(req: Request) {
         .maybeSingle();
       if (alreadySent) continue;
 
-      // Load all member emails.
-      const { data: members } = await supabase
+      // Load all member emails — admin client bypasses self-referential RLS.
+      const { data: members } = await supabase  // supabase is already admin in this cron
         .from("competition_members")
         .select("user_id")
         .eq("competition_id", comp.id);

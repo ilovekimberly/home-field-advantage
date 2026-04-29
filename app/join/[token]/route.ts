@@ -30,8 +30,14 @@ export async function GET(req: Request, { params }: { params: { token: string } 
       return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
     }
 
+    // Use admin for ALL competition_members queries — the self-referential RLS
+    // SELECT policy blocks the regular client from reading rows even when the
+    // user IS a member, which would cause duplicate join attempts and bypass the
+    // max_members cap.
+    const admin = createSupabaseAdminClient();
+
     // Check if already a member.
-    const { data: existing } = await supabase
+    const { data: existing } = await admin
       .from("competition_members")
       .select("id")
       .eq("competition_id", comp.id)
@@ -44,18 +50,15 @@ export async function GET(req: Request, { params }: { params: { token: string } 
 
     // Check max_members cap.
     if (comp.max_members) {
-      const { count } = await supabase
+      const { count } = await admin
         .from("competition_members")
         .select("id", { count: "exact", head: true })
         .eq("competition_id", comp.id);
 
-      if (count && count >= comp.max_members) {
+      if (count !== null && count >= comp.max_members) {
         return NextResponse.redirect(new URL("/?err=full", req.url));
       }
     }
-
-    // Insert member — use admin to bypass RLS since they're not a member yet.
-    const admin = createSupabaseAdminClient();
     const { error: insertError } = await admin
       .from("competition_members")
       .insert({ competition_id: comp.id, user_id: user.id });
@@ -103,8 +106,11 @@ export async function GET(req: Request, { params }: { params: { token: string } 
       return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
     }
 
+    // Use admin for member checks — same self-referential RLS issue as pool.
+    const admin = createSupabaseAdminClient();
+
     // Already a member?
-    const { data: existing } = await supabase
+    const { data: existing } = await admin
       .from("competition_members")
       .select("id")
       .eq("competition_id", comp.id)
@@ -119,8 +125,6 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     if (comp.status === "cancelled" || comp.status === "complete") {
       return NextResponse.redirect(new URL("/?err=full", req.url));
     }
-
-    const admin = createSupabaseAdminClient();
     const { error: insertError } = await admin
       .from("competition_members")
       .insert({
