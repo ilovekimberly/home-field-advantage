@@ -318,6 +318,65 @@ export function poolPicksOpenEmail({
   };
 }
 
+// Sent when someone is invited to a pool competition.
+export function poolInviteEmail({
+  toEmail,
+  creatorName,
+  competitionName,
+  competitionUrl,
+  sport,
+  startDate,
+}: {
+  toEmail: string;
+  creatorName: string;
+  competitionName: string;
+  competitionUrl: string; // this is the join URL
+  sport?: string;
+  startDate: string; // YYYY-MM-DD
+}) {
+  const emoji = sportEmoji(sport);
+  const gw = gameWord(sport);
+  const sp = startPhrase(sport);
+  const isFIFA = sport === "FIFA";
+
+  const todayISO = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const picksToday = startDate === todayISO;
+
+  const formattedDate = new Date(startDate + "T12:00:00Z").toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
+  });
+
+  const timingNote = picksToday
+    ? `<p style="font-size:15px;color:#555;line-height:1.6;">
+        ${emoji} <strong>Picks are open today!</strong> Make sure to pick before ${sp} — picks lock game by game.
+       </p>`
+    : `<p style="font-size:15px;color:#555;line-height:1.6;">
+        Picks open on <strong>${formattedDate}</strong>. You'll get a reminder that morning — join now so you're ready.
+       </p>`;
+
+  const howItWorks = isFIFA
+    ? `For each match, pick <strong>Home win</strong>, <strong>Away win</strong>, or <strong>Draw</strong> before kickoff. Everyone picks independently — best record on the leaderboard wins.`
+    : `Pick the winner of each ${gw} before it starts. Everyone in the pool picks independently — best record wins.`;
+
+  return {
+    subject: `${emoji} ${creatorName} invited you to a pick'em pool — ${competitionName}`,
+    html: wrapper(`
+      <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">${emoji} You're invited to a pool!</h1>
+      <p style="font-size:16px;line-height:1.6;">
+        <strong>${creatorName}</strong> invited you to join <strong>${competitionName}</strong> — a ${sport ?? "NHL"} pick'em pool.
+      </p>
+      <p style="font-size:15px;color:#555;line-height:1.6;">
+        ${howItWorks}
+      </p>
+      ${timingNote}
+      ${button(competitionUrl, "Join the pool →")}
+      <p style="margin-top:16px;font-size:13px;color:#999;">
+        Or copy this link: ${competitionUrl}
+      </p>
+    `),
+  };
+}
+
 // ── Survivor league emails ─────────────────────────────────────────────────
 
 type SurvivorPickReveal = {

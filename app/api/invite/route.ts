@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, poolInviteEmail } from "@/lib/email";
 
 // POST /api/invite
 // Body: { competitionId, toEmail }
@@ -30,15 +30,31 @@ export async function POST(req: Request) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
   const inviteUrl = `${siteUrl}/join/${comp.invite_token}`;
   const creatorName = (comp.profiles as any)?.display_name ?? "Your friend";
+  const isPool = comp.format === "pool" || comp.format === "survivor";
 
-  const ok = await sendEmail({
-    to: toEmail,
-    subject: `${creatorName} challenged you to a pick'em!`,
-    html: `
+  let subject: string;
+  let html: string;
+
+  if (isPool) {
+    // Pool / survivor: sport-aware copy + picks-open timing note.
+    ({ subject, html } = poolInviteEmail({
+      toEmail,
+      creatorName,
+      competitionName: comp.name,
+      competitionUrl: inviteUrl,
+      sport: comp.sport ?? "NHL",
+      startDate: comp.start_date,
+    }));
+  } else {
+    // 1v1: classic challenge email.
+    const sportEmojis: Record<string, string> = { NHL: "🏒", MLB: "⚾", NFL: "🏈", EPL: "⚽", FIFA: "🏆" };
+    const emoji = sportEmojis[comp.sport ?? "NHL"] ?? "🏒";
+    subject = `${creatorName} challenged you to a pick'em!`;
+    html = `
       <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
-        <h1 style="font-size:24px;color:#0b1f3a;margin-bottom:8px;">🏒 You've been challenged!</h1>
+        <h1 style="font-size:24px;color:#0b1f3a;margin-bottom:8px;">${emoji} You've been challenged!</h1>
         <p style="color:#444;font-size:16px;line-height:1.5;">
-          <strong>${creatorName}</strong> has invited you to a 1v1 NHL pick'em competition:
+          <strong>${creatorName}</strong> has invited you to a 1v1 ${comp.sport ?? "NHL"} pick'em:
           <strong>${comp.name}</strong>.
         </p>
         <p style="color:#444;font-size:16px;line-height:1.5;">
@@ -56,8 +72,10 @@ export async function POST(req: Request) {
         <hr style="margin-top:40px;border:none;border-top:1px solid #eee;" />
         <p style="color:#aaa;font-size:12px;">My Home Field · Pick'em</p>
       </div>
-    `,
-  });
+    `;
+  }
+
+  const ok = await sendEmail({ to: toEmail, subject, html });
 
   if (!ok) {
     return NextResponse.json({ error: "Failed to send email — check RESEND_API_KEY" }, { status: 502 });
