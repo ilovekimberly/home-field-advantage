@@ -233,6 +233,50 @@ export default function PoolPickRoom({
     }
   }
 
+  // Change pick: DELETE existing then POST the new one in sequence.
+  async function changePick(
+    gameId: string | number,
+    teamAbbrev: string,
+    teamName: string,
+    pickOutcome?: string
+  ) {
+    setBusy(String(gameId));
+    setError(null);
+    try {
+      const delRes = await fetch(`/api/competitions/${competitionId}/pool-picks`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameDate: activeDate, gameId: String(gameId) }),
+      });
+      if (!delRes.ok) {
+        const j = await delRes.json().catch(() => ({}));
+        setError(j.error ?? "Failed to retract pick");
+        return;
+      }
+      const postRes = await fetch(`/api/competitions/${competitionId}/pool-picks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameDate: activeDate,
+          gameId: String(gameId),
+          teamAbbrev,
+          teamName,
+          pickOutcome,
+        }),
+      });
+      if (!postRes.ok) {
+        const j = await postRes.json().catch(() => ({}));
+        setError(j.error ?? "Failed to submit pick");
+      } else {
+        router.refresh();
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function retractPick(gameId: string | number) {
     setBusy(String(gameId));
     setError(null);
@@ -349,7 +393,9 @@ export default function PoolPickRoom({
                           onClick={() =>
                             isSelected
                               ? retractPick(g.id)
-                              : submitPick(g.id, value, teamName, value)
+                              : myPick
+                                ? changePick(g.id, value, teamName, value)
+                                : submitPick(g.id, value, teamName, value)
                           }
                           className={`flex-1 rounded-lg py-3 min-h-[44px] text-sm font-semibold transition-all ${
                             isSelected
@@ -412,7 +458,9 @@ export default function PoolPickRoom({
                         onClick={() =>
                           isSelected
                             ? retractPick(g.id)
-                            : submitPick(g.id, team.abbrev, team.name)
+                            : myPick
+                              ? changePick(g.id, team.abbrev, team.name)
+                              : submitPick(g.id, team.abbrev, team.name)
                         }
                         className={`rounded-lg px-3 py-3 min-h-[44px] text-center transition-all ${
                           isSelected

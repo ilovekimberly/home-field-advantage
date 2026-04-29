@@ -31,7 +31,7 @@ function addDays(d: string, n: number) {
 // Static fallback end dates (used for EPL/FIFA and if API call fails).
 function staticSeasonEnd(sport: Sport, start: string) {
   const year = new Date(start).getUTCFullYear();
-  if (sport === "NHL") return `${year}-04-20`;
+  if (sport === "NHL") return `${year}-06-30`; // covers full regular season + playoffs (Stanley Cup Finals ~mid-June)
   if (sport === "MLB") return `${year}-09-30`;
   if (sport === "NFL") return `${year + 1}-02-15`; // after Super Bowl
   if (sport === "EPL") return `${year + 1}-05-20`;
