@@ -457,9 +457,8 @@ export default async function CompetitionPage({
             for daily pools there's no point inviting once picks are locked.
             1v1 shows only while waiting for an opponent. */}
         {(() => {
-          const allGamesStarted = games.length > 0 && games.some(g => new Date(g.startTimeUTC) <= now);
-          const poolInviteOpen = isPool && comp.status === "active" &&
-            !(comp.duration === "daily" && allGamesStarted);
+          const anyGameStarted = games.length > 0 && games.some(g => new Date(g.startTimeUTC) <= now);
+          const poolInviteOpen = isPool && comp.status === "active" && !anyGameStarted;
           return isCreator && (poolInviteOpen || (!isPool && !comp.opponent_id));
         })() && (
           <div className="mt-4">
