@@ -88,13 +88,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
   }
 
-  // Count existing picks for this user on this date (for pick_index)
-  const { count: pickCount } = await admin
+  // pick_index has a unique constraint on (competition_id, game_date, pick_index)
+  // across ALL pickers — not just the current user. For pools, multiple members
+  // pick the same games, so we must use the global max+1, not a per-user count.
+  const { data: maxRow } = await admin
     .from("picks")
-    .select("id", { count: "exact", head: true })
+    .select("pick_index")
     .eq("competition_id", comp.id)
     .eq("game_date", gameDate)
-    .eq("picker_id", user.id);
+    .order("pick_index", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const pickIndex = maxRow != null ? maxRow.pick_index + 1 : 0;
 
   const { error: insErr } = await admin.from("picks").insert({
     competition_id: comp.id,
@@ -103,7 +108,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     picker_id: user.id,
     picked_team_abbrev: sport === "FIFA" ? (pickOutcome ?? teamAbbrev) : teamAbbrev,
     picked_team_name: teamName,
-    pick_index: pickCount ?? 0,
+    pick_index: pickIndex,
     pick_type: "winner",
     result,
   });
