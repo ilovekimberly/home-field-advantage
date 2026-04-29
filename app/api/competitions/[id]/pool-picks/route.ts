@@ -15,18 +15,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const body = await req.json();
   const { gameDate, gameId, teamAbbrev, teamName, pickOutcome } = body;
 
+  // Use admin client throughout — RLS blocks pool members (who are neither
+  // creator nor opponent_id) from reading the competition row, and also
+  // blocks deletes/inserts on picks for non-creator users.
+  const admin = createSupabaseAdminClient();
+
   // Load competition
-  const { data: comp } = await supabase
+  const { data: comp } = await admin
     .from("competitions")
     .select("*")
     .eq("id", params.id)
     .single();
   if (!comp) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (comp.format !== "pool") return NextResponse.json({ error: "not a pool" }, { status: 400 });
-
-  // Use admin client throughout — self-referential RLS on competition_members
-  // causes the regular client to return empty results.
-  const admin = createSupabaseAdminClient();
 
   // Check membership
   const { data: membership } = await admin
@@ -52,7 +53,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   // Check for existing pick on this game by this user
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from("picks")
     .select("id")
     .eq("competition_id", comp.id)
@@ -88,7 +89,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   // Count existing picks for this user on this date (for pick_index)
-  const { count: pickCount } = await supabase
+  const { count: pickCount } = await admin
     .from("picks")
     .select("id", { count: "exact", head: true })
     .eq("competition_id", comp.id)
