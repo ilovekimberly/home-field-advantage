@@ -232,7 +232,9 @@ export default async function CompetitionPage({
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
 
   // Game lines for the active date (over/under + spread + moneyline)
-  const needsLines = comp.enable_over_under || comp.enable_spread;
+  // Fetch lines for 1v1 comps that have lines enabled, and always for pools
+  // (moneyline odds are shown informationally on pool pick buttons).
+  const needsLines = comp.enable_over_under || comp.enable_spread || isPool;
   const gameLineRows = needsLines
     ? (await supabase
         .from("game_lines")
@@ -658,6 +660,7 @@ export default async function CompetitionPage({
             currentUserId={user.id}
             readOnly={!isViewingToday}
             sport={comp.sport ?? "NHL"}
+            gameLines={gameLines}
           />
         ) : (
           <PickRoom

@@ -32,6 +32,10 @@ type Member = { userId: string; name: string };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+function formatOdds(odds: number): string {
+  return odds > 0 ? `+${odds}` : `${odds}`;
+}
+
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
@@ -163,6 +167,11 @@ function PicksReveal({
 
 // ── Main component ─────────────────────────────────────────────────────────
 
+type GameLineData = {
+  homeML?: number | null;
+  awayML?: number | null;
+};
+
 export default function PoolPickRoom({
   competitionId,
   activeDate,
@@ -172,6 +181,7 @@ export default function PoolPickRoom({
   currentUserId,
   readOnly,
   sport,
+  gameLines = {},
 }: {
   competitionId: string;
   activeDate: string;
@@ -181,6 +191,7 @@ export default function PoolPickRoom({
   currentUserId: string;
   readOnly?: boolean;
   sport?: string;
+  gameLines?: Record<string, GameLineData>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -425,6 +436,8 @@ export default function PoolPickRoom({
                   ].map(({ team, side }) => {
                     const isSelected = myPick?.picked_team_abbrev === team.abbrev;
                     const isWinner = g.winner === team.abbrev;
+                    const line = gameLines[String(g.id)];
+                    const ml = side === "away" ? line?.awayML : line?.homeML;
 
                     if (locked) {
                       return (
@@ -443,6 +456,7 @@ export default function PoolPickRoom({
                           <div className="text-xs text-slate-500 truncate">{team.name}</div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
                             {side === "away" ? "Away" : "Home"}
+                            {ml != null && <span className="ml-1">{formatOdds(ml)}</span>}
                           </div>
                           {isSelected && (
                             <div className="mt-1 text-xs font-semibold text-slate-600">Your pick</div>
@@ -474,6 +488,11 @@ export default function PoolPickRoom({
                         </div>
                         <div className={`text-[10px] mt-0.5 ${isSelected ? "text-white/60" : "text-slate-400"}`}>
                           {side === "away" ? "Away" : "Home"}
+                          {ml != null && (
+                            <span className={`ml-1 ${isSelected ? "text-white/60" : ml > 0 ? "text-green-600" : "text-slate-400"}`}>
+                              {formatOdds(ml)}
+                            </span>
+                          )}
                         </div>
                       </button>
                     );
