@@ -587,8 +587,15 @@ export default function NewCompetitionPage() {
             </p>
           </div>
         ) : (
-          <label className="block">
+          <div className="block">
             <span className="text-sm font-medium">Invite a friend (optional)</span>
+            {/* Friends chips — tap to fill the email field, tap again to clear */}
+            <div className="mt-2 mb-2">
+              <FriendsInviterSelect
+                selectedEmails={inviteEmail ? new Set([inviteEmail]) : new Set()}
+                onToggle={(email) => setInviteEmail((prev) => prev === email ? "" : email)}
+              />
+            </div>
             <input
               type="email"
               className="input mt-1"
@@ -599,7 +606,7 @@ export default function NewCompetitionPage() {
             <span className="text-xs text-slate-500 mt-1 block">
               You can also share an invite link from the competition page after creating.
             </span>
-          </label>
+          </div>
         )}
 
         {error && <div className="text-red-600 text-sm">{error}</div>}
