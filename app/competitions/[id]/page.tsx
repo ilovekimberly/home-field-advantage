@@ -134,7 +134,11 @@ export default async function CompetitionPage({
   const today = todayISO();
 
   // Fetch all picks first — needed to compute todayPickable before activeDate.
-  const { data: allPicks } = await supabase
+  // Use admin client for pool competitions — RLS may restrict members from reading
+  // other pickers' picks, which breaks the picks-reveal and change-pick flow
+  // (page loads without showing the existing pick, so changePick never fires).
+  const picksClient = isPool ? createSupabaseAdminClient() : supabase;
+  const { data: allPicks } = await picksClient
     .from("picks").select("*").eq("competition_id", comp.id);
 
   // Creator can cancel only if no picks have been made yet.
