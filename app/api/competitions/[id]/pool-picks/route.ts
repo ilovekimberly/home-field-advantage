@@ -141,7 +141,11 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: "game has already started" }, { status: 409 });
   }
 
-  const { error } = await supabase
+  // Use admin client — RLS on the picks table may block deletes for regular
+  // users, causing a silent no-op that leaves the pick in place and then makes
+  // the subsequent POST return 409 "already picked".
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
     .from("picks")
     .delete()
     .eq("competition_id", comp.id)
