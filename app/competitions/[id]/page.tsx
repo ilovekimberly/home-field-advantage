@@ -457,8 +457,13 @@ export default async function CompetitionPage({
             for daily pools there's no point inviting once picks are locked.
             1v1 shows only while waiting for an opponent. */}
         {(() => {
-          const anyGameStarted = games.length > 0 && games.some(g => new Date(g.startTimeUTC) <= now);
-          const poolInviteOpen = isPool && comp.status === "active" && !anyGameStarted;
+          // Hide the invite panel once the earliest game on today's slate has started.
+          // If the schedule API returned no games, default to showing the invite.
+          const firstGameTime = games.length > 0
+            ? new Date(Math.min(...games.map(g => new Date(g.startTimeUTC).getTime())))
+            : null;
+          const slateStarted = firstGameTime != null && now >= firstGameTime;
+          const poolInviteOpen = isPool && comp.status === "active" && !slateStarted;
           return isCreator && (poolInviteOpen || (!isPool && !comp.opponent_id));
         })() && (
           <div className="mt-4">
