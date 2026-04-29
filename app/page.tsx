@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { whoPicksFirst, generateDraftOrder, type Player, type DraftStyle } from "@/lib/picks";
 import { fetchScheduleForDate, getPickDate } from "@/lib/schedule";
 
@@ -93,7 +93,10 @@ export default async function HomePage() {
   const friendProfileMap = new Map((friendProfiles ?? []).map((p) => [p.id, p]));
 
   // Load competitions where user is creator, 1v1 opponent, OR pool member.
-  const { data: memberRows } = await supabase
+  // Use admin client — self-referential RLS on competition_members blocks the
+  // regular client from returning rows for pool members who aren't the creator.
+  const adminForHome = createSupabaseAdminClient();
+  const { data: memberRows } = await adminForHome
     .from("competition_members")
     .select("competition_id")
     .eq("user_id", user.id);
