@@ -68,6 +68,20 @@ export async function GET(req: Request, { params }: { params: { token: string } 
       return NextResponse.redirect(new URL("/?err=join-failed", req.url));
     }
 
+    // Mark the invite as accepted (if one exists for this email).
+    const { data: joinerEmail } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (joinerEmail?.email) {
+      await admin
+        .from("invites")
+        .update({ invite_accepted: true })
+        .eq("competition_id", comp.id)
+        .eq("invited_email", joinerEmail.email);
+    }
+
     // Activate pool when first non-creator member joins.
     if (comp.status === "pending") {
       await admin
@@ -136,6 +150,20 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     if (insertError) {
       console.error("Join route: failed to insert survivor member", insertError);
       return NextResponse.redirect(new URL("/?err=join-failed", req.url));
+    }
+
+    // Mark the invite as accepted (if one exists for this email).
+    const { data: survivorJoinerProfile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (survivorJoinerProfile?.email) {
+      await admin
+        .from("invites")
+        .update({ invite_accepted: true })
+        .eq("competition_id", comp.id)
+        .eq("invited_email", survivorJoinerProfile.email);
     }
 
     // Activate when first non-creator joins
