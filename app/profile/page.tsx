@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import ProfileForm from "./ProfileForm";
 
 const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆" };
@@ -31,7 +31,11 @@ export default async function ProfilePage() {
     .order("start_date", { ascending: false });
 
   // ── Pool competitions ────────────────────────────────────────────────────
-  const { data: memberRows } = await supabase
+  // Use admin client — self-referential RLS on competition_members blocks the
+  // regular client from returning rows, so poolCompIds would be empty and all
+  // pool competitions and their picks would be missing from the profile.
+  const admin = createSupabaseAdminClient();
+  const { data: memberRows } = await admin
     .from("competition_members")
     .select("competition_id")
     .eq("user_id", user.id);
@@ -85,7 +89,7 @@ export default async function ProfilePage() {
 
   // ── Pool member IDs for display names ───────────────────────────────────
   const { data: poolMemberRows } = poolCompIds.length > 0
-    ? await supabase
+    ? await admin
         .from("competition_members")
         .select("competition_id, user_id")
         .in("competition_id", poolCompIds)
