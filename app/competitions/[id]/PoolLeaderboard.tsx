@@ -92,6 +92,8 @@ export default function PoolLeaderboard({
     return a.name.localeCompare(b.name);
   });
 
+  const hasScores = members.some((m) => m.wins > 0 || m.losses > 0);
+
   return (
     <div className={`card transition-colors duration-500 ${flash ? "bg-green-50" : ""}`}>
       <h2 className="text-lg font-bold mb-3">
@@ -103,50 +105,71 @@ export default function PoolLeaderboard({
         )}
       </h2>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-500 border-b">
-            <th className="pb-2 w-8">#</th>
-            <th className="pb-2">Player</th>
-            <th className="pb-2 text-right">W</th>
-            <th className="pb-2 text-right">L</th>
-            <th className="pb-2 text-right">Pct</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((m, i) => {
-            // Tie handling: same rank if same wins/losses as the previous entry
-            const prev = sorted[i - 1];
-            const rank = prev && prev.wins === m.wins && prev.losses === m.losses ? i : i + 1;
-
-            return (
-              <tr
+      {!hasScores ? (
+        // No scored picks yet — just show the player list
+        <div>
+          <ul className="space-y-1">
+            {sorted.map((m) => (
+              <li
                 key={m.userId}
-                className={`border-b last:border-0 ${m.isMe ? "bg-rink/5" : ""}`}
+                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${m.isMe ? "bg-rink/5" : ""}`}
               >
-                <td className="py-2 pr-2">
-                  <RankBadge rank={rank} isComplete={isComplete} />
-                </td>
-                <td className="py-2 font-medium max-w-0 w-full">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="truncate">{m.name}</span>
-                    {m.isMe && (
-                      <span className="shrink-0 text-[10px] font-semibold text-rink bg-rink/10 px-1.5 py-0.5 rounded-full">
-                        you
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="py-2 text-right tabular-nums whitespace-nowrap">{m.wins}</td>
-                <td className="py-2 text-right tabular-nums whitespace-nowrap">{m.losses}</td>
-                <td className="py-2 text-right tabular-nums text-slate-500 whitespace-nowrap">
-                  {winPct(m.wins, m.losses)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 bg-slate-200 text-slate-600">
+                  {m.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <span className={`flex-1 truncate ${m.isMe ? "font-semibold text-slate-700" : "text-slate-600"}`}>
+                  {m.isMe ? "You" : m.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-slate-400 mt-3 text-center">Standings appear once games are scored</p>
+        </div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500 border-b">
+              <th className="pb-2 w-8">#</th>
+              <th className="pb-2">Player</th>
+              <th className="pb-2 text-right">W</th>
+              <th className="pb-2 text-right">L</th>
+              <th className="pb-2 text-right">Pct</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((m, i) => {
+              const prev = sorted[i - 1];
+              const rank = prev && prev.wins === m.wins && prev.losses === m.losses ? i : i + 1;
+
+              return (
+                <tr
+                  key={m.userId}
+                  className={`border-b last:border-0 ${m.isMe ? "bg-rink/5" : ""}`}
+                >
+                  <td className="py-2 pr-2">
+                    <RankBadge rank={rank} isComplete={isComplete} />
+                  </td>
+                  <td className="py-2 font-medium max-w-0 w-full">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{m.name}</span>
+                      {m.isMe && (
+                        <span className="shrink-0 text-[10px] font-semibold text-rink bg-rink/10 px-1.5 py-0.5 rounded-full">
+                          you
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-2 text-right tabular-nums whitespace-nowrap">{m.wins}</td>
+                  <td className="py-2 text-right tabular-nums whitespace-nowrap">{m.losses}</td>
+                  <td className="py-2 text-right tabular-nums text-slate-500 whitespace-nowrap">
+                    {winPct(m.wins, m.losses)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
