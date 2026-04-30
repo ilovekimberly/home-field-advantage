@@ -33,32 +33,60 @@ export default async function HomePage() {
 
   if (!user) {
     return (
-      <div className="max-w-2xl space-y-10">
+      <div className="max-w-2xl space-y-12">
         {/* Hero */}
-        <section className="text-center py-8">
-          <h1 className="text-4xl font-bold text-rink mb-4">🏒 My Home Field</h1>
-          <p className="text-slate-600 text-xl leading-relaxed mb-8 max-w-lg mx-auto">
-            1v1 pick'em competitions with your friends. Draft game picks, track the scores, settle the debate.
+        <section className="text-center py-10">
+          <div className="text-5xl mb-4">🏆</div>
+          <h1 className="text-4xl font-bold text-rink mb-4">Pick'em with your crew</h1>
+          <p className="text-slate-500 text-lg leading-relaxed mb-8 max-w-md mx-auto">
+            Challenge friends to 1v1 pick'em battles or run a group pool — across NHL, MLB, NFL, and more. Picks lock at game time. Scores update automatically.
           </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link href="/login" className="btn-primary text-lg px-8 py-3">Sign in to start</Link>
-            <Link href="/how-it-works" className="btn-ghost text-lg px-6 py-3">How it works →</Link>
+          <div className="flex items-center justify-center gap-3">
+            <Link href="/login" className="btn-primary text-base px-6 py-2.5">Get started free</Link>
+            <Link href="/how-it-works" className="btn-ghost text-base px-5 py-2.5">How it works →</Link>
           </div>
         </section>
 
-        {/* Feature highlights */}
-        <section className="grid gap-4 sm:grid-cols-3">
-          {[
-            { emoji: "🐍", title: "Snake draft picks", desc: "Take turns picking games each night. Better record picks first." },
-            { emoji: "📊", title: "Auto scoring",      desc: "Results come in automatically. No manual updating required." },
-            { emoji: "🏒⚾⚽", title: "3 sports",     desc: "NHL, MLB, and the Premier League. More coming soon." },
-          ].map((f) => (
-            <div key={f.title} className="card text-center">
-              <div className="text-3xl mb-2">{f.emoji}</div>
-              <div className="font-semibold mb-1">{f.title}</div>
-              <div className="text-sm text-slate-500">{f.desc}</div>
+        {/* Formats */}
+        <section>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center mb-4">Two ways to play</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="card border-2 border-rink/20">
+              <div className="text-2xl mb-2">⚔️</div>
+              <div className="font-bold text-slate-800 mb-1">1v1 Pick'em</div>
+              <div className="text-sm text-slate-500">Snake-draft games head-to-head. Better record picks first. Best of a night, week, or full season.</div>
             </div>
-          ))}
+            <div className="card border-2 border-amber-200">
+              <div className="text-2xl mb-2">🏆</div>
+              <div className="font-bold text-slate-800 mb-1">Group Pool</div>
+              <div className="text-sm text-slate-500">Everyone picks every game independently. Leaderboard updates live. Best record wins.</div>
+            </div>
+          </div>
+        </section>
+
+        {/* Features */}
+        <section>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center mb-4">Built for real fans</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { emoji: "🔒", title: "Picks lock at tip-off", desc: "No changing your mind once the game starts." },
+              { emoji: "📊", title: "Auto scoring", desc: "Results come in automatically. No manual work." },
+              { emoji: "🏒⚾🏈", title: "NHL · MLB · NFL", desc: "Season, playoffs, or single day — you choose." },
+              { emoji: "📬", title: "Invite by email or link", desc: "Friends join with one tap. No app download needed." },
+            ].map((f) => (
+              <div key={f.title} className="flex items-start gap-3 card py-3">
+                <span className="text-xl shrink-0">{f.emoji}</span>
+                <div>
+                  <div className="font-semibold text-sm text-slate-800">{f.title}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{f.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="text-center pb-4">
+          <Link href="/login" className="btn-primary text-base px-8 py-3">Start your first competition →</Link>
         </section>
       </div>
     );

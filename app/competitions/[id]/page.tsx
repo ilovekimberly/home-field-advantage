@@ -534,6 +534,7 @@ export default async function CompetitionPage({
           competitionId={comp.id}
           currentUserId={user.id}
           initialMembers={poolMembers}
+          isComplete={comp.status === "complete"}
         />
       )}
 

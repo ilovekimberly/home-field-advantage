@@ -15,6 +15,7 @@ type Props = {
   competitionId: string;
   currentUserId: string;
   initialMembers: MemberRecord[];
+  isComplete?: boolean;
 };
 
 function winPct(wins: number, losses: number): string {
@@ -23,10 +24,12 @@ function winPct(wins: number, losses: number): string {
   return (wins / total).toFixed(3).replace(/^0/, "");
 }
 
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <span className="text-lg">🥇</span>;
-  if (rank === 2) return <span className="text-lg">🥈</span>;
-  if (rank === 3) return <span className="text-lg">🥉</span>;
+function RankBadge({ rank, isComplete }: { rank: number; isComplete: boolean }) {
+  if (isComplete) {
+    if (rank === 1) return <span className="text-lg">🥇</span>;
+    if (rank === 2) return <span className="text-lg">🥈</span>;
+    if (rank === 3) return <span className="text-lg">🥉</span>;
+  }
   return <span className="text-sm font-semibold text-slate-400">#{rank}</span>;
 }
 
@@ -34,6 +37,7 @@ export default function PoolLeaderboard({
   competitionId,
   currentUserId,
   initialMembers,
+  isComplete = false,
 }: Props) {
   const [members, setMembers] = useState<MemberRecord[]>(initialMembers);
   const [flash, setFlash] = useState(false);
@@ -121,7 +125,7 @@ export default function PoolLeaderboard({
                 className={`border-b last:border-0 ${m.isMe ? "bg-rink/5" : ""}`}
               >
                 <td className="py-2 pr-2">
-                  <RankBadge rank={rank} />
+                  <RankBadge rank={rank} isComplete={isComplete} />
                 </td>
                 <td className="py-2 font-medium max-w-0 w-full">
                   <div className="flex items-center gap-1.5 min-w-0">
