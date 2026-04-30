@@ -12,7 +12,11 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     return NextResponse.redirect(loginUrl);
   }
 
-  const { data: comp, error } = await supabase
+  // Use admin client — once a pool activates (first member joins), the regular
+  // client can't read it for non-members, so new joiners get silently 404'd
+  // and redirected to the home page instead of being allowed to join.
+  const joinAdmin = createSupabaseAdminClient();
+  const { data: comp, error } = await joinAdmin
     .from("competitions")
     .select("*")
     .eq("invite_token", params.token)
