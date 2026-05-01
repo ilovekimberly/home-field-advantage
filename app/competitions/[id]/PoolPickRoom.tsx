@@ -68,10 +68,10 @@ function ScoreBadge({ g }: { g: Game }) {
       : g.clock ? `${g.clock} · ${period}` : period;
     return (
       <span className="inline-flex items-center gap-1.5 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-        <span>LIVE</span>
-        <span className="font-bold text-slate-700">{g.awayScore} – {g.homeScore}</span>
-        <span className="text-slate-400">{timeInfo}</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+        <span className="shrink-0">LIVE</span>
+        <span className="font-bold text-slate-700 shrink-0">{g.awayScore} – {g.homeScore}</span>
+        <span className="text-slate-400 shrink-0">{timeInfo}</span>
       </span>
     );
   }
@@ -346,7 +346,7 @@ export default function PoolPickRoom({
           >
             {/* Game header row */}
             <div className="flex items-center justify-between gap-2 mb-3">
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-400 min-w-0 truncate">
                 {locked
                   ? (g.final ? "" : "🔒 Locked")
                   : new Date(g.startTimeUTC).toLocaleTimeString("en-US", {
@@ -355,7 +355,9 @@ export default function PoolPickRoom({
                       timeZoneName: "short",
                     })}
               </span>
-              <ScoreBadge g={g} />
+              <div className="shrink-0">
+                <ScoreBadge g={g} />
+              </div>
             </div>
 
             {isFIFA ? (
