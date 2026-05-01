@@ -92,6 +92,16 @@ export default function PoolLeaderboard({
     return a.name.localeCompare(b.name);
   });
 
+  // Pre-compute ranks so ties propagate correctly through the whole group.
+  // e.g. three players all at 0-1 → all rank 1, not 1/1/2.
+  const ranks = sorted.reduce<number[]>((acc, m, i) => {
+    if (i === 0) { acc.push(1); return acc; }
+    const prev = sorted[i - 1];
+    const isTied = prev.wins === m.wins && prev.losses === m.losses;
+    acc.push(isTied ? acc[i - 1] : i + 1);
+    return acc;
+  }, []);
+
   const hasScores = members.some((m) => m.wins > 0 || m.losses > 0);
 
   return (
@@ -138,8 +148,7 @@ export default function PoolLeaderboard({
           </thead>
           <tbody>
             {sorted.map((m, i) => {
-              const prev = sorted[i - 1];
-              const rank = prev && prev.wins === m.wins && prev.losses === m.losses ? i : i + 1;
+              const rank = ranks[i];
 
               return (
                 <tr
