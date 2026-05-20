@@ -17,6 +17,8 @@ type Game = {
   periodType?: string;
   clock?: string;
   inIntermission?: boolean;
+  // FIFA only: true for knockout stage games — Draw is not a valid outcome.
+  knockoutRound?: boolean;
 };
 
 type PickRow = {
@@ -361,7 +363,7 @@ export default function PoolPickRoom({
             </div>
 
             {isFIFA ? (
-              // ── FIFA: Away / Draw / Home ──────────────────────────────────
+              // ── FIFA: Away / Draw / Home (Draw hidden in knockout rounds) ──
               <>
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="text-center flex-1 min-w-0 px-1">
@@ -376,6 +378,13 @@ export default function PoolPickRoom({
                     <div className="text-xs text-slate-400">{g.home.abbrev}</div>
                   </div>
                 </div>
+
+                {/* Knockout stage notice */}
+                {g.knockoutRound && !locked && (
+                  <p className="text-xs text-slate-400 text-center mb-2">
+                    Knockout round — pick who advances (no draw)
+                  </p>
+                )}
 
                 {locked ? (
                   <div className="text-center text-sm text-slate-500">
@@ -394,37 +403,39 @@ export default function PoolPickRoom({
                   </div>
                 ) : (
                   <div className="flex gap-2">
-                    {FIFA_OUTCOMES.map(({ value, label }) => {
-                      const isSelected = myPick?.picked_team_abbrev === value;
-                      const teamName =
-                        value === "HOME" ? g.home.name :
-                        value === "AWAY" ? g.away.name : "Draw";
-                      return (
-                        <button
-                          key={value}
-                          disabled={isBusy || readOnly}
-                          onClick={() =>
-                            isSelected
-                              ? retractPick(g.id)
-                              : myPick
-                                ? changePick(g.id, value, teamName, value)
-                                : submitPick(g.id, value, teamName, value)
-                          }
-                          className={`flex-1 rounded-lg py-3 min-h-[44px] text-sm font-semibold transition-all ${
-                            isSelected
-                              ? "bg-rink text-white shadow-sm"
-                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                          } disabled:opacity-50`}
-                        >
-                          {isBusy && isSelected ? "…" : label}
-                          {value !== "DRAW" && (
-                            <div className="text-xs font-normal opacity-75 mt-0.5">
-                              {value === "HOME" ? g.home.abbrev : g.away.abbrev}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {FIFA_OUTCOMES
+                      .filter(({ value }) => !(g.knockoutRound && value === "DRAW"))
+                      .map(({ value, label }) => {
+                        const isSelected = myPick?.picked_team_abbrev === value;
+                        const teamName =
+                          value === "HOME" ? g.home.name :
+                          value === "AWAY" ? g.away.name : "Draw";
+                        return (
+                          <button
+                            key={value}
+                            disabled={isBusy || readOnly}
+                            onClick={() =>
+                              isSelected
+                                ? retractPick(g.id)
+                                : myPick
+                                  ? changePick(g.id, value, teamName, value)
+                                  : submitPick(g.id, value, teamName, value)
+                            }
+                            className={`flex-1 rounded-lg py-3 min-h-[44px] text-sm font-semibold transition-all ${
+                              isSelected
+                                ? "bg-rink text-white shadow-sm"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            } disabled:opacity-50`}
+                          >
+                            {isBusy && isSelected ? "…" : label}
+                            {value !== "DRAW" && (
+                              <div className="text-xs font-normal opacity-75 mt-0.5">
+                                {value === "HOME" ? g.home.abbrev : g.away.abbrev}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                   </div>
                 )}
               </>

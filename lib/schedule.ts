@@ -16,6 +16,10 @@ export type SportGame = {
   // Starting pitchers (MLB only)
   homePitcher?: { name: string; era?: string } | null;
   awayPitcher?: { name: string; era?: string } | null;
+  // FIFA only: true for knockout stage games where draws aren't possible.
+  knockoutRound?: boolean;
+  // FIFA only: ESPN's declared winner after extra time / penalties.
+  espnWinner?: "home" | "away";
 };
 
 export type SupportedSport = "NHL" | "MLB" | "EPL" | "FIFA" | "NFL";

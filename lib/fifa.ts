@@ -21,6 +21,24 @@ export async function fetchFIFAScheduleForDate(date: string): Promise<SportGame[
     const away = competition.competitors?.find((c: any) => c.homeAway === "away");
     if (!home || !away) continue;
 
+    // Detect knockout stage: ESPN marks it via notes containing round names,
+    // or via the season type (3 = knockout/postseason for soccer tournaments).
+    // Group stage = no round name in notes; knockout = "Round of 32", "QF", etc.
+    const notes: string = (competition.notes ?? [])
+      .map((n: any) => n.headline ?? "").join(" ").toLowerCase();
+    const knockoutKeywords = ["round of", "quarter", "semi", "final", "knockout", "last 16", "last 8", "last 4"];
+    const seasonType: number = data.season?.type ?? 2;
+    const knockoutRound =
+      seasonType === 3 ||
+      knockoutKeywords.some((kw) => notes.includes(kw));
+
+    // ESPN marks the winner with a boolean on the competitor object.
+    // This is set after extra time / penalties in knockout games.
+    const homeWins = home.winner === true;
+    const awayWins = away.winner === true;
+    const espnWinner: "home" | "away" | undefined =
+      homeWins ? "home" : awayWins ? "away" : undefined;
+
     const statusType = competition.status?.type?.name ?? "";
     const completed   = competition.status?.type?.completed ?? false;
     const displayClock = competition.status?.displayClock;
@@ -59,10 +77,12 @@ export async function fetchFIFAScheduleForDate(date: string): Promise<SportGame[
         id:     away.team?.id ?? 0,
       },
       gameState,
-      homeScore: isNaN(homeScore) ? undefined : homeScore,
-      awayScore: isNaN(awayScore) ? undefined : awayScore,
-      period:    period ?? undefined,
-      clock:     displayClock ?? undefined,
+      homeScore:    isNaN(homeScore) ? undefined : homeScore,
+      awayScore:    isNaN(awayScore) ? undefined : awayScore,
+      period:       period ?? undefined,
+      clock:        displayClock ?? undefined,
+      knockoutRound: knockoutRound || undefined,
+      espnWinner,
     });
   }
 
@@ -70,9 +90,21 @@ export async function fetchFIFAScheduleForDate(date: string): Promise<SportGame[
 }
 
 // For FIFA, returns "HOME", "AWAY", or "DRAW" (not a team abbrev).
+// Knockout games: uses ESPN's winner flag so penalty shootout results score
+// correctly — scores are equal after 90 min but there is no DRAW outcome.
 export function fifaOutcome(g: SportGame): "HOME" | "AWAY" | "DRAW" | null {
-  if (g.gameState !== "FINAL" || g.homeScore == null || g.awayScore == null) return null;
+  if (g.gameState !== "FINAL") return null;
+
+  // Prefer ESPN's explicit winner flag (set after extra time / penalties).
+  if (g.espnWinner === "home") return "HOME";
+  if (g.espnWinner === "away") return "AWAY";
+
+  // Fall back to score comparison for group stage games where espnWinner
+  // may not be set (draws are a real outcome there).
+  if (g.homeScore == null || g.awayScore == null) return null;
   if (g.homeScore > g.awayScore) return "HOME";
   if (g.awayScore > g.homeScore) return "AWAY";
-  return "DRAW";
+
+  // Only return DRAW in group stage — knockout games never end in a draw.
+  return g.knockoutRound ? null : "DRAW";
 }
