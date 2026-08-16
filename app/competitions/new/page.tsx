@@ -17,7 +17,6 @@ const SPORTS: { value: Sport; label: string; emoji: string }[] = [
   { value: "MLB", label: "MLB Baseball", emoji: "⚾" },
   { value: "NFL", label: "NFL Football", emoji: "🏈" },
   { value: "EPL", label: "Premier League", emoji: "⚽" },
-  { value: "FIFA", label: "World Cup", emoji: "🏆" },
 ];
 
 function todayISO() {
@@ -242,9 +241,9 @@ export default function NewCompetitionPage() {
         {/* Sport selector — hidden for survivor (NFL is the only survivor sport) */}
         {!isSurvivor && <div>
           <span className="block text-sm font-medium mb-2">Sport</span>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {SPORTS.map((s) => {
-              const comingSoon = s.value === "NFL" || s.value === "EPL";
+              const comingSoon = s.value === "EPL";
               return (
                 <button
                   key={s.value}
