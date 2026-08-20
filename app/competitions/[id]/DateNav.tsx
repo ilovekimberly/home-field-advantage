@@ -9,6 +9,7 @@ export default function DateNav({
   datesWithPicks,
   todayPickable = true,
   sport = "NHL",
+  weekLabel,
 }: {
   competitionId: string;
   activeDate: string;
@@ -17,6 +18,7 @@ export default function DateNav({
   datesWithPicks: string[];
   todayPickable?: boolean;
   sport?: string;
+  weekLabel?: string;
 }) {
   const router = useRouter();
   const isNFL = sport === "NFL";
@@ -63,7 +65,7 @@ export default function DateNav({
       </button>
 
       <div className="text-center">
-        <div className="font-semibold text-rink">{fmt(activeDate)}</div>
+        <div className="font-semibold text-rink">{isNFL && weekLabel ? weekLabel : fmt(activeDate)}</div>
         {isCurrentWeek && (
           <div className="text-xs text-slate-400">{isNFL ? "This week" : "Tonight"}</div>
         )}

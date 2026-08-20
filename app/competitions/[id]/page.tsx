@@ -320,7 +320,17 @@ export default async function CompetitionPage({
 
   // Schedule for activeDate
   let games: Awaited<ReturnType<typeof fetchScheduleForDate>> = [];
-  try { games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate); } catch {}
+  let nflWeekLabel: string | undefined;
+  try {
+    if (comp.sport === "NFL") {
+      const { fetchNFLForDate } = await import("@/lib/nfl");
+      const { games: nflGames, weekLabel } = await fetchNFLForDate(activeDate);
+      games = nflGames;
+      nflWeekLabel = weekLabel;
+    } else {
+      games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate);
+    }
+  } catch {}
 
   // MLB team stats (streak + last 10) — fetched once per page load, cached 1hr
   let mlbTeamStats: MLBTeamStatsMap = {};
@@ -543,7 +553,9 @@ export default async function CompetitionPage({
         <div className="flex items-center justify-between mb-1">
           <div>
             <h2 className="text-lg font-bold">
-              {comp.sport === "EPL"
+              {comp.sport === "NFL" && nflWeekLabel
+                ? nflWeekLabel
+                : comp.sport === "EPL"
                 ? `Gameweek · ${activeDate}`
                 : new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
             </h2>
@@ -575,6 +587,7 @@ export default async function CompetitionPage({
             datesWithPicks={datesWithPicks}
             todayPickable={todayPickable}
             sport={comp.sport ?? "NHL"}
+            weekLabel={nflWeekLabel}
           />
         )}
 

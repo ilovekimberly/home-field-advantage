@@ -95,11 +95,36 @@ export async function fetchNFLScoreboard(options?: {
 
 // Used by fetchScheduleForDate — returns the week containing `date`.
 // Passes the date to ESPN so historical/future weeks load correctly.
+// Preseason runs in August, so force seasontype=1 for August dates to prevent
+// ESPN from defaulting to regular season (type 2) and returning 0 games.
 export async function fetchNFLScheduleForDate(date: string): Promise<SportGame[]> {
-  // Convert YYYY-MM-DD to YYYYMMDD for ESPN
-  const calendarDate = date.replace(/-/g, "");
-  const { games } = await fetchNFLScoreboard({ calendarDate });
+  const { games } = await fetchNFLForDate(date);
   return games;
+}
+
+// Returns both games and a human-readable week label ("Week 3", "Preseason Week 2", etc.)
+// Handles preseason detection automatically.
+export async function fetchNFLForDate(date: string): Promise<{ games: SportGame[]; weekLabel: string }> {
+  const calendarDate = date.replace(/-/g, "");
+  const month = new Date(date + "T12:00:00Z").getUTCMonth() + 1;
+  const isPreseason = month === 8; // August = preseason
+
+  let result = isPreseason
+    ? await fetchNFLScoreboard({ calendarDate, seasonType: 1 })
+    : await fetchNFLScoreboard({ calendarDate });
+
+  // If preseason fetch returned nothing, fall back to default (regular season)
+  if (isPreseason && result.games.length === 0) {
+    result = await fetchNFLScoreboard({ calendarDate });
+  }
+
+  const { games, weekInfo } = result;
+  const weekLabel =
+    weekInfo.seasonType === 1 ? `Preseason ${weekInfo.label}` :
+    weekInfo.seasonType === 3 ? `Playoffs · ${weekInfo.label}` :
+    weekInfo.label;
+
+  return { games, weekLabel };
 }
 
 // Returns the lock time = 1 hour before the earliest game this week.
