@@ -105,19 +105,40 @@ function makeWeekLabel(weekInfo: NFLWeekInfo): string {
   return weekInfo.label; // e.g. "Week 3"
 }
 
-// Fetches ALL games for the current/closest NFL week by letting ESPN decide
-// (no date param = ESPN returns whichever week is active or coming up next).
-// Use this for single-week competitions where you want the nearest week's slate.
+// Fetches ALL games for the current/closest NFL week.
+// Uses Sleeper for the correct NFL week label (ESPN inflates preseason week
+// numbers by 1 because it counts the Hall of Fame game as Week 1).
+// Uses ESPN for the actual game data.
 export async function fetchNFLCurrentWeek(): Promise<{ games: SportGame[]; weekLabel: string }> {
-  // Step 1: no params → ESPN returns the current/nearest week's info.
-  const { weekInfo } = await fetchNFLScoreboard();
-  // Step 2: fetch the complete slate for that week.
+  // Fetch Sleeper state and ESPN week info in parallel.
+  const [sleeperRes, espnProbe] = await Promise.all([
+    fetch("https://api.sleeper.app/v1/state/nfl", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetchNFLScoreboard(), // no params → ESPN resolves to current week
+  ]);
+
+  const { weekInfo } = espnProbe;
+
+  // Fetch the complete slate using ESPN's explicit week params.
   const { games } = await fetchNFLScoreboard({
     week:       weekInfo.week,
     season:     weekInfo.season,
     seasonType: weekInfo.seasonType,
   });
-  return { games, weekLabel: makeWeekLabel(weekInfo) };
+
+  // Build label: prefer Sleeper's display_week (correct NFL numbering).
+  // Fall back to ESPN weekInfo if Sleeper is unavailable.
+  let weekLabel: string;
+  if (sleeperRes) {
+    const displayWeek: number = sleeperRes.display_week ?? sleeperRes.week ?? weekInfo.week;
+    const seasonType: string  = sleeperRes.season_type ?? "regular";
+    if (seasonType === "pre")  weekLabel = `Preseason Week ${displayWeek}`;
+    else if (seasonType === "post") weekLabel = `Playoffs · Week ${displayWeek}`;
+    else weekLabel = `Week ${displayWeek}`;
+  } else {
+    weekLabel = makeWeekLabel(weekInfo);
+  }
+
+  return { games, weekLabel };
 }
 
 // Returns both games and a human-readable week label for a specific date.
