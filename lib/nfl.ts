@@ -94,49 +94,60 @@ export async function fetchNFLScoreboard(options?: {
 }
 
 // Used by fetchScheduleForDate — returns the week containing `date`.
-// Passes the date to ESPN so historical/future weeks load correctly.
-// Preseason runs in August, so force seasontype=1 for August dates to prevent
-// ESPN from defaulting to regular season (type 2) and returning 0 games.
 export async function fetchNFLScheduleForDate(date: string): Promise<SportGame[]> {
   const { games } = await fetchNFLForDate(date);
   return games;
 }
 
-// Returns both games and a human-readable week label ("Week 3", "Preseason Week 2", etc.)
-// Handles preseason detection automatically.
-// Uses a two-step ESPN query: first resolve the week from the date, then fetch
-// ALL games for that week (the date-only query only returns that day's games).
+function makeWeekLabel(weekInfo: NFLWeekInfo): string {
+  if (weekInfo.seasonType === 1) return `Preseason ${weekInfo.label}`;
+  if (weekInfo.seasonType === 3) return `Playoffs · ${weekInfo.label}`;
+  return weekInfo.label; // e.g. "Week 3"
+}
+
+// Fetches ALL games for the current/closest NFL week by letting ESPN decide
+// (no date param = ESPN returns whichever week is active or coming up next).
+// Use this for single-week competitions where you want the nearest week's slate.
+export async function fetchNFLCurrentWeek(): Promise<{ games: SportGame[]; weekLabel: string }> {
+  // Step 1: no params → ESPN returns the current/nearest week's info.
+  const { weekInfo } = await fetchNFLScoreboard();
+  // Step 2: fetch the complete slate for that week.
+  const { games } = await fetchNFLScoreboard({
+    week:       weekInfo.week,
+    season:     weekInfo.season,
+    seasonType: weekInfo.seasonType,
+  });
+  return { games, weekLabel: makeWeekLabel(weekInfo) };
+}
+
+// Returns both games and a human-readable week label for a specific date.
+// Use this for season/weekly competitions navigating to a specific past or future week.
+// Uses a two-step ESPN query: probe with the date to get weekInfo, then fetch
+// the complete week slate with explicit params.
 export async function fetchNFLForDate(date: string): Promise<{ games: SportGame[]; weekLabel: string }> {
   const calendarDate = date.replace(/-/g, "");
   const month = new Date(date + "T12:00:00Z").getUTCMonth() + 1;
-  const isPreseason = month === 8; // August = preseason
+  const isPreseason = month === 8;
 
-  // Step 1: probe ESPN with the date to get weekInfo (week number, season, seasonType).
+  // Step 1: probe with the date to resolve weekInfo.
   let probe = isPreseason
     ? await fetchNFLScoreboard({ calendarDate, seasonType: 1 })
     : await fetchNFLScoreboard({ calendarDate });
 
-  // If preseason probe came back empty, fall through to regular season.
   if (isPreseason && probe.games.length === 0) {
     probe = await fetchNFLScoreboard({ calendarDate });
   }
 
   const { weekInfo } = probe;
 
-  // Step 2: fetch the complete week using explicit week/season/seasonType params.
-  // This returns all games for the week, not just the games on the queried date.
+  // Step 2: fetch the complete week using explicit params.
   const { games } = await fetchNFLScoreboard({
     week:       weekInfo.week,
     season:     weekInfo.season,
     seasonType: weekInfo.seasonType,
   });
 
-  const weekLabel =
-    weekInfo.seasonType === 1 ? `Preseason ${weekInfo.label}` :
-    weekInfo.seasonType === 3 ? `Playoffs · ${weekInfo.label}` :
-    weekInfo.label;
-
-  return { games, weekLabel };
+  return { games, weekLabel: makeWeekLabel(weekInfo) };
 }
 
 // Returns the lock time = 1 hour before the earliest game this week.
