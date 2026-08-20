@@ -318,6 +318,26 @@ export default function PoolPickRoom({
     );
   }
 
+  // Group games by local ET date for NFL (games span multiple days in a week)
+  const isNFL = sport === "NFL";
+  type GameGroup = { dateLabel: string; games: typeof games };
+  const gameGroups: GameGroup[] = [];
+  if (isNFL) {
+    const groupMap = new Map<string, typeof games>();
+    for (const g of games) {
+      const dayKey = new Date(g.startTimeUTC).toLocaleDateString("en-US", {
+        weekday: "long", month: "long", day: "numeric", timeZone: "America/New_York",
+      });
+      if (!groupMap.has(dayKey)) groupMap.set(dayKey, []);
+      groupMap.get(dayKey)!.push(g);
+    }
+    for (const [dateLabel, gs] of groupMap) {
+      gameGroups.push({ dateLabel, games: gs });
+    }
+  } else {
+    gameGroups.push({ dateLabel: "", games });
+  }
+
   return (
     <div className="space-y-3">
       {error && (
@@ -326,7 +346,15 @@ export default function PoolPickRoom({
         </div>
       )}
 
-      {games.map((g) => {
+      {gameGroups.map(({ dateLabel, games: dayGames }) => (
+        <div key={dateLabel || "all"}>
+          {isNFL && dateLabel && (
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider pt-2 pb-1 border-b border-slate-100 mb-2">
+              {dateLabel}
+            </div>
+          )}
+          <div className="space-y-3">
+      {dayGames.map((g) => {
         const gameIdStr = String(g.id);
         const myPick = myPickMap.get(gameIdStr);
         const started = new Date(g.startTimeUTC) <= now;
@@ -541,6 +569,9 @@ export default function PoolPickRoom({
           </div>
         );
       })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
