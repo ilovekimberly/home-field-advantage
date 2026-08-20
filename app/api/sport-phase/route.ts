@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export type SportPhase = {
-  phase: "season" | "playoffs" | "offseason";
+  phase: "season" | "playoffs" | "preseason" | "offseason";
   seasonEndDate: string;   // last day of regular season
   playoffEndDate: string;  // last day of playoffs
   label: string;           // human-readable season option label
@@ -161,7 +161,9 @@ async function detectNFLPhase(today: string): Promise<SportPhase> {
     if (weekInfo.seasonType === 2) {
       return { phase: "season", seasonEndDate, playoffEndDate, label: "Full regular season" };
     }
-    // Preseason (type 1) or unknown → offseason
+    if (weekInfo.seasonType === 1) {
+      return { phase: "preseason", seasonEndDate, playoffEndDate, label: "Full regular season" };
+    }
     return { phase: "offseason", seasonEndDate, playoffEndDate, label: "Full season" };
   } catch {
     // Date-based fallback
@@ -171,6 +173,9 @@ async function detectNFLPhase(today: string): Promise<SportPhase> {
     }
     if (month >= 9 || month === 1) {
       return { phase: "season", seasonEndDate, playoffEndDate, label: "Full regular season" };
+    }
+    if (month === 8) {
+      return { phase: "preseason", seasonEndDate, playoffEndDate, label: "Full regular season" };
     }
     return { phase: "offseason", seasonEndDate, playoffEndDate, label: "Full season" };
   }

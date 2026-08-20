@@ -286,6 +286,8 @@ export default function NewCompetitionPage() {
                   className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
                     phaseInfo.phase === "playoffs"
                       ? "bg-amber-100 text-amber-700"
+                      : phaseInfo.phase === "preseason"
+                      ? "bg-blue-100 text-blue-700"
                       : phaseInfo.phase === "offseason"
                       ? "bg-slate-100 text-slate-500"
                       : "bg-green-100 text-green-700"
@@ -293,6 +295,7 @@ export default function NewCompetitionPage() {
                 >
                   {phaseInfo.phase === "playoffs" && "🏆 Playoffs"}
                   {phaseInfo.phase === "season" && "🗓 Regular season"}
+                  {phaseInfo.phase === "preseason" && "🏈 Preseason"}
                   {phaseInfo.phase === "offseason" && "💤 Off-season"}
                 </span>
               )}
