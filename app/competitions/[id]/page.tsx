@@ -234,8 +234,16 @@ export default async function CompetitionPage({
     ? getPickDate(comp.sport ?? "NHL", requestedDate)
     : defaultDate;
 
-  const isViewingToday = (activeDate === today || (comp.duration === "daily" && activeDate === comp.start_date))
-    && todayPickable;
+  // For NFL pools, activeDate is the snapped Tuesday which may differ from today.
+  // Treat it as "today" if today falls within the same week window (Tue–Mon).
+  const nflActiveWeekEnd = comp.sport === "NFL"
+    ? (() => { const d = new Date(activeDate + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10); })()
+    : activeDate;
+  const isViewingToday = (
+    activeDate === today ||
+    (comp.duration === "daily" && activeDate === comp.start_date) ||
+    (comp.sport === "NFL" && today >= activeDate && today <= nflActiveWeekEnd)
+  ) && todayPickable;
 
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
 
