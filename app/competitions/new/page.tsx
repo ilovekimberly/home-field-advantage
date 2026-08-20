@@ -56,6 +56,7 @@ export default function NewCompetitionPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [poolInviteEmails, setPoolInviteEmails] = useState<string[]>([""]);
   const [selectedFriendEmails, setSelectedFriendEmails] = useState<Set<string>>(new Set());
+  const [nflWeeks, setNflWeeks] = useState<number | "season">(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,8 +110,12 @@ export default function NewCompetitionPage() {
   }
 
   function endDateFor(start: string, dur: Duration) {
-    if (dur === "daily") return addDays(start, sport === "EPL" ? 3 : sport === "NFL" ? 6 : 0);
-    if (dur === "weekly") return addDays(start, sport === "EPL" ? 27 : sport === "NFL" ? 27 : 6);
+    if (sport === "NFL" && !isSurvivor) {
+      if (nflWeeks === "season") return seasonEnd();
+      return addDays(start, (nflWeeks as number) * 7 - 1);
+    }
+    if (dur === "daily") return addDays(start, sport === "EPL" ? 3 : 0);
+    if (dur === "weekly") return addDays(start, sport === "EPL" ? 27 : 6);
     return seasonEnd();
   }
 
@@ -316,8 +321,16 @@ export default function NewCompetitionPage() {
           <span className="text-sm font-medium">Length</span>
           <select
             className="input mt-1"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value as Duration)}
+            value={sport === "NFL" ? String(nflWeeks) : duration}
+            onChange={(e) => {
+              if (sport === "NFL") {
+                const v = e.target.value;
+                if (v === "season") { setNflWeeks("season"); setDuration("season"); }
+                else { const n = parseInt(v); setNflWeeks(n); setDuration(n === 1 ? "daily" : "weekly"); }
+              } else {
+                setDuration(e.target.value as Duration);
+              }
+            }}
           >
             {sport === "EPL" ? (
               <>
@@ -333,8 +346,12 @@ export default function NewCompetitionPage() {
               </>
             ) : sport === "NFL" ? (
               <>
-                <option value="daily">Single week</option>
-                <option value="weekly">4 weeks</option>
+                <option value="1">1 week</option>
+                <option value="2">2 weeks</option>
+                <option value="3">3 weeks</option>
+                <option value="4">4 weeks</option>
+                <option value="6">6 weeks</option>
+                <option value="8">8 weeks</option>
                 <option value="season">{seasonOptionLabel}</option>
               </>
             ) : (

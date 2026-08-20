@@ -41,7 +41,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // Fetch today's schedule
   const sport = comp.sport ?? "NHL";
   let games;
-  try { games = await fetchScheduleForDate(sport, gameDate); }
+  try {
+    if (sport === "NFL") {
+      const { fetchNFLForDate } = await import("@/lib/nfl");
+      const { games: nflGames } = await fetchNFLForDate(gameDate);
+      games = nflGames;
+    } else {
+      games = await fetchScheduleForDate(sport, gameDate);
+    }
+  }
   catch { return NextResponse.json({ error: "schedule API failed" }, { status: 502 }); }
 
   const game = games.find((g) => String(g.id) === String(gameId));
