@@ -43,8 +43,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   let games;
   try {
     if (sport === "NFL") {
-      const { fetchNFLForDate } = await import("@/lib/nfl");
-      const { games: nflGames } = await fetchNFLForDate(gameDate);
+      const { fetchNFLCurrentWeek } = await import("@/lib/nfl");
+      const { games: nflGames } = await fetchNFLCurrentWeek();
       games = nflGames;
     } else {
       games = await fetchScheduleForDate(sport, gameDate);
