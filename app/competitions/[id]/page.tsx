@@ -324,12 +324,16 @@ export default async function CompetitionPage({
   try {
     if (comp.sport === "NFL") {
       const { fetchNFLForDate } = await import("@/lib/nfl");
-      // Use today's date for the ESPN query when today is inside the competition
-      // window — avoids preseason week-boundary gaps where the snapped Tuesday
-      // returns 0 games from ESPN. Picks are still keyed to activeDate (the
-      // snapped Tuesday) for consistency in the database.
-      const nflQueryDate =
-        today >= comp.start_date && today <= comp.end_date ? today : activeDate;
+      // Use today's date for the ESPN query only when today falls inside the
+      // active week (Tuesday → Monday). This avoids preseason week-boundary gaps
+      // where the snapped Tuesday returns 0 games from ESPN, while still
+      // querying the correct historical week when the user navigates to past weeks.
+      // Picks are always keyed to activeDate (the snapped Tuesday) in the DB.
+      const activeWeekEnd = new Date(activeDate + "T12:00:00Z");
+      activeWeekEnd.setUTCDate(activeWeekEnd.getUTCDate() + 6);
+      const todayInActiveWeek =
+        today >= activeDate && today <= activeWeekEnd.toISOString().slice(0, 10);
+      const nflQueryDate = todayInActiveWeek ? today : activeDate;
       const { games: nflGames, weekLabel } = await fetchNFLForDate(nflQueryDate);
       games = nflGames;
       nflWeekLabel = weekLabel;
