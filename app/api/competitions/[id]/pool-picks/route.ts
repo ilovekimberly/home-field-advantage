@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate, isFinalGame } from "@/lib/schedule";
-import { fifaOutcome } from "@/lib/fifa";
+import { fetchScheduleForDate, isFinalGame, scorePick, sportHasDraws } from "@/lib/schedule";
 
 // POST /api/competitions/:id/pool-picks
 // Body: { gameDate, gameId, teamAbbrev, teamName, pickOutcome? }
@@ -65,30 +64,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     .maybeSingle();
   if (existing) return NextResponse.json({ error: "already picked" }, { status: 409 });
 
-  // Determine result (usually pending unless the game is already final)
-  let result = "pending";
-  if (isFinalGame(game)) {
-    if (sport === "FIFA") {
-      const outcome = fifaOutcome(game);
-      if (outcome == null) {
-        result = "pending";
-      } else {
-        result = outcome === pickOutcome ? "win" : "loss";
-      }
-    } else {
-      // Standard winner pick
-      if (game.homeScore == null || game.awayScore == null) {
-        result = "pending";
-      } else if (game.homeScore === game.awayScore) {
-        result = "push";
-      } else {
-        const winnerAbbrev = game.homeScore > game.awayScore
-          ? game.homeTeam.abbrev
-          : game.awayTeam.abbrev;
-        result = winnerAbbrev === teamAbbrev ? "win" : "loss";
-      }
-    }
+  // "DRAW" is only a legal pick in sports where a draw is a real outcome.
+  if (teamAbbrev === "DRAW" && !sportHasDraws(sport)) {
+    return NextResponse.json({ error: "draw is not a valid outcome for this sport" }, { status: 400 });
   }
+
+  // Determine result (usually pending unless the game is already final).
+  // FIFA stores HOME/AWAY/DRAW in pickOutcome; every other sport stores the
+  // team abbreviation (or "DRAW") in teamAbbrev.
+  const pickedValue = sport === "FIFA" ? pickOutcome : teamAbbrev;
+  const result = isFinalGame(game)
+    ? (scorePick(sport, game, pickedValue) ?? "pending")
+    : "pending";
 
   // pick_index has a unique constraint on (competition_id, game_date, pick_index)
   // across ALL pickers — not just the current user. For pools, multiple members

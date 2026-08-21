@@ -378,8 +378,13 @@ export default function PickRoom({
                       </span>
                     )}
                     <ScoreBadge g={g} />
-                    {g.final && g.winner && (
-                      <span className="text-xs text-slate-500">{g.winner} won</span>
+                    {g.final && (
+                      g.winner
+                        ? <span className="text-xs text-slate-500">{g.winner} won</span>
+                        : sport === "EPL" && g.homeScore != null && g.awayScore != null
+                            && g.homeScore === g.awayScore
+                          ? <span className="text-xs text-slate-500">Draw</span>
+                          : null
                     )}
                   </div>
 
@@ -392,11 +397,23 @@ export default function PickRoom({
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                         <PickerChip name={pickerName} isMe={pickerIsMe} />
                         <span className="text-sm text-slate-600">→ <b>{pick.picked_team_name}</b></span>
-                        {isWinnerPick && g.final && g.winner && (
-                          pick.picked_team_abbrev === g.winner
+                        {isWinnerPick && g.final && (() => {
+                          // EPL draws are a pickable outcome, so g.winner is
+                          // null but the pick is still resolvable: "DRAW" wins,
+                          // any team pick loses.
+                          const wasDraw = sport === "EPL" && !g.winner
+                            && g.homeScore != null && g.awayScore != null
+                            && g.homeScore === g.awayScore;
+                          if (wasDraw) {
+                            return pick.picked_team_abbrev === "DRAW"
+                              ? <span className="text-green-700 text-sm">✓ win · draw</span>
+                              : <span className="text-red-600 text-sm">✗ loss · draw</span>;
+                          }
+                          if (!g.winner) return null;
+                          return pick.picked_team_abbrev === g.winner
                             ? <span className="text-green-700 text-sm">✓ win</span>
-                            : <span className="text-red-600 text-sm">✗ loss</span>
-                        )}
+                            : <span className="text-red-600 text-sm">✗ loss</span>;
+                        })()}
                         {isOUPick && g.final && ouResult && (
                           ouResult === "win"
                             ? <span className="text-green-700 text-sm">✓ win · {finalTotal} {sport === "MLB" ? "runs" : "goals"}</span>
@@ -412,7 +429,9 @@ export default function PickRoom({
                         )}
                         {isWinnerPick && isLive && g.homeScore != null && (
                           <span className="text-slate-400 text-xs">
-                            ({pick.picked_team_abbrev === g.home.abbrev
+                            ({pick.picked_team_abbrev === "DRAW"
+                              ? `${g.awayScore} – ${g.homeScore}`
+                              : pick.picked_team_abbrev === g.home.abbrev
                               ? `${g.homeScore} – ${g.awayScore}`
                               : `${g.awayScore} – ${g.homeScore}`})
                           </span>
@@ -478,6 +497,17 @@ export default function PickRoom({
                         </button>
                       );
                     })}
+                    {/* Draw — a real outcome in league soccer, so it's pickable.
+                        Stored as the "DRAW" sentinel in picked_team_abbrev. */}
+                    {sport === "EPL" && (
+                      <button
+                        disabled={!canPick}
+                        onClick={() => makePick(g.id, "DRAW", "Draw")}
+                        className="btn-ghost disabled:opacity-30 flex flex-col items-start leading-tight px-3 py-2 min-w-[70px]"
+                      >
+                        <span className="text-sm font-bold">Draw</span>
+                      </button>
+                    )}
                   </div>
                 )}
 

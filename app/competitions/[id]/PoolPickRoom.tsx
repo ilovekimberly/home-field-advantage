@@ -116,6 +116,8 @@ function PicksReveal({
       if (pick.picked_team_abbrev === "AWAY") return awayTeam.abbrev;
       return "Draw";
     }
+    // EPL stores draws as the "DRAW" sentinel alongside real team abbrevs.
+    if (pick.picked_team_abbrev === "DRAW") return "Draw";
     return pick.picked_team_abbrev;
   }
 
@@ -212,6 +214,7 @@ export default function PoolPickRoom({
   );
 
   const isFIFA = sport === "FIFA";
+  const isEPL  = sport === "EPL";
 
   async function submitPick(
     gameId: string | number,
@@ -540,6 +543,51 @@ export default function PoolPickRoom({
                     );
                   })}
                 </div>
+
+                {/* Draw — a real outcome in league soccer, so it's pickable.
+                    Stored as the "DRAW" sentinel in picked_team_abbrev. */}
+                {isEPL && (() => {
+                  const isSelected = myPick?.picked_team_abbrev === "DRAW";
+                  const wasDraw = g.final && g.homeScore != null && g.awayScore != null
+                    && g.homeScore === g.awayScore;
+
+                  if (locked) {
+                    return (
+                      <div className={`mt-2 rounded-lg px-3 py-2 text-center text-sm ${
+                        isSelected
+                          ? wasDraw ? "bg-green-100 border border-green-300"
+                            : "bg-red-100 border border-red-300"
+                          : wasDraw ? "bg-slate-50 border border-slate-200"
+                          : "bg-slate-50 border border-slate-100 opacity-50"
+                      }`}>
+                        <span className="font-semibold text-slate-700">Draw</span>
+                        {isSelected && (
+                          <span className="ml-2 text-xs text-slate-600">Your pick</span>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      disabled={isBusy || readOnly}
+                      onClick={() =>
+                        isSelected
+                          ? retractPick(g.id)
+                          : myPick
+                            ? changePick(g.id, "DRAW", "Draw")
+                            : submitPick(g.id, "DRAW", "Draw")
+                      }
+                      className={`mt-2 w-full rounded-lg px-3 py-2.5 min-h-[44px] text-sm font-semibold transition-all ${
+                        isSelected
+                          ? "bg-rink text-white shadow-sm"
+                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      } disabled:opacity-50`}
+                    >
+                      {isBusy && isSelected ? "…" : "Draw"}
+                    </button>
+                  );
+                })()}
 
                 {myPick && !locked && (
                   <div className="mt-2 text-xs text-center text-slate-400">

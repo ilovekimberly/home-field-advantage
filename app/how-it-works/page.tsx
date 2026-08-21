@@ -34,9 +34,8 @@ export default function HowItWorksPage() {
               {[
                 { emoji: "🏒", label: "NHL", sub: "Oct → Apr", live: true },
                 { emoji: "⚾", label: "MLB", sub: "Mar → Sep", live: true },
-                { emoji: "🏆", label: "FIFA World Cup", sub: "Group stage → Final", live: true },
-                { emoji: "🏈", label: "NFL", sub: "Sep → Feb · Survivor only", live: false },
-                { emoji: "⚽", label: "Premier League", sub: "Coming soon", live: false },
+                { emoji: "🏈", label: "NFL", sub: "Aug → Feb · by NFL week", live: true },
+                { emoji: "⚽", label: "Premier League", sub: "Aug → May · by matchweek", live: true },
               ].map((s) => (
                 <div key={s.label} className={`rounded-xl border-2 px-4 py-3 flex items-center gap-3 shadow-sm ${s.live ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50 opacity-60"}`}>
                   <span className={`text-2xl ${!s.live ? "grayscale" : ""}`}>{s.emoji}</span>
@@ -83,7 +82,7 @@ export default function HowItWorksPage() {
                   Invite a whole group — everyone picks every game independently. The
                   leaderboard updates in real time as results come in.
                 </div>
-                <div className="mt-3 text-xs text-slate-400 font-medium">NHL · MLB · FIFA World Cup</div>
+                <div className="mt-3 text-xs text-slate-400 font-medium">NHL · MLB · NFL · Premier League</div>
               </div>
               <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-5">
                 <div className="text-2xl mb-2">🏈</div>
@@ -115,9 +114,9 @@ export default function HowItWorksPage() {
             </p>
             <div className="grid gap-3">
               {[
-                { emoji: "⚡", label: "Single day / Gameweek", desc: "One slate. Settle it tonight. Great for big game nights.", highlight: false },
-                { emoji: "📅", label: "One week / 4 gameweeks", desc: "A short series where every pick night counts.", highlight: false },
-                { emoji: "🏅", label: "Full regular season", desc: "NHL or MLB — all the way to the final game of the regular season.", highlight: false },
+                { emoji: "⚡", label: "Single day / week / matchweek", desc: "One slate. NHL and MLB run a night at a time; NFL and Premier League give you the whole week's fixtures at once.", highlight: false },
+                { emoji: "📅", label: "Multi-week", desc: "A short series where every pick night counts. NFL pools can run 2, 3, 4, 6 or 8 weeks.", highlight: false },
+                { emoji: "🏅", label: "Full regular season", desc: "All the way to the final game of the regular season.", highlight: false },
                 { emoji: "🏆", label: "Full playoffs / tournament", desc: "Only available when the playoffs or tournament are active. Every round — until the cup is lifted.", highlight: true },
               ].map((item) => (
                 <div
@@ -387,14 +386,14 @@ export default function HowItWorksPage() {
             <p className="text-slate-500 mb-5">
               Unlike 1v1, there's no draft in a pool. Every member picks every game
               independently before it starts. The leaderboard tells the story — NHL,
-              MLB, or FIFA World Cup.
+              MLB, NFL, or Premier League.
             </p>
             <div className="grid gap-3 mb-5">
               {[
                 {
                   icon: "🎯",
                   label: "Pick a winner (or outcome)",
-                  desc: "For each game, pick who wins. In FIFA pools, Draw is also a valid pick worth a full win if you're right.",
+                  desc: "For each game, pick who wins. In soccer — Premier League and FIFA — Draw is a third option, worth a full win if the match ends level.",
                   color: "border-green-200 bg-green-50",
                 },
                 {
@@ -546,7 +545,7 @@ export default function HowItWorksPage() {
               {[
                 { icon: "✅", label: "Your team / outcome wins", sub: "You get a W. That's the game.", color: "border-green-200 bg-green-50" },
                 { icon: "❌", label: "Your team / outcome loses", sub: "You get an L. Accountability is part of the fun.", color: "border-red-200 bg-red-50" },
-                { icon: "🤝", label: "Draw (FIFA pools only)", sub: "In FIFA pools, Draw is a valid pick option worth a full win if the match ends level. In 1v1 NHL/MLB, draws don't happen.", color: "border-slate-200 bg-slate-50" },
+                { icon: "🤝", label: "Draw (soccer only)", sub: "In Premier League and FIFA, Draw is a third pick option worth a full win if the match ends level. Because Draw is available, backing a team that then draws is a loss. NHL and MLB games always produce a winner, so there's nothing to pick.", color: "border-slate-200 bg-slate-50" },
                 { icon: "🔒", label: "Game starts → pick locks", sub: "Once the puck drops, first pitch, or kickoff happens — that pick is locked in for good.", color: "border-slate-200 bg-slate-50" },
               ].map((item) => (
                 <div key={item.label} className={`rounded-xl border-2 px-5 py-3.5 flex gap-4 items-start ${item.color}`}>

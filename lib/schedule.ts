@@ -143,3 +143,40 @@ export function winnerAbbrevGame(g: SportGame): string | null {
   if (g.homeScore === g.awayScore) return null; // draw = push
   return g.homeScore > g.awayScore ? g.homeTeam.abbrev : g.awayTeam.abbrev;
 }
+
+// Sports where a draw is a distinct, selectable outcome rather than a push.
+export function sportHasDraws(sport: string | null | undefined): boolean {
+  return sport === "EPL" || sport === "FIFA";
+}
+
+// Scores a single pick against a finished game.
+// Returns "win" | "loss" | "push", or null if the game isn't resolved yet.
+//
+// For draw-enabled sports the pick is simply compared to the actual outcome:
+// picking a team that then drew is a loss, because "Draw" was available.
+// For other sports a tie remains a push, since it can't be picked.
+export function scorePick(
+  sport: string | null | undefined,
+  game: SportGame,
+  pickedAbbrev: string
+): "win" | "loss" | "push" | null {
+  if (!isFinalGame(game)) return null;
+
+  if (sport === "FIFA") {
+    const { fifaOutcome } = require("./fifa");
+    const outcome = fifaOutcome(game);
+    if (outcome === null) return null;
+    return outcome === pickedAbbrev ? "win" : "loss";
+  }
+
+  if (sport === "EPL") {
+    const { eplOutcome } = require("./epl");
+    const outcome = eplOutcome(game);
+    if (outcome === null) return null;
+    return outcome === pickedAbbrev ? "win" : "loss";
+  }
+
+  const winner = winnerAbbrevGame(game);
+  if (winner === null) return "push"; // tie, not a pickable outcome
+  return winner === pickedAbbrev ? "win" : "loss";
+}

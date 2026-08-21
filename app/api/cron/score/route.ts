@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
-import { fifaOutcome } from "@/lib/fifa";
+import { fetchScheduleForDate, isFinalGame, scorePick } from "@/lib/schedule";
 import { sendEmail, competitionCancelledEmail, perfectNightEmail, poolPicksOpenEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
@@ -137,15 +136,10 @@ export async function GET(req: Request) {
             else if (pick.spread_choice === "home") result = coverMargin > 0 ? "win" : "loss";
             else result = coverMargin < 0 ? "win" : "loss";
           }
-        } else if (sport === "FIFA") {
-          // FIFA picks use "HOME" / "AWAY" / "DRAW" as picked_team_abbrev.
-          const outcome = fifaOutcome(game);
-          if (outcome === null) result = "pending";
-          else result = outcome === pick.picked_team_abbrev ? "win" : "loss";
         } else {
-          const winner = winnerAbbrevGame(game);
-          result = winner === null ? "push"
-            : winner === pick.picked_team_abbrev ? "win" : "loss";
+          // Draw-aware for EPL/FIFA (a draw is its own pickable outcome, so
+          // picking a team that drew is a loss); tie = push elsewhere.
+          result = scorePick(sport, game, pick.picked_team_abbrev) ?? "pending";
         }
 
         const { error: updateErr } = await supabase

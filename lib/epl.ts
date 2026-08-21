@@ -71,6 +71,21 @@ function parseEPLEvents(events: any[]): SportGame[] {
   return games;
 }
 
+// The sentinel stored in picks.picked_team_abbrev for a draw pick. Real team
+// abbreviations are 2–4 letters, so this can never collide with one.
+export const DRAW_PICK = "DRAW";
+
+// Resolves a finished EPL match to the value that a correct pick would hold:
+// the winning team's abbreviation, or DRAW_PICK if it ended level.
+// Returns null while the match is unfinished.
+export function eplOutcome(g: SportGame): string | null {
+  if (g.gameState !== "FINAL" && g.gameState !== "OFF") return null;
+  if (g.homeScore == null || g.awayScore == null) return null;
+  if (g.homeScore > g.awayScore) return g.homeTeam.abbrev;
+  if (g.awayScore > g.homeScore) return g.awayTeam.abbrev;
+  return DRAW_PICK;
+}
+
 // ESPN publishes the league's matchday calendar on every scoreboard response.
 // For soccer it's `calendarType: "day"` — a flat list of dates that have
 // fixtures, e.g. ["2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24",

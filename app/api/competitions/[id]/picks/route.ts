@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
+import { fetchScheduleForDate, isFinalGame, scorePick } from "@/lib/schedule";
 import { generateDraftOrder, whoPicksFirst, type Player, type DraftStyle } from "@/lib/picks";
 import { sendEmail, yourTurnEmail } from "@/lib/email";
 
@@ -126,9 +126,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         else result = coverMargin < 0 ? "win" : "loss";
       }
     } else {
-      const w = winnerAbbrevGame(game);
-      if (w == null) result = "push";
-      else result = w === teamAbbrev ? "win" : "loss";
+      // Draw-aware for EPL/FIFA; tie = push for other sports.
+      result = scorePick(comp.sport, game, teamAbbrev) ?? "pending";
     }
   }
 

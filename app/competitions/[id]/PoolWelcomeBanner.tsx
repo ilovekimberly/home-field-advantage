@@ -30,6 +30,8 @@ export default function PoolWelcomeBanner({ sport }: { sport?: string }) {
   if (dismissed) return null;
 
   const isFIFA = sport === "FIFA";
+  // Soccer competitions have three outcomes; other sports always have a winner.
+  const hasDraws = sport === "FIFA" || sport === "EPL";
 
   return (
     <div className="card border-2 border-rink/20 bg-gradient-to-br from-rink/5 to-white relative">
@@ -63,9 +65,9 @@ export default function PoolWelcomeBanner({ sport }: { sport?: string }) {
           ))}
         </div>
 
-        {isFIFA && (
+        {hasDraws && (
           <div className="rounded-lg bg-rink/10 px-3 py-2 text-xs text-rink font-medium">
-            ⚽ For each match, your options are <strong>Home win</strong>, <strong>Away win</strong>, or <strong>Draw</strong>. All three are worth the same — 1 win.
+            ⚽ For each match, your options are <strong>Home win</strong>, <strong>Away win</strong>, or <strong>Draw</strong>. All three are worth the same — 1 win. Because Draw is on the table, backing a team that draws counts as a loss.
           </div>
         )}
 

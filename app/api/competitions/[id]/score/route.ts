@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame } from "@/lib/schedule";
-import { fifaOutcome } from "@/lib/fifa";
+import { fetchScheduleForDate, isFinalGame, scorePick } from "@/lib/schedule";
 
 // POST /api/competitions/:id/score
 // Walks any pending picks and asks the sport's API for the result of each game.
@@ -51,16 +50,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       const game = games.find((g) => String(g.id) === String(pick.game_id));
       if (!game || !isFinalGame(game)) continue;
 
-      let result: string;
-      if (sport === "FIFA") {
-        const outcome = fifaOutcome(game);
-        if (outcome === null) continue; // not resolved yet
-        result = outcome === pick.picked_team_abbrev ? "win" : "loss";
-      } else {
-        const w = winnerAbbrevGame(game);
-        result = w == null ? "push"
-          : w === pick.picked_team_abbrev ? "win" : "loss";
-      }
+      // Draw-aware for EPL/FIFA; tie = push for everything else.
+      const result = scorePick(sport, game, pick.picked_team_abbrev);
+      if (result === null) continue; // not resolved yet
 
       const { error } = await admin
         .from("picks").update({ result }).eq("id", pick.id);
