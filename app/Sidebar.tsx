@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { durationLabel } from "@/lib/schedule";
 
 type SidebarComp = {
   id: string;
@@ -35,12 +36,6 @@ const STATUS_DOT: Record<string, string> = {
   cancelled: "bg-slate-300",
 };
 
-const DURATION_LABEL: Record<string, string> = {
-  daily: "Single day",
-  weekly: "1 week",
-  season: "Full season",
-  playoff: "Playoffs",
-};
 
 const SPORT_EMOJI: Record<string, string> = {
   NHL: "🏒",
@@ -112,7 +107,7 @@ function StatusSection({
                   {comp.name}
                 </span>
                 <span className="text-xs text-slate-400 mt-0.5">
-                  {DURATION_LABEL[comp.duration] ?? comp.duration} · {comp.start_date}
+                  {durationLabel(comp.duration, comp.sport)} · {comp.start_date}
                 </span>
               </Link>
 

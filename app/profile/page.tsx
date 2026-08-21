@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import ProfileForm from "./ProfileForm";
+import { durationLabel as formatDuration } from "@/lib/schedule";
 
 const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆" };
 const PODIUM = ["🥇", "🥈", "🥉"];
@@ -150,10 +151,7 @@ export default async function ProfilePage() {
       outcome = myWins > theirWins ? "winning" : myWins < theirWins ? "losing" : "tied";
     }
 
-    const durationLabel =
-      comp.duration === "daily"   ? "Single day" :
-      comp.duration === "weekly"  ? "1 week"     :
-      comp.duration === "playoff" ? "Playoffs"   : "Full season";
+    const durationLabel = formatDuration(comp.duration, comp.sport);
 
     return { comp, myWins, myLosses, theirWins, outcome, opponentName, durationLabel };
   });

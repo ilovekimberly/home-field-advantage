@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame, getPickDate } from "@/lib/schedule";
+import { fetchScheduleForDate, isFinalGame, winnerAbbrevGame, getPickDate, durationLabel } from "@/lib/schedule";
 import { fetchMLBTeamStats, type MLBTeamStatsMap } from "@/lib/mlb";
 import { generateDraftOrder, whoPicksFirst, type Player } from "@/lib/picks";
 import PickRoom from "./PickRoom";
@@ -458,7 +458,7 @@ export default async function CompetitionPage({
           <div>
             <h1 className="text-2xl font-bold">{comp.name}</h1>
             <p className="text-sm text-slate-500">
-              {comp.duration === "daily" ? "Single day" : comp.duration === "weekly" ? "1 week" : comp.duration === "playoff" ? "Playoffs" : "Full season"} · {comp.start_date} → {comp.end_date}
+              {durationLabel(comp.duration, comp.sport)} · {comp.start_date} → {comp.end_date}
               {isPool && (
                 <span className={`ml-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
                   comp.max_members && poolMembers.length >= comp.max_members

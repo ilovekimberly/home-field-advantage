@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { durationLabel as formatDuration } from "@/lib/schedule";
 
 type BadgeStyle = { label: string; color: string };
 
@@ -33,10 +34,7 @@ function CompetitionCard({ c, userId }: { c: any; userId: string }) {
   const badge = getStatusBadge(
     c, userId, c.myWins, c.myLosses, c.theirWins, c.theirLosses, c.isMyTurnTonight,
   );
-  const durationLabel =
-    c.duration === "daily"   ? "Single day" :
-    c.duration === "weekly"  ? "1 week" :
-    c.duration === "playoff" ? "Playoffs" : "Full season";
+  const durationLabel = formatDuration(c.duration, c.sport);
 
   return (
     <li className="card hover:shadow-md transition-shadow">

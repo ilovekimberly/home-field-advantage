@@ -86,6 +86,24 @@ export function getPickDate(sport: string, date: string): string {
   return date;
 }
 
+// Human-readable label for a competition's duration. Week-based sports pick a
+// whole slate at once, so "daily" means one gameweek — not one calendar day.
+export function durationLabel(duration: string | null, sport?: string | null): string {
+  const isWeekBased = sport === "EPL" || sport === "NFL";
+  switch (duration) {
+    case "daily":
+      return sport === "EPL" ? "Single gameweek"
+        : sport === "NFL" ? "Single week"
+        : "Single day";
+    case "weekly":
+      return isWeekBased ? "Multi-week" : "1 week";
+    case "playoff":
+      return "Playoffs";
+    default:
+      return "Full season";
+  }
+}
+
 // Fetch the full schedule for a sport on a given pick-date.
 // For EPL, this returns the entire gameweek's fixtures.
 export async function fetchScheduleForDate(sport: string, date: string, noCache = false): Promise<SportGame[]> {
