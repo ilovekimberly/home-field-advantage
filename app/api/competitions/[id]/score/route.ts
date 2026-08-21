@@ -25,11 +25,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const sport = comp.sport ?? "NHL";
 
+  // Include "unscored" as well as "pending". A pick gets marked unscored when
+  // the cron couldn't resolve its game (e.g. a schedule-API week-lookup bug).
+  // Those are recoverable — if the game is findable and final now, score it.
   const { data: pending } = await admin
     .from("picks")
     .select("*")
     .eq("competition_id", params.id)
-    .eq("result", "pending");
+    .in("result", ["pending", "unscored"]);
   if (!pending || pending.length === 0) return NextResponse.json({ updated: 0 });
 
   // Group by date so we hit the schedule API once per date

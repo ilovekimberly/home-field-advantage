@@ -24,8 +24,11 @@ export async function GET(req: Request) {
   const isFinalRun = utcHour >= 8;
 
   // ── 1. Score all pending picks ─────────────────────────────────────────
+  // Retry "unscored" picks too — that state is set when a game couldn't be
+  // found, which is often a transient/schedule-lookup problem rather than a
+  // permanently unscoreable game.
   const { data: pending, error } = await supabase
-    .from("picks").select("*").eq("result", "pending");
+    .from("picks").select("*").in("result", ["pending", "unscored"]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -61,6 +64,16 @@ export async function GET(req: Request) {
       console.log(`cron/score: ${key} — fetched ${games.length} games, IDs: ${games.map(g => g.id).join(", ")}`);
       console.log(`cron/score: ${key} — pick game_ids: ${picks.map(p => p.game_id).join(", ")}`);
 
+      // How many days after game_date the slate can still have unplayed games.
+      // NHL/MLB are single-day. EPL gameweeks run Fri→Mon. NFL pick-dates are
+      // snapped to Tuesday and the slate runs Thu→Mon, so a pick isn't stale
+      // until well over a week later. Abandoning earlier marks live picks
+      // "unscored" before their game has even kicked off.
+      const slateDays = sport === "NFL" ? 8 : sport === "EPL" ? 5 : 1;
+      const slateEnd = new Date(date + "T00:00:00Z");
+      slateEnd.setUTCDate(slateEnd.getUTCDate() + slateDays);
+      const slateOver = new Date().toISOString().slice(0, 10) > slateEnd.toISOString().slice(0, 10);
+
       for (const pick of picks) {
         // Try exact match first, then fallback for doubleheader ID drift
         // (pick stored as "823637" but API now returns "823637-dh2" or vice versa).
@@ -73,7 +86,9 @@ export async function GET(req: Request) {
         if (!game) {
           // On the final overnight run, a game that can't be found at all will
           // never be scoreable — mark it unscored so it doesn't block tomorrow.
-          if (isFinalRun) {
+          // Only once the whole slate window has passed, though: multi-day
+          // slates (NFL/EPL) still have unplayed games on the pick date.
+          if (isFinalRun && slateOver) {
             console.log(`cron/score: [${pick.competition_id}] game ${pick.game_id} not found on final run — marking unscored`);
             const { error: updateErr } = await supabase
               .from("picks").update({ result: "unscored" }).eq("id", pick.id);
