@@ -181,6 +181,20 @@ async function detectNFLPhase(today: string): Promise<SportPhase> {
   }
 }
 
+// ── EPL ───────────────────────────────────────────────────────────────────────
+// Premier League runs mid-August through late May. No playoffs.
+function detectEPLPhase(today: string): SportPhase {
+  const year = parseInt(today.slice(0, 4));
+  const month = parseInt(today.slice(5, 7));
+  // Season spanning year: if we're Aug–Dec, season ends next May.
+  const endYear = month >= 8 ? year + 1 : year;
+  const seasonEndDate = `${endYear}-05-25`;
+  if (month >= 8 || month <= 5) {
+    return { phase: "season", seasonEndDate, playoffEndDate: seasonEndDate, label: "Full season (Aug – May)" };
+  }
+  return { phase: "offseason", seasonEndDate, playoffEndDate: seasonEndDate, label: "Full season (Aug – May)" };
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -199,6 +213,9 @@ export async function GET(req: Request) {
     if (sport === "NFL") {
       const result = await detectNFLPhase(today);
       return NextResponse.json(result);
+    }
+    if (sport === "EPL") {
+      return NextResponse.json(detectEPLPhase(today));
     }
     return NextResponse.json({ error: "unsupported sport" }, { status: 400 });
   } catch (e) {

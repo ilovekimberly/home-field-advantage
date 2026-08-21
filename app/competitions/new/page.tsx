@@ -248,7 +248,7 @@ export default function NewCompetitionPage() {
           <span className="block text-sm font-medium mb-2">Sport</span>
           <div className="grid grid-cols-4 gap-2">
             {SPORTS.map((s) => {
-              const comingSoon = s.value === "EPL";
+              const comingSoon = false;
               return (
                 <button
                   key={s.value}
