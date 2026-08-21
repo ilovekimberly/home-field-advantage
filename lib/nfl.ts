@@ -150,38 +150,86 @@ export async function fetchNFLCurrentWeek(): Promise<{ games: SportGame[]; weekL
 // Use this for season/weekly competitions navigating to a specific past or future week.
 // Uses a two-step ESPN query: probe with the date to get weekInfo, then fetch
 // the complete week slate with explicit params.
+type CalendarEntry = {
+  label: string;      // official label, e.g. "Preseason Week 2"
+  seasonType: number; // 1 = pre, 2 = regular, 3 = post
+  week: number;       // the `week` param ESPN expects
+  start: string;      // ISO
+  end: string;        // ISO
+};
+
+// ESPN publishes its own week calendar on every scoreboard response. It is the
+// authoritative mapping of date-range → week, including the official label.
+// This avoids guessing: ESPN's preseason `week` numbers are offset by one
+// (it counts Hall of Fame Weekend as week 1), but the calendar labels are
+// correct and match NFL.com.
+async function fetchNFLCalendar(): Promise<{ entries: CalendarEntry[]; season: number }> {
+  const res = await fetch(`${ESPN_BASE}/scoreboard`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`ESPN NFL API error ${res.status}`);
+  const data = await res.json();
+
+  const league = data.leagues?.[0];
+  const season: number = league?.season?.year ?? new Date().getFullYear();
+  const entries: CalendarEntry[] = [];
+
+  for (const group of league?.calendar ?? []) {
+    const seasonType = parseInt(group?.value ?? "0", 10);
+    for (const entry of group?.entries ?? []) {
+      entries.push({
+        label:      entry.label ?? "",
+        seasonType,
+        week:       parseInt(entry.value ?? "0", 10),
+        start:      entry.startDate,
+        end:        entry.endDate,
+      });
+    }
+  }
+  return { entries, season };
+}
+
+// Returns both games and a human-readable week label for a specific pick-date.
+//
+// `date` is the Tuesday that starts our NFL pick-week (see getPickDate), but
+// ESPN's weeks run Thursday→Wednesday. So the Tuesday itself lands in the
+// PREVIOUS ESPN week. We look up the calendar entry using the Sunday of the
+// slate (Tue + 5), which always sits inside the intended week.
+//
+// This is deterministic: the same pick-date always resolves to the same week,
+// whether we're called while picks are open or days later when scoring.
 export async function fetchNFLForDate(date: string): Promise<{ games: SportGame[]; weekLabel: string }> {
-  // `date` is the Tuesday that starts the NFL week (see getPickDate). Tuesday
-  // itself falls in ESPN's week-boundary gap and often resolves to the wrong
-  // week — or no games at all. Probe with the Sunday of that week instead,
-  // which reliably sits inside the slate. This makes the lookup deterministic:
-  // the same pick-date always resolves to the same week, whether we're called
-  // while picks are open or days later when scoring.
   const probeDt = new Date(date + "T12:00:00Z");
   probeDt.setUTCDate(probeDt.getUTCDate() + 5); // Tue → Sun
-  const probeDate = probeDt.toISOString().slice(0, 10);
-  const calendarDate = probeDate.replace(/-/g, "");
-  const month = probeDt.getUTCMonth() + 1;
-  const isPreseason = month === 8;
+  const probeMs = probeDt.getTime();
 
-  // Step 1: probe with the date to resolve weekInfo.
-  let probe = isPreseason
-    ? await fetchNFLScoreboard({ calendarDate, seasonType: 1 })
-    : await fetchNFLScoreboard({ calendarDate });
+  let entries: CalendarEntry[] = [];
+  let season = probeDt.getUTCFullYear();
+  try {
+    const cal = await fetchNFLCalendar();
+    entries = cal.entries;
+    season = cal.season;
+  } catch {}
 
-  if (isPreseason && probe.games.length === 0) {
-    probe = await fetchNFLScoreboard({ calendarDate });
+  const match = entries.find(
+    (e) => probeMs >= new Date(e.start).getTime() && probeMs <= new Date(e.end).getTime()
+  );
+
+  if (match) {
+    const { games } = await fetchNFLScoreboard({
+      week:       match.week,
+      season,
+      seasonType: match.seasonType,
+    });
+    return { games, weekLabel: match.label };
   }
 
-  const { weekInfo } = probe;
-
-  // Step 2: fetch the complete week using explicit params.
+  // Fallback: no calendar match (off-season, or ESPN changed its shape).
+  const calendarDate = probeDt.toISOString().slice(0, 10).replace(/-/g, "");
+  const { weekInfo } = await fetchNFLScoreboard({ calendarDate });
   const { games } = await fetchNFLScoreboard({
     week:       weekInfo.week,
     season:     weekInfo.season,
     seasonType: weekInfo.seasonType,
   });
-
   return { games, weekLabel: makeWeekLabel(weekInfo) };
 }
 
