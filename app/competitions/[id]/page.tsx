@@ -235,15 +235,22 @@ export default async function CompetitionPage({
     ? getPickDate(comp.sport ?? "NHL", requestedDate)
     : defaultDate;
 
-  // For NFL pools, activeDate is the snapped Tuesday which may differ from today.
-  // Treat it as "today" if today falls within the same week window (Tue–Mon).
-  const nflActiveWeekEnd = comp.sport === "NFL"
-    ? (() => { const d = new Date(activeDate + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10); })()
+  // For week-based sports, activeDate is the snapped start of the week (NFL:
+  // Tuesday, EPL: Friday) which usually differs from today. Treat it as
+  // "today" whenever today falls anywhere inside that week's window —
+  // otherwise the whole slate renders read-only mid-week.
+  const weekWindowDays = comp.sport === "NFL" ? 6 : comp.sport === "EPL" ? 3 : 0;
+  const activeWeekEnd = weekWindowDays > 0
+    ? (() => {
+        const d = new Date(activeDate + "T12:00:00Z");
+        d.setUTCDate(d.getUTCDate() + weekWindowDays);
+        return d.toISOString().slice(0, 10);
+      })()
     : activeDate;
   const isViewingToday = (
     activeDate === today ||
     (comp.duration === "daily" && activeDate === comp.start_date) ||
-    (comp.sport === "NFL" && today >= activeDate && today <= nflActiveWeekEnd)
+    (weekWindowDays > 0 && today >= activeDate && today <= activeWeekEnd)
   ) && todayPickable;
 
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
