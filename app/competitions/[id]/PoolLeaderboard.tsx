@@ -104,7 +104,10 @@ export default function PoolLeaderboard({
     return acc;
   }, []);
 
+  // Always show the W/L table — a 0-0 record is still a record, and hiding it
+  // makes it look like scoring is broken.
   const hasScores = members.some((m) => m.wins > 0 || m.losses > 0);
+  const anyPicks = members.some((m) => (m.picksMade ?? 0) > 0);
 
   return (
     <div className={`card transition-colors duration-500 ${flash ? "bg-green-50" : ""}`}>
@@ -117,7 +120,7 @@ export default function PoolLeaderboard({
         )}
       </h2>
 
-      {!hasScores ? (
+      {!hasScores && !anyPicks ? (
         // No scored picks yet — just show the player list
         <div>
           <ul className="space-y-1">
@@ -187,6 +190,12 @@ export default function PoolLeaderboard({
             })}
           </tbody>
         </table>
+      )}
+
+      {anyPicks && !hasScores && (
+        <p className="text-xs text-slate-400 mt-3 text-center">
+          W/L updates as games go final
+        </p>
       )}
     </div>
   );
