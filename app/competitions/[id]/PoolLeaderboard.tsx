@@ -45,47 +45,84 @@ export default function PoolLeaderboard({
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    let cancelled = false;
 
+    // Re-read all picks and recompute per-member records. Flashes the card
+    // only when a W/L actually changed, so routine polls stay quiet.
+    async function refreshRecords() {
+      const { data: picks } = await supabase
+        .from("picks")
+        .select("picker_id, result")
+        .eq("competition_id", competitionId);
+
+      if (!picks || cancelled) return;
+
+      setMembers((prev) => {
+        const next = prev.map((m) => {
+          const myPicks = picks.filter((p) => p.picker_id === m.userId);
+          return {
+            ...m,
+            wins:   myPicks.filter((p) => p.result === "win").length,
+            losses: myPicks.filter((p) => p.result === "loss").length,
+            pushes: myPicks.filter((p) => p.result === "push").length,
+            picksMade: myPicks.length,
+          };
+        });
+
+        const changed = next.some((m, i) =>
+          m.wins !== prev[i].wins || m.losses !== prev[i].losses
+        );
+        if (changed) {
+          setFlash(true);
+          setTimeout(() => setFlash(false), 1200);
+        }
+        return next;
+      });
+    }
+
+    // Ask the server to score any pending picks whose games have gone final,
+    // then pull the updated records. Idempotent and safe to call repeatedly.
+    async function scoreAndRefresh() {
+      try {
+        await fetch(`/api/competitions/${competitionId}/score`, { method: "POST" });
+      } catch {}
+      await refreshRecords();
+    }
+
+    // Realtime: fires the moment any pick row changes (scoring, new picks).
     const channel = supabase
       .channel(`pool-picks:${competitionId}`)
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "picks",
           filter: `competition_id=eq.${competitionId}`,
         },
-        async () => {
-          // Re-fetch all picks and recompute per-member records.
-          const { data: picks } = await supabase
-            .from("picks")
-            .select("picker_id, result")
-            .eq("competition_id", competitionId);
-
-          if (!picks) return;
-
-          setMembers((prev) =>
-            prev.map((m) => {
-              const myPicks = picks.filter((p) => p.picker_id === m.userId);
-              return {
-                ...m,
-                wins:   myPicks.filter((p) => p.result === "win").length,
-                losses: myPicks.filter((p) => p.result === "loss").length,
-                pushes: myPicks.filter((p) => p.result === "push").length,
-                picksMade: myPicks.length,
-              };
-            })
-          );
-
-          setFlash(true);
-          setTimeout(() => setFlash(false), 1200);
-        }
+        () => { refreshRecords(); }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [competitionId]);
+    // Poll while the competition is live. Realtime only tells us when a row
+    // changes — something still has to trigger the scoring itself, and games
+    // go final at unpredictable times.
+    scoreAndRefresh();
+    const interval = isComplete ? null : setInterval(scoreAndRefresh, 60_000);
+
+    // Catch up immediately when the user returns to the tab.
+    function onVisible() {
+      if (document.visibilityState === "visible") scoreAndRefresh();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [competitionId, isComplete]);
 
   // Sort by wins desc, then losses asc, then name asc
   const sorted = [...members].sort((a, b) => {
