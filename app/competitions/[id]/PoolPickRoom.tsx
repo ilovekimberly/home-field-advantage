@@ -318,11 +318,12 @@ export default function PoolPickRoom({
     );
   }
 
-  // Group games by local ET date for NFL (games span multiple days in a week)
+  // Group games by local ET date for NFL/EPL (slates span multiple days per week)
   const isNFL = sport === "NFL";
+  const groupByDay = sport === "NFL" || sport === "EPL";
   type GameGroup = { dateLabel: string; games: typeof games };
   const gameGroups: GameGroup[] = [];
-  if (isNFL) {
+  if (groupByDay) {
     const groupMap = new Map<string, typeof games>();
     for (const g of games) {
       const dayKey = new Date(g.startTimeUTC).toLocaleDateString("en-US", {
@@ -348,7 +349,7 @@ export default function PoolPickRoom({
 
       {gameGroups.map(({ dateLabel, games: dayGames }) => (
         <div key={dateLabel || "all"}>
-          {isNFL && dateLabel && (
+          {groupByDay && dateLabel && (
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider pt-2 pb-1 border-b border-slate-100 mb-2">
               {dateLabel}
             </div>
