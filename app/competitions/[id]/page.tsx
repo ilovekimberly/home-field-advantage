@@ -345,6 +345,11 @@ export default async function CompetitionPage({
       const { games: nflGames, weekLabel } = await fetchNFLForDate(activeDate);
       games = nflGames;
       nflWeekLabel = weekLabel;
+    } else if (comp.sport === "EPL") {
+      const { fetchEPLGameweekWithLabel } = await import("@/lib/epl");
+      const { games: eplGames, weekLabel } = await fetchEPLGameweekWithLabel(activeDate);
+      games = eplGames;
+      nflWeekLabel = weekLabel;
     } else {
       games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate);
     }
@@ -571,10 +576,8 @@ export default async function CompetitionPage({
         <div className="flex items-center justify-between mb-1">
           <div>
             <h2 className="text-lg font-bold">
-              {comp.sport === "NFL" && nflWeekLabel
+              {nflWeekLabel
                 ? nflWeekLabel
-                : comp.sport === "EPL"
-                ? `Gameweek · ${activeDate}`
                 : new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
             </h2>
             {/* Per-date score — 1v1 only, shown once there are scored picks */}
