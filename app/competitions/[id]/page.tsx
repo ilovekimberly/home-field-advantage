@@ -112,7 +112,7 @@ export default async function CompetitionPage({
   }
 
   // Profiles — for pools, load all members; for 1v1, just the two players.
-  let poolMembers: { userId: string; name: string; wins: number; losses: number; pushes: number; isMe: boolean }[] = [];
+  let poolMembers: { userId: string; name: string; wins: number; losses: number; pushes: number; picksMade: number; isMe: boolean }[] = [];
 
   const ids = isPool
     ? [] // we'll load member profiles separately
@@ -192,6 +192,7 @@ export default async function CompetitionPage({
         wins:   memberPicks.filter((p) => p.result === "win").length,
         losses: memberPicks.filter((p) => p.result === "loss").length,
         pushes: memberPicks.filter((p) => p.result === "push").length,
+        picksMade: memberPicks.length,
         isMe: memberId === user.id,
       });
     }
@@ -331,18 +332,10 @@ export default async function CompetitionPage({
   let nflWeekLabel: string | undefined;
   try {
     if (comp.sport === "NFL") {
-      const { fetchNFLCurrentWeek, fetchNFLForDate } = await import("@/lib/nfl");
-      // Single-week (daily) competitions: let ESPN pick the current/closest week —
-      // avoids preseason week-boundary issues and always shows the right slate.
-      // Season/weekly competitions navigating to a specific week: use the date.
-      const activeWeekEnd = new Date(activeDate + "T12:00:00Z");
-      activeWeekEnd.setUTCDate(activeWeekEnd.getUTCDate() + 6);
-      const todayInActiveWeek =
-        today >= activeDate && today <= activeWeekEnd.toISOString().slice(0, 10);
-      const useCurrent = comp.duration === "daily" && todayInActiveWeek;
-      const { games: nflGames, weekLabel } = useCurrent
-        ? await fetchNFLCurrentWeek()
-        : await fetchNFLForDate(activeDate);
+      // Always resolve the week from the pick-date so the slate shown here is
+      // identical to the one the pick API and the scoring cron resolve.
+      const { fetchNFLForDate } = await import("@/lib/nfl");
+      const { games: nflGames, weekLabel } = await fetchNFLForDate(activeDate);
       games = nflGames;
       nflWeekLabel = weekLabel;
     } else {

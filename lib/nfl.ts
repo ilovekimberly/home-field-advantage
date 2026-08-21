@@ -100,7 +100,12 @@ export async function fetchNFLScheduleForDate(date: string): Promise<SportGame[]
 }
 
 function makeWeekLabel(weekInfo: NFLWeekInfo): string {
-  if (weekInfo.seasonType === 1) return `Preseason ${weekInfo.label}`;
+  if (weekInfo.seasonType === 1) {
+    // ESPN counts the Hall of Fame game as preseason Week 1, which inflates
+    // every subsequent preseason week by one relative to NFL.com. Subtract it
+    // back out so labels match the official schedule.
+    return `Preseason Week ${Math.max(1, weekInfo.week - 1)}`;
+  }
   if (weekInfo.seasonType === 3) return `Playoffs · ${weekInfo.label}`;
   return weekInfo.label; // e.g. "Week 3"
 }
@@ -146,8 +151,17 @@ export async function fetchNFLCurrentWeek(): Promise<{ games: SportGame[]; weekL
 // Uses a two-step ESPN query: probe with the date to get weekInfo, then fetch
 // the complete week slate with explicit params.
 export async function fetchNFLForDate(date: string): Promise<{ games: SportGame[]; weekLabel: string }> {
-  const calendarDate = date.replace(/-/g, "");
-  const month = new Date(date + "T12:00:00Z").getUTCMonth() + 1;
+  // `date` is the Tuesday that starts the NFL week (see getPickDate). Tuesday
+  // itself falls in ESPN's week-boundary gap and often resolves to the wrong
+  // week — or no games at all. Probe with the Sunday of that week instead,
+  // which reliably sits inside the slate. This makes the lookup deterministic:
+  // the same pick-date always resolves to the same week, whether we're called
+  // while picks are open or days later when scoring.
+  const probeDt = new Date(date + "T12:00:00Z");
+  probeDt.setUTCDate(probeDt.getUTCDate() + 5); // Tue → Sun
+  const probeDate = probeDt.toISOString().slice(0, 10);
+  const calendarDate = probeDate.replace(/-/g, "");
+  const month = probeDt.getUTCMonth() + 1;
   const isPreseason = month === 8;
 
   // Step 1: probe with the date to resolve weekInfo.

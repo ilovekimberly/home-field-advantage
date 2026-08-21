@@ -8,6 +8,7 @@ type MemberRecord = {
   wins: number;
   losses: number;
   pushes: number;
+  picksMade?: number;
   isMe: boolean;
 };
 
@@ -72,6 +73,7 @@ export default function PoolLeaderboard({
                 wins:   myPicks.filter((p) => p.result === "win").length,
                 losses: myPicks.filter((p) => p.result === "loss").length,
                 pushes: myPicks.filter((p) => p.result === "push").length,
+                picksMade: myPicks.length,
               };
             })
           );
@@ -130,10 +132,13 @@ export default function PoolLeaderboard({
                 <span className={`flex-1 truncate ${m.isMe ? "font-semibold text-slate-700" : "text-slate-600"}`}>
                   {m.isMe ? "You" : m.name}
                 </span>
+                <span className="shrink-0 text-xs text-slate-400 tabular-nums">
+                  {m.picksMade ?? 0} pick{(m.picksMade ?? 0) !== 1 ? "s" : ""}
+                </span>
               </li>
             ))}
           </ul>
-          <p className="text-xs text-slate-400 mt-3 text-center">Standings appear once games are scored</p>
+          <p className="text-xs text-slate-400 mt-3 text-center">Records appear once games are final</p>
         </div>
       ) : (
         <table className="w-full text-sm">
@@ -144,6 +149,7 @@ export default function PoolLeaderboard({
               <th className="pb-2 text-right">W</th>
               <th className="pb-2 text-right">L</th>
               <th className="pb-2 text-right">Pct</th>
+              <th className="pb-2 text-right">Picks</th>
             </tr>
           </thead>
           <tbody>
@@ -172,6 +178,9 @@ export default function PoolLeaderboard({
                   <td className="py-2 text-right tabular-nums whitespace-nowrap">{m.losses}</td>
                   <td className="py-2 text-right tabular-nums text-slate-500 whitespace-nowrap">
                     {winPct(m.wins, m.losses)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-slate-400 whitespace-nowrap">
+                    {m.picksMade ?? 0}
                   </td>
                 </tr>
               );
