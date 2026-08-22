@@ -486,27 +486,42 @@ export default async function CompetitionPage({
         {/* Cancel button — only before any picks are made */}
         {canCancel && <CancelButton competitionId={comp.id} />}
 
-        {/* Invite panel: pool active creators can keep sharing until all games start;
-            for daily pools there's no point inviting once picks are locked.
+        {/* Invite panel: pool creators can keep sharing for the whole active run,
+            which matches what the /join route accepts. A mid-slate joiner simply
+            can't pick games that have already kicked off.
             1v1 shows only while waiting for an opponent. */}
-        {(() => {
-          // Hide the invite panel once the earliest game on today's slate has started.
-          // If the schedule API returned no games, default to showing the invite.
+        {isCreator && (
+          (isPool && comp.status === "active") ||
+          (!isPool && !comp.opponent_id)
+        ) && (() => {
+          // Warn once the earliest game on this slate has started — anyone
+          // joining now has already missed some picks.
           const firstGameTime = games.length > 0
-            ? new Date(Math.min(...games.map(g => new Date(g.startTimeUTC).getTime())))
+            ? new Date(Math.min(...games.map((g) => new Date(g.startTimeUTC).getTime())))
             : null;
           const slateStarted = firstGameTime != null && now >= firstGameTime;
-          const poolInviteOpen = isPool && comp.status === "active" && !slateStarted;
-          return isCreator && (poolInviteOpen || (!isPool && !comp.opponent_id));
-        })() && (
-          <div className="mt-4">
-            <InvitePanel
-              competitionId={comp.id}
-              inviteToken={comp.invite_token}
-              siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
-            />
-          </div>
-        )}
+          const lockedCount = games.filter(
+            (g) => new Date(g.startTimeUTC) <= now
+          ).length;
+
+          return (
+            <div className="mt-4">
+              <InvitePanel
+                competitionId={comp.id}
+                inviteToken={comp.invite_token}
+                siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
+                isPool={isPool}
+              />
+              {isPool && slateStarted && (
+                <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  ⚠️ This slate is underway — {lockedCount} of {games.length} game
+                  {games.length !== 1 ? "s" : ""} already locked. Anyone joining now
+                  can only pick what hasn&apos;t kicked off yet.
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Welcome banner — shown once to new members arriving via invite link */}
@@ -539,6 +554,7 @@ export default async function CompetitionPage({
                   competitionId={comp.id}
                   inviteToken={comp.invite_token}
                   siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
+                  isPool={isPool}
                 />
               )}
               {!isCreator && (

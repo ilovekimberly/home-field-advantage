@@ -6,10 +6,12 @@ export default function InvitePanel({
   competitionId,
   inviteToken,
   siteUrl,
+  isPool = false,
 }: {
   competitionId: string;
   inviteToken: string;
   siteUrl: string;
+  isPool?: boolean;
 }) {
   const inviteUrl = `${siteUrl}/join/${inviteToken}`;
   const [email, setEmail] = useState("");
@@ -39,7 +41,9 @@ export default function InvitePanel({
 
   return (
     <div className="rounded-lg bg-ice p-4 space-y-3">
-      <p className="text-sm font-medium text-rink">Invite your opponent</p>
+      <p className="text-sm font-medium text-rink">
+        {isPool ? "Invite people to the pool" : "Invite your opponent"}
+      </p>
 
       {/* Friends quick-invite — only renders if user has accepted friends */}
       <FriendsInviterImmediate competitionId={competitionId} />
