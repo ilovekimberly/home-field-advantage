@@ -27,9 +27,23 @@ function getStatusBadge(comp: any): { label: string; className: string } {
   }
 }
 
-export default async function HomePage() {
+// Messages for the ?err= codes the /join/[token] route redirects with.
+const JOIN_ERRORS: Record<string, string> = {
+  "full":        "That competition is already full.",
+  "finished":    "That competition has already finished — you can't join it now.",
+  "cancelled":   "That competition was cancelled.",
+  "bad-invite":  "That invite link isn't valid. Ask for a fresh one.",
+  "join-failed": "Something went wrong joining that competition. Please try again.",
+};
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams?: { err?: string };
+}) {
   const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const joinError = searchParams?.err ? JOIN_ERRORS[searchParams.err] : undefined;
 
   if (!user) {
     return (
@@ -330,6 +344,13 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8 max-w-2xl">
+
+      {/* ── Join error (redirected from /join/[token]) ── */}
+      {joinError && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          {joinError}
+        </div>
+      )}
 
       {/* ── No competitions yet ── */}
       {(competitions ?? []).length === 0 && (

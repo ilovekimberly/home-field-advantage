@@ -52,6 +52,16 @@ export async function GET(req: Request, { params }: { params: { token: string } 
       return NextResponse.redirect(new URL(`/competitions/${comp.id}`, req.url));
     }
 
+    // Competition still accepting members? A finished or cancelled pool can't
+    // be joined — otherwise a late clicker lands on a closed competition with
+    // an unwinnable 0-0 record. (Mirrors the survivor branch below.)
+    if (comp.status === "cancelled") {
+      return NextResponse.redirect(new URL("/?err=cancelled", req.url));
+    }
+    if (comp.status === "complete") {
+      return NextResponse.redirect(new URL("/?err=finished", req.url));
+    }
+
     // Check max_members cap.
     if (comp.max_members) {
       const { count } = await admin
