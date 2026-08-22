@@ -169,6 +169,144 @@ function PicksReveal({
   );
 }
 
+// ── Picks grid: whole-slate view of every member's picks ───────────────────
+// The per-game reveal is fine for a 1–2 game night, but a full NFL week or EPL
+// matchweek runs 10–16 games — you'd have to scroll every card to compare.
+// This shows the entire slate at once: members as rows, games as columns.
+// Unlocked games stay hidden so nobody can copy before kickoff.
+
+function PicksGrid({
+  games, allDatePicks, members, currentUserId, isFIFA, now,
+}: {
+  games: Game[];
+  allDatePicks: PickRow[];
+  members: Member[];
+  currentUserId: string;
+  isFIFA: boolean;
+  now: Date;
+}) {
+  const [open, setOpen] = useState(true);
+
+  const rows = games.map((g) => ({
+    game: g,
+    locked: new Date(g.startTimeUTC) <= now || g.final
+      || g.gameState === "LIVE" || g.gameState === "CRIT",
+  }));
+  const anyLocked = rows.some((r) => r.locked);
+  if (!anyLocked || members.length < 2) return null;
+
+  const pickFor = (gameId: string, userId: string) =>
+    allDatePicks.find(
+      (p) => String(p.game_id) === gameId && p.picker_id === userId
+    );
+
+  function cellLabel(pick: PickRow, g: Game): string {
+    if (isFIFA) {
+      if (pick.picked_team_abbrev === "HOME") return g.home.abbrev;
+      if (pick.picked_team_abbrev === "AWAY") return g.away.abbrev;
+      return "Draw";
+    }
+    if (pick.picked_team_abbrev === "DRAW") return "Draw";
+    return pick.picked_team_abbrev;
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+      >
+        <span className="text-sm font-semibold text-slate-700">
+          All picks · {rows.filter((r) => r.locked).length} of {games.length} revealed
+        </span>
+        <span className="text-xs text-slate-400">{open ? "Hide ▲" : "Show ▼"}</span>
+      </button>
+
+      {open && (
+        <div className="overflow-x-auto border-t border-slate-100">
+          <table className="text-xs border-collapse">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-10 bg-white px-3 py-2 text-left font-semibold text-slate-500 border-b border-slate-100 min-w-[92px]">
+                  Player
+                </th>
+                {rows.map(({ game: g, locked }) => (
+                  <th
+                    key={String(g.id)}
+                    className={`px-2 py-2 text-center font-medium border-b border-slate-100 whitespace-nowrap ${
+                      locked ? "text-slate-500" : "text-slate-300"
+                    }`}
+                  >
+                    <div className="leading-tight">{g.away.abbrev}</div>
+                    <div className="leading-tight text-[10px] text-slate-400">
+                      @{g.home.abbrev}
+                    </div>
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-center font-semibold text-slate-500 border-b border-slate-100 whitespace-nowrap">
+                  W–L
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => {
+                const isMe = m.userId === currentUserId;
+                let w = 0, l = 0;
+                for (const { game: g } of rows) {
+                  const p = pickFor(String(g.id), m.userId);
+                  if (p?.result === "win") w++;
+                  else if (p?.result === "loss") l++;
+                }
+                return (
+                  <tr key={m.userId} className={isMe ? "bg-rink/5" : ""}>
+                    <td className={`sticky left-0 z-10 px-3 py-2 border-b border-slate-50 truncate max-w-[120px] ${
+                      isMe ? "bg-[#f4f7fb] font-semibold text-slate-700" : "bg-white text-slate-600"
+                    }`}>
+                      {isMe ? "You" : m.name}
+                    </td>
+                    {rows.map(({ game: g, locked }) => {
+                      const pick = pickFor(String(g.id), m.userId);
+                      if (!locked) {
+                        return (
+                          <td key={String(g.id)} className="px-2 py-2 text-center border-b border-slate-50">
+                            <span className="text-slate-300" title="Hidden until kickoff">🔒</span>
+                          </td>
+                        );
+                      }
+                      if (!pick) {
+                        return (
+                          <td key={String(g.id)} className="px-2 py-2 text-center border-b border-slate-50">
+                            <span className="text-slate-300">–</span>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={String(g.id)} className="px-2 py-2 text-center border-b border-slate-50">
+                          <span className={`inline-block rounded px-1.5 py-0.5 font-semibold ${
+                            pick.result === "win"  ? "bg-green-100 text-green-700" :
+                            pick.result === "loss" ? "bg-red-100 text-red-600" :
+                            pick.result === "push" ? "bg-slate-100 text-slate-500" :
+                            "bg-slate-50 text-slate-500"
+                          }`}>
+                            {cellLabel(pick, g)}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-center border-b border-slate-50 tabular-nums font-semibold text-slate-600 whitespace-nowrap">
+                      {w}–{l}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 type GameLineData = {
@@ -349,6 +487,15 @@ export default function PoolPickRoom({
           {error}
         </div>
       )}
+
+      <PicksGrid
+        games={games}
+        allDatePicks={allDatePicks}
+        members={members}
+        currentUserId={currentUserId}
+        isFIFA={isFIFA ?? false}
+        now={now}
+      />
 
       {gameGroups.map(({ dateLabel, games: dayGames }) => (
         <div key={dateLabel || "all"}>
