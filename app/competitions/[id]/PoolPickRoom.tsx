@@ -509,23 +509,27 @@ export default function PoolPickRoom({
   const isNFL = sport === "NFL";
   const groupByDay = sport === "NFL" || sport === "EPL";
   type GameGroup = { dateLabel: string; games: typeof games };
-  const gameGroups: GameGroup[] = [];
-  if (groupByDay) {
+
+  function buildGroups(list: typeof games): GameGroup[] {
+    if (!groupByDay) return list.length ? [{ dateLabel: "", games: list }] : [];
     const groupMap = new Map<string, typeof games>();
-    for (const g of sortedGames) {
+    for (const g of list) {
       const dayKey = new Date(g.startTimeUTC).toLocaleDateString("en-US", {
         weekday: "long", month: "long", day: "numeric", timeZone: "America/New_York",
       });
       if (!groupMap.has(dayKey)) groupMap.set(dayKey, []);
       groupMap.get(dayKey)!.push(g);
     }
-    // Insertion order is now chronological because sortedGames is.
-    for (const [dateLabel, gs] of groupMap) {
-      gameGroups.push({ dateLabel, games: gs });
-    }
-  } else {
-    gameGroups.push({ dateLabel: "", games: sortedGames });
+    // Insertion order is chronological because `list` is already sorted.
+    return [...groupMap].map(([dateLabel, gs]) => ({ dateLabel, games: gs }));
   }
+
+  // Finished games sink to the bottom so the games you can still pick stay up
+  // top. Live games count as upcoming — they're still the active slate.
+  const openGames = sortedGames.filter((g) => !g.final);
+  const doneGames = sortedGames.filter((g) => g.final);
+  const gameGroups = buildGroups(openGames);
+  const doneGroups = buildGroups(doneGames);
 
   return (
     <div className="space-y-3">
@@ -544,7 +548,22 @@ export default function PoolPickRoom({
         now={now}
       />
 
-      {gameGroups.map(({ dateLabel, games: dayGames }) => (
+      {([
+        { key: "open", groups: gameGroups },
+        { key: "done", groups: doneGroups },
+      ] as const).map(({ key, groups }) => (
+        <div key={key} className="space-y-3">
+          {/* Divider introducing the finished games parked at the bottom */}
+          {key === "done" && groups.length > 0 && gameGroups.length > 0 && (
+            <div className="flex items-center gap-3 pt-4">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Completed · {doneGames.length}
+              </span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+          )}
+          {groups.map(({ dateLabel, games: dayGames }) => (
         <div key={dateLabel || "all"}>
           {groupByDay && dateLabel && (
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider pt-2 pb-1 border-b border-slate-100 mb-2">
@@ -813,6 +832,8 @@ export default function PoolPickRoom({
         );
       })}
           </div>
+        </div>
+          ))}
         </div>
       ))}
     </div>
