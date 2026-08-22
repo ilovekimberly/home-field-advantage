@@ -40,18 +40,37 @@ export async function sendEmail({ to, subject, html }: EmailPayload): Promise<bo
 
 // ── Email templates ────────────────────────────────────────────────────────
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆" };
-const SPORT_GAME_WORD: Record<string, string> = { NHL: "game", MLB: "game", EPL: "match", FIFA: "match" };
+const SPORT_EMOJI: Record<string, string> = {
+  NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆", NFL: "🏈",
+};
+const SPORT_GAME_WORD: Record<string, string> = {
+  NHL: "game", MLB: "game", EPL: "match", FIFA: "match", NFL: "game",
+};
 const SPORT_START_PHRASE: Record<string, string> = {
   NHL: "puck drop",
   MLB: "first pitch",
   EPL: "kickoff",
   FIFA: "kickoff",
+  NFL: "kickoff",
 };
 
-function sportEmoji(sport?: string) { return SPORT_EMOJI[sport ?? "NHL"] ?? "🏒"; }
-function gameWord(sport?: string) { return SPORT_GAME_WORD[sport ?? "NHL"] ?? "game"; }
-function startPhrase(sport?: string) { return SPORT_START_PHRASE[sport ?? "NHL"] ?? "puck drop"; }
+// Reader-facing sport names — "EPL" and "FIFA" are jargon in a sentence.
+const SPORT_LABEL: Record<string, string> = {
+  NHL: "NHL", MLB: "MLB", NFL: "NFL",
+  EPL: "Premier League", FIFA: "World Cup",
+};
+function sportLabel(sport?: string) { return SPORT_LABEL[sport ?? ""] ?? "pick'em"; }
+
+// Sports whose slate spans a week rather than a single night — copy like
+// "tonight" and "perfect night" doesn't fit them.
+function isWeekly(sport?: string) { return sport === "NFL" || sport === "EPL"; }
+
+// Fall back to a sport-neutral value rather than a hockey one — an unknown
+// sport shouldn't silently render as 🏒 / "puck drop" (that's how NFL emails
+// ended up with a hockey stick before NFL was added to these maps).
+function sportEmoji(sport?: string) { return SPORT_EMOJI[sport ?? ""] ?? "🏆"; }
+function gameWord(sport?: string) { return SPORT_GAME_WORD[sport ?? ""] ?? "game"; }
+function startPhrase(sport?: string) { return SPORT_START_PHRASE[sport ?? ""] ?? "game time"; }
 
 function wrapper(content: string) {
   return `
@@ -160,18 +179,20 @@ export function picksOpenEmail({
 }) {
   const gw = gameWord(sport);
   const sp = startPhrase(sport);
+  // NFL and EPL slates run across a week, so "tonight" is wrong for them.
+  const when = isWeekly(sport) ? "this week" : "tonight";
   const priorityNote = hasPriority
     ? `<p style="font-size:15px;color:#555;line-height:1.6;">
-        You have <strong>pick priority</strong> tonight — head over to choose whether
+        You have <strong>pick priority</strong> ${when} — head over to choose whether
         to pick first or defer and take picks&nbsp;#2&nbsp;&amp;&nbsp;#3.
        </p>`
     : `<p style="font-size:15px;color:#555;line-height:1.6;">
-        <strong>${opponentName}</strong> has pick priority tonight.
+        <strong>${opponentName}</strong> has pick priority ${when}.
         Head over once they've made their choice to start picking.
        </p>`;
 
   return {
-    subject: `${sportEmoji(sport)} Tonight's picks are open — ${competitionName}`,
+    subject: `${sportEmoji(sport)} ${isWeekly(sport) ? "This week's" : "Tonight's"} picks are open — ${competitionName}`,
     html: wrapper(`
       <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">Picks are open!</h1>
       <p style="font-size:16px;line-height:1.6;">
@@ -200,7 +221,7 @@ export function competitionCancelledEmail({
   sport?: string;
 }) {
   const explanation = reason === "daily"
-    ? "Tonight's games have started and no one joined in time."
+    ? `The ${gameWord(sport)}s have started and no one joined in time.`
     : "3 days have passed and no one accepted the invite.";
 
   return {
@@ -243,10 +264,14 @@ export function perfectNightEmail({
   const formattedDate = new Date(date + "T12:00:00Z").toLocaleDateString("en-US", {
     weekday: "long", month: "short", day: "numeric", timeZone: "UTC",
   });
+  // "night" doesn't fit a slate that runs across a week.
+  const period = isWeekly(sport) ? "week" : "night";
   const subject = isSweeper
-    ? `🔥 Perfect night! You swept all ${wins} picks — ${competitionName}`
-    : `🔥 ${sweeper} swept all ${wins} picks last night — ${competitionName}`;
-  const headline = isSweeper ? "🔥 Perfect night!" : `🔥 ${sweeper} had a perfect night!`;
+    ? `🔥 Perfect ${period}! You swept all ${wins} picks — ${competitionName}`
+    : `🔥 ${sweeper} swept all ${wins} picks — ${competitionName}`;
+  const headline = isSweeper
+    ? `🔥 Perfect ${period}!`
+    : `🔥 ${sweeper} had a perfect ${period}!`;
   const body = isSweeper
     ? `You swept all <strong>${wins} picks</strong> on ${formattedDate} in <strong>${competitionName}</strong>. Clean sheet!`
     : `<strong>${sweeper}</strong> swept all <strong>${wins} picks</strong> on ${formattedDate} in <strong>${competitionName}</strong>. Time to bounce back.`;
@@ -288,7 +313,8 @@ export function poolPicksOpenEmail({
   const formattedDate = new Date(startDate + "T12:00:00Z").toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
   });
-  const isFIFA = sport === "FIFA";
+  // Soccer competitions have three outcomes — EPL added draws alongside FIFA.
+  const hasDraws = sport === "FIFA" || sport === "EPL";
 
   return {
     subject: `${emoji} Picks are open — ${competitionName}`,
@@ -300,14 +326,14 @@ export function poolPicksOpenEmail({
         Hey ${toName} — picks are now open for <strong>${competitionName}</strong>.
         The first ${gw}s kick off today, <strong>${formattedDate}</strong>.
       </p>
-      ${isFIFA ? `
+      ${hasDraws ? `
       <p style="font-size:15px;color:#555;line-height:1.6;">
         For each match, pick <strong>Home win</strong>, <strong>Away win</strong>, or <strong>Draw</strong>
         before kickoff. Picks lock the moment the match starts — don't wait too long!
       </p>
       ` : `
       <p style="font-size:15px;color:#555;line-height:1.6;">
-        Pick the winner of each ${gw} before it starts. Picks lock at ${gameWord(sport)} time.
+        Pick the winner of each ${gw} before it starts. Picks lock at ${startPhrase(sport)}.
       </p>
       `}
       <p style="font-size:15px;color:#555;line-height:1.6;">
@@ -337,7 +363,8 @@ export function poolInviteEmail({
   const emoji = sportEmoji(sport);
   const gw = gameWord(sport);
   const sp = startPhrase(sport);
-  const isFIFA = sport === "FIFA";
+  // Soccer competitions have three outcomes — EPL added draws alongside FIFA.
+  const hasDraws = sport === "FIFA" || sport === "EPL";
 
   const todayISO = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const picksToday = startDate === todayISO;
@@ -354,7 +381,7 @@ export function poolInviteEmail({
         Picks open on <strong>${formattedDate}</strong>. You'll get a reminder that morning — join now so you're ready.
        </p>`;
 
-  const howItWorks = isFIFA
+  const howItWorks = hasDraws
     ? `For each match, pick <strong>Home win</strong>, <strong>Away win</strong>, or <strong>Draw</strong> before kickoff. Everyone picks independently — best record on the leaderboard wins.`
     : `Pick the winner of each ${gw} before it starts. Everyone in the pool picks independently — best record wins.`;
 
@@ -363,7 +390,7 @@ export function poolInviteEmail({
     html: wrapper(`
       <h1 style="font-size:22px;color:#0b1f3a;margin-bottom:8px;">${emoji} You're invited to a pool!</h1>
       <p style="font-size:16px;line-height:1.6;">
-        <strong>${creatorName}</strong> invited you to join <strong>${competitionName}</strong> — a ${sport ?? "NHL"} pick'em pool.
+        <strong>${creatorName}</strong> invited you to join <strong>${competitionName}</strong> — a ${sportLabel(sport)} pick'em pool.
       </p>
       <p style="font-size:15px;color:#555;line-height:1.6;">
         ${howItWorks}
