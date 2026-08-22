@@ -7,11 +7,13 @@ export default function InvitePanel({
   inviteToken,
   siteUrl,
   isPool = false,
+  defaultOpen = false,
 }: {
   competitionId: string;
   inviteToken: string;
   siteUrl: string;
   isPool?: boolean;
+  defaultOpen?: boolean;
 }) {
   const inviteUrl = `${siteUrl}/join/${inviteToken}`;
   const [email, setEmail] = useState("");
@@ -39,11 +41,37 @@ export default function InvitePanel({
     setTimeout(() => setCopied(false), 2000);
   }
 
+  // Collapsible: once a competition is under way the invite tools are a
+  // secondary action, so they shouldn't dominate the top of the page.
+  // 1v1 comps waiting on an opponent are the exception — that's the whole
+  // point of the page at that moment, so they open by default.
+  const [open, setOpen] = useState(defaultOpen);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="text-sm text-rink hover:underline font-medium"
+      >
+        + {isPool ? "Invite people to the pool" : "Invite your opponent"}
+      </button>
+    );
+  }
+
   return (
     <div className="rounded-lg bg-ice p-4 space-y-3">
-      <p className="text-sm font-medium text-rink">
-        {isPool ? "Invite people to the pool" : "Invite your opponent"}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-rink">
+          {isPool ? "Invite people to the pool" : "Invite your opponent"}
+        </p>
+        <button
+          onClick={() => setOpen(false)}
+          className="text-xs text-slate-400 hover:text-slate-600 shrink-0"
+          aria-label="Hide invite options"
+        >
+          Hide ▲
+        </button>
+      </div>
 
       {/* Friends quick-invite — only renders if user has accepted friends */}
       <FriendsInviterImmediate competitionId={competitionId} />

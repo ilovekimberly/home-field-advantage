@@ -87,17 +87,19 @@ export default async function CompetitionPage({
 
     return (
       <div className="space-y-6">
-        {/* Invite panel — creator always sees it while competition is active */}
+        <SurvivorPickRoom competitionId={comp.id} userId={user.id} />
+        {/* Invite panel — secondary action, so it sits below the picks and
+            starts collapsed. */}
         {isCreator && comp.status !== "cancelled" && comp.status !== "complete" && (
           <div className="card">
             <InvitePanel
               competitionId={comp.id}
               inviteToken={comp.invite_token ?? ""}
               siteUrl={siteUrl}
+              isPool
             />
           </div>
         )}
-        <SurvivorPickRoom competitionId={comp.id} userId={user.id} />
       </div>
     );
   }
@@ -511,6 +513,9 @@ export default async function CompetitionPage({
                 inviteToken={comp.invite_token}
                 siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
                 isPool={isPool}
+                // A 1v1 with no opponent yet is *waiting* on this — open it.
+                // An active pool is already playing, so keep it tucked away.
+                defaultOpen={!isPool}
               />
               {isPool && slateStarted && (
                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -555,6 +560,8 @@ export default async function CompetitionPage({
                   inviteToken={comp.invite_token}
                   siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
                   isPool={isPool}
+                  // Pending pool: filling it is the only thing to do here.
+                  defaultOpen
                 />
               )}
               {!isCreator && (
