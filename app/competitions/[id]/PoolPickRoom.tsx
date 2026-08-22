@@ -498,6 +498,13 @@ export default function PoolPickRoom({
     );
   }
 
+  // Schedule APIs don't return games in a dependable order, so sort by kickoff
+  // first. Grouping below relies on Map insertion order, which means an
+  // unsorted input put days (and times within a day) out of sequence.
+  const sortedGames = [...games].sort((a, b) =>
+    a.startTimeUTC.localeCompare(b.startTimeUTC)
+  );
+
   // Group games by local ET date for NFL/EPL (slates span multiple days per week)
   const isNFL = sport === "NFL";
   const groupByDay = sport === "NFL" || sport === "EPL";
@@ -505,18 +512,19 @@ export default function PoolPickRoom({
   const gameGroups: GameGroup[] = [];
   if (groupByDay) {
     const groupMap = new Map<string, typeof games>();
-    for (const g of games) {
+    for (const g of sortedGames) {
       const dayKey = new Date(g.startTimeUTC).toLocaleDateString("en-US", {
         weekday: "long", month: "long", day: "numeric", timeZone: "America/New_York",
       });
       if (!groupMap.has(dayKey)) groupMap.set(dayKey, []);
       groupMap.get(dayKey)!.push(g);
     }
+    // Insertion order is now chronological because sortedGames is.
     for (const [dateLabel, gs] of groupMap) {
       gameGroups.push({ dateLabel, games: gs });
     }
   } else {
-    gameGroups.push({ dateLabel: "", games });
+    gameGroups.push({ dateLabel: "", games: sortedGames });
   }
 
   return (
@@ -528,7 +536,7 @@ export default function PoolPickRoom({
       )}
 
       <PicksGrid
-        games={games}
+        games={sortedGames}
         allDatePicks={allDatePicks}
         members={members}
         currentUserId={currentUserId}
