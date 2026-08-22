@@ -19,6 +19,8 @@ type Game = {
   inIntermission?: boolean;
   // FIFA only: true for knockout stage games — Draw is not a valid outcome.
   knockoutRound?: boolean;
+  // MLB only: 1 or 2 for doubleheaders, undefined for single games.
+  gameNumber?: number;
 };
 
 type PickRow = {
@@ -187,11 +189,38 @@ function PicksGrid({
 }) {
   const [open, setOpen] = useState(true);
 
-  const rows = games.map((g) => ({
-    game: g,
-    locked: new Date(g.startTimeUTC) <= now || g.final
-      || g.gameState === "LIVE" || g.gameState === "CRIT",
-  }));
+  // Disambiguate columns that would otherwise look identical:
+  //  · MLB doubleheaders — same two teams twice on one date → G1 / G2.
+  //  · Any repeated pairing without a gameNumber → numbered by start time.
+  const pairCounts = new Map<string, number>();
+  for (const g of games) {
+    const key = `${g.away.abbrev}@${g.home.abbrev}`;
+    pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+  }
+  const pairSeen = new Map<string, number>();
+
+  // Multi-day slates (NFL weeks, EPL matchweeks) benefit from a day label —
+  // it also tells apart a club playing twice in the same gameweek.
+  const dayOf = (g: Game) =>
+    new Date(g.startTimeUTC).toLocaleDateString("en-US", {
+      weekday: "short", timeZone: "America/New_York",
+    });
+  const spansDays = new Set(games.map(dayOf)).size > 1;
+
+  const rows = games.map((g) => {
+    const key = `${g.away.abbrev}@${g.home.abbrev}`;
+    const seq = (pairSeen.get(key) ?? 0) + 1;
+    pairSeen.set(key, seq);
+    const isRepeat = (pairCounts.get(key) ?? 0) > 1;
+    return {
+      game: g,
+      locked: new Date(g.startTimeUTC) <= now || g.final
+        || g.gameState === "LIVE" || g.gameState === "CRIT",
+      // e.g. "G2" for the second leg of a doubleheader
+      gameTag: isRepeat ? `G${g.gameNumber ?? seq}` : null,
+      day: spansDays ? dayOf(g) : null,
+    };
+  });
   const anyLocked = rows.some((r) => r.locked);
   if (!anyLocked || members.length < 2) return null;
 
@@ -230,17 +259,27 @@ function PicksGrid({
                 <th className="sticky left-0 z-10 bg-white px-3 py-2 text-left font-semibold text-slate-500 border-b border-slate-100 min-w-[92px]">
                   Player
                 </th>
-                {rows.map(({ game: g, locked }) => (
+                {rows.map(({ game: g, locked, gameTag, day }) => (
                   <th
                     key={String(g.id)}
                     className={`px-2 py-2 text-center font-medium border-b border-slate-100 whitespace-nowrap ${
                       locked ? "text-slate-500" : "text-slate-300"
                     }`}
                   >
+                    {day && (
+                      <div className="leading-tight text-[9px] uppercase tracking-wide text-slate-300">
+                        {day}
+                      </div>
+                    )}
                     <div className="leading-tight">{g.away.abbrev}</div>
                     <div className="leading-tight text-[10px] text-slate-400">
                       @{g.home.abbrev}
                     </div>
+                    {gameTag && (
+                      <div className="leading-tight text-[9px] font-bold text-rink">
+                        {gameTag}
+                      </div>
+                    )}
                   </th>
                 ))}
                 <th className="px-3 py-2 text-center font-semibold text-slate-500 border-b border-slate-100 whitespace-nowrap">

@@ -95,6 +95,12 @@ export default function NewCompetitionPage() {
     }
   }, [isSurvivor]);
 
+  // Survivor is NFL-only. If the sport moves away from NFL, the Survivor
+  // option is no longer offered, so fall back to head-to-head.
+  useEffect(() => {
+    if (format === "survivor" && sport !== "NFL") setFormat("1v1");
+  }, [sport, format]);
+
   // When we detect playoffs, the "season" duration now means playoffs —
   // make sure the default still works or auto-adjust if user had "season" selected.
   // (No forced reset; the label just changes.)
@@ -217,14 +223,16 @@ export default function NewCompetitionPage() {
       <h1 className="text-2xl font-bold mb-6">New competition</h1>
       <form onSubmit={createCompetition} className="space-y-5">
 
-        {/* Format selector */}
+        {/* Format selector — Survivor is NFL-only */}
         <div>
           <span className="block text-sm font-medium mb-2">Format</span>
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${sport === "NFL" ? "grid-cols-3" : "grid-cols-2"}`}>
             {([
               { value: "1v1" as Format, label: "Head-to-head", desc: "1v1 snake draft pick'em" },
               { value: "pool" as Format, label: "Pool", desc: "Everyone picks independently, leaderboard wins" },
-              { value: "survivor" as Format, label: "Survivor 🏈", desc: "NFL survivor — one team per week, can't repeat" },
+              ...(sport === "NFL"
+                ? [{ value: "survivor" as Format, label: "Survivor 🏈", desc: "NFL survivor — one team per week, can't repeat" }]
+                : []),
             ]).map((f) => (
               <button
                 key={f.value}

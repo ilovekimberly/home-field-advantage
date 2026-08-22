@@ -702,6 +702,7 @@ export default async function CompetitionPage({
               clock: g.clock,
               inIntermission: g.inIntermission,
               knockoutRound: g.knockoutRound,
+              gameNumber: g.gameNumber,
             }))}
             allDatePicks={todaysPicks}
             members={poolMembers.map((m) => ({ userId: m.userId, name: m.name }))}
