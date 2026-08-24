@@ -385,23 +385,36 @@ export async function GET(req: Request) {
   {
     const { data: weekComps } = await supabase
       .from("competitions")
-      .select("id, sport, end_date")
+      .select("id, sport, start_date, end_date")
       .eq("status", "active")
       .in("sport", ["NFL", "EPL"])
       .gt("end_date", today); // not already closable by date
 
     for (const comp of weekComps ?? []) {
       const sport = comp.sport as string;
-      const pickDate = getPickDate(sport, today);
 
-      // Is there another slate after this one inside the competition window?
-      const nextSlate = new Date(pickDate + "T00:00:00Z");
-      nextSlate.setUTCDate(nextSlate.getUTCDate() + 7);
-      if (nextSlate.toISOString().slice(0, 10) <= comp.end_date) continue;
+      // Slates are anchored to the competition's START, not its end_date.
+      // end_date is just start + N*7 - 1 and doesn't align to the Tue (NFL) /
+      // Fri (EPL) week boundary, so it can overlap the *next* week and make it
+      // look like another slate is still to come when it isn't.
+      const firstSlate = getPickDate(sport, comp.start_date);
+      const spanDays =
+        Math.round(
+          (new Date(comp.end_date + "T00:00:00Z").getTime() -
+            new Date(comp.start_date + "T00:00:00Z").getTime()) / 86400000
+        ) + 1;
+      const weeks = Math.max(1, Math.ceil(spanDays / 7));
+
+      const lastSlateDt = new Date(firstSlate + "T00:00:00Z");
+      lastSlateDt.setUTCDate(lastSlateDt.getUTCDate() + (weeks - 1) * 7);
+      const lastSlate = lastSlateDt.toISOString().slice(0, 10);
+
+      // Still in an earlier week of a multi-week competition.
+      if (getPickDate(sport, today) < lastSlate) continue;
 
       // Every game in the final slate must be finished.
       let games;
-      try { games = await fetchScheduleForDate(sport, pickDate, true); }
+      try { games = await fetchScheduleForDate(sport, lastSlate, true); }
       catch { continue; }
       if (!games.length) continue;
       if (games.some((g) => !isFinalGame(g))) continue;
