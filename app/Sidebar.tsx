@@ -40,9 +40,13 @@ const STATUS_DOT: Record<string, string> = {
 const SPORT_EMOJI: Record<string, string> = {
   NHL: "🏒",
   MLB: "⚾",
+  NFL: "🏈",
   EPL: "⚽",
   FIFA: "🏆",
 };
+
+// Stable display order so sections don't reshuffle as competitions are added.
+const SPORT_ORDER = ["NFL", "EPL", "NHL", "MLB", "FIFA"];
 
 // Statuses open by default.
 const DEFAULT_OPEN = new Set(["active", "pending", "cancelled"]);
@@ -208,10 +212,16 @@ export default function Sidebar({ competitions: initialComps }: Props) {
           <p className="p-4 text-xs text-slate-400">No competitions yet.</p>
         ) : (
           <div className="p-3 space-y-5">
-            {Object.entries(bySport).map(([sport, byStatus]) => (
+            {Object.entries(bySport)
+              .sort(([a], [b]) => {
+                const ia = SPORT_ORDER.indexOf(a);
+                const ib = SPORT_ORDER.indexOf(b);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+              })
+              .map(([sport, byStatus]) => (
               <div key={sport}>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
-                  {SPORT_EMOJI[sport] ?? "🏒"} {sport}
+                  {SPORT_EMOJI[sport] ?? "🏆"} {sport}
                 </div>
                 <div className="space-y-3">
                   {STATUS_ORDER.filter((s) => byStatus[s]?.length).map((status) => (

@@ -310,7 +310,7 @@ export default async function HomePage({
     if (!comp) continue;
     const picker = profileMap.get(pick.picker_id);
     const pickerName = pick.picker_id === user.id ? "You" : (picker?.display_name ?? picker?.email ?? "Opponent");
-    let icon = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏒";
+    let icon = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏆";
     let resultSuffix = "";
     if (pick.result === "win")  { icon = "✅"; resultSuffix = " — Won!"; }
     if (pick.result === "loss") { icon = "❌"; resultSuffix = " — Lost"; }
@@ -376,7 +376,7 @@ export default async function HomePage({
               const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
               const opponent = opponentId ? profileMap.get(opponentId) : null;
               const opponentName = opponent?.display_name ?? opponent?.email ?? null;
-              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏒";
+              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏆";
               const badge = getStatusBadge(comp);
               const totalPicks = s.myWins + s.myLosses;
               const diff = s.myWins - s.theirWins;
@@ -477,7 +477,7 @@ export default async function HomePage({
             {(friendComps ?? []).map((comp) => {
               const friend = friendProfileMap.get(comp.creator_id);
               const friendName = friend?.display_name ?? friend?.email ?? "Friend";
-              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏒";
+              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏆";
               return (
                 <Link
                   key={comp.id}

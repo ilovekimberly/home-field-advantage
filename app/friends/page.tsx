@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆" };
+const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", NFL: "🏈", EPL: "⚽", FIFA: "🏆" };
 
 type Friend        = { id: string; userId: string; name: string; status: string };
 type Competition   = { id: string; name: string; sport: string; status: string; start_date: string };
@@ -141,7 +141,7 @@ export default function FriendsPage() {
                           href={`/competitions/${c.id}`}
                           className="flex items-center gap-2 text-sm hover:text-rink transition-colors"
                         >
-                          <span>{SPORT_EMOJI[c.sport] ?? "🏒"}</span>
+                          <span>{SPORT_EMOJI[c.sport] ?? "🏆"}</span>
                           <span className="font-medium">{c.name}</span>
                           <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
                             c.status === "active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
