@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate } from "@/lib/schedule";
+import { fetchScheduleForDate, getPickDate } from "@/lib/schedule";
 import { sendEmail, poolPicksOpenEmail } from "@/lib/email";
 
 // GET /api/cron/notify-pools
@@ -41,24 +41,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: true, reason: "No active pools today" });
   }
 
-  // Check which pools already got notified today.
   const poolIds = pools.map((p) => p.id);
-  const { data: alreadySent } = await supabase
-    .from("competition_notifications")
-    .select("competition_id")
-    .in("competition_id", poolIds)
-    .eq("notification_date", today)
-    .eq("notification_type", "picks_open");
-  const alreadySentIds = new Set((alreadySent ?? []).map((r) => r.competition_id));
 
-  const eligible = pools.filter((p) => !alreadySentIds.has(p.id));
-  if (eligible.length === 0) {
-    return NextResponse.json({ skipped: true, reason: "All pools already notified today" });
-  }
-
-  // Group pools by sport — only notify if that sport has games today.
-  const sportPools: Record<string, typeof eligible> = {};
-  for (const pool of eligible) {
+  // Group pools by sport — only notify if that sport still has games to pick.
+  const sportPools: Record<string, typeof pools> = {};
+  for (const pool of pools) {
     const sport = pool.sport ?? "NHL";
     if (!sportPools[sport]) sportPools[sport] = [];
     sportPools[sport].push(pool);
@@ -80,11 +67,18 @@ export async function GET(req: Request) {
   const results: Record<string, { sent: number; skipped: string | null }> = {};
   let totalSent = 0;
 
+  const now = new Date();
+
   for (const [sport, sportPoolList] of Object.entries(sportPools)) {
-    // Check if this sport has games today.
+    // Schedules are keyed by pick-date, not calendar date. For NFL/EPL that's
+    // the snapped start of the week, and the fetcher returns the WHOLE week's
+    // slate — so asking for "today" would return a full week of games every
+    // single day and make the emptiness check below useless.
+    const pickDate = getPickDate(sport, today);
+
     let games: any[];
     try {
-      games = await fetchScheduleForDate(sport, today);
+      games = await fetchScheduleForDate(sport, pickDate);
     } catch (e) {
       console.error(`notify-pools: ${sport} schedule failed`, e);
       results[sport] = { sent: 0, skipped: "schedule fetch failed" };
@@ -92,13 +86,41 @@ export async function GET(req: Request) {
     }
 
     if (!games || games.length === 0) {
-      results[sport] = { sent: 0, skipped: "no games today" };
+      results[sport] = { sent: 0, skipped: "no games scheduled" };
+      continue;
+    }
+
+    // Don't announce "picks are open" when nothing is left to pick — every
+    // game in the slate has already kicked off.
+    // Sorted — schedule APIs don't guarantee order, and we use the first entry
+    // below to tell members when the next game is.
+    const upcoming = games
+      .filter((g: any) => new Date(g.startTimeUTC) > now)
+      .sort((a: any, b: any) => a.startTimeUTC.localeCompare(b.startTimeUTC));
+    if (upcoming.length === 0) {
+      results[sport] = { sent: 0, skipped: "no games left to pick" };
+      continue;
+    }
+
+    // Dedup on the pick-date rather than the calendar date, so a weekly NFL or
+    // EPL slate produces one email per week instead of one every morning.
+    const { data: alreadySent } = await supabase
+      .from("competition_notifications")
+      .select("competition_id")
+      .in("competition_id", poolIds)
+      .eq("notification_date", pickDate)
+      .eq("notification_type", "picks_open");
+    const alreadySentIds = new Set((alreadySent ?? []).map((r) => r.competition_id));
+
+    const pending = sportPoolList.filter((p) => !alreadySentIds.has(p.id));
+    if (pending.length === 0) {
+      results[sport] = { sent: 0, skipped: "already notified this slate" };
       continue;
     }
 
     let sportSent = 0;
 
-    for (const pool of sportPoolList) {
+    for (const pool of pending) {
       const members = (memberRows ?? [])
         .filter((r: any) => r.competition_id === pool.id)
         .map((r: any) => r.user_id);
@@ -114,17 +136,18 @@ export async function GET(req: Request) {
           competitionName: pool.name,
           competitionUrl,
           sport:           pool.sport ?? "NHL",
-          startDate:       today,
+          // Date the slate's first remaining game is on, not today's date.
+          startDate:       upcoming[0].startTimeUTC.slice(0, 10),
         });
 
         const ok = await sendEmail({ to: profile.email, subject, html });
         if (ok) sportSent++;
       }
 
-      // Record notification sent for this pool today.
+      // Record against the pick-date so weekly slates aren't re-notified daily.
       await supabase.from("competition_notifications").upsert({
         competition_id:    pool.id,
-        notification_date: today,
+        notification_date: pickDate,
         notification_type: "picks_open",
       }, { onConflict: "competition_id,notification_date,notification_type" });
 
