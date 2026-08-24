@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { fetchScheduleForDate, isFinalGame, scorePick } from "@/lib/schedule";
+import { fetchScheduleForDate, isFinalGame, scorePick, getPickDate } from "@/lib/schedule";
 import { sendEmail, competitionCancelledEmail, perfectNightEmail, poolPicksOpenEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
@@ -374,6 +374,53 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── 6b. Close week-based comps once their final slate is played ───────
+  // NFL and EPL competitions are measured in weeks, but end_date is just
+  // start + N*7 days, which usually lands days after the last actual game
+  // (an NFL week ends Monday night; a Tue-start single-week comp runs to the
+  // following Monday). Rather than leaving the pool "active" with nothing left
+  // to do, close it as soon as the last slate in its window is final and every
+  // pick has been scored.
+  let earlyClosed = 0;
+  {
+    const { data: weekComps } = await supabase
+      .from("competitions")
+      .select("id, sport, end_date")
+      .eq("status", "active")
+      .in("sport", ["NFL", "EPL"])
+      .gt("end_date", today); // not already closable by date
+
+    for (const comp of weekComps ?? []) {
+      const sport = comp.sport as string;
+      const pickDate = getPickDate(sport, today);
+
+      // Is there another slate after this one inside the competition window?
+      const nextSlate = new Date(pickDate + "T00:00:00Z");
+      nextSlate.setUTCDate(nextSlate.getUTCDate() + 7);
+      if (nextSlate.toISOString().slice(0, 10) <= comp.end_date) continue;
+
+      // Every game in the final slate must be finished.
+      let games;
+      try { games = await fetchScheduleForDate(sport, pickDate, true); }
+      catch { continue; }
+      if (!games.length) continue;
+      if (games.some((g) => !isFinalGame(g))) continue;
+
+      // And every pick must be scored — don't close mid-scoring.
+      const { data: stillPending } = await supabase
+        .from("picks").select("id")
+        .eq("competition_id", comp.id)
+        .eq("result", "pending")
+        .limit(1);
+      if (stillPending && stillPending.length > 0) continue;
+
+      await supabase
+        .from("competitions").update({ status: "complete" }).eq("id", comp.id);
+      earlyClosed++;
+      console.log(`cron/score: early-closed ${sport} comp ${comp.id} — final slate complete`);
+    }
+  }
+
   // ── 7. Auto-cancel pending comps with no opponent ─────────────────────
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
@@ -445,6 +492,6 @@ export async function GET(req: Request) {
     }
   }
 
-  console.log(`cron/score: ${updated} picks scored, ${completed} completed, ${cancelled} cancelled`);
-  return NextResponse.json({ updated, completed, cancelled });
+  console.log(`cron/score: ${updated} picks scored, ${completed} completed, ${earlyClosed} early-closed, ${cancelled} cancelled`);
+  return NextResponse.json({ updated, completed, earlyClosed, cancelled });
 }
