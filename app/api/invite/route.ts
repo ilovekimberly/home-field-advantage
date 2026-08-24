@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { sendEmail, poolInviteEmail } from "@/lib/email";
+import { sportEmoji } from "@/lib/schedule";
 
 // POST /api/invite
 // Body: { competitionId, toEmail }
@@ -47,8 +48,7 @@ export async function POST(req: Request) {
     }));
   } else {
     // 1v1: classic challenge email.
-    const sportEmojis: Record<string, string> = { NHL: "🏒", MLB: "⚾", NFL: "🏈", EPL: "⚽", FIFA: "🏆" };
-    const emoji = sportEmojis[comp.sport ?? "NHL"] ?? "🏒";
+    const emoji = sportEmoji(comp.sport);
     subject = `${creatorName} challenged you to a pick'em!`;
     html = `
       <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">

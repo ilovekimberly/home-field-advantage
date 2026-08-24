@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { whoPicksFirst, generateDraftOrder, type Player, type DraftStyle } from "@/lib/picks";
-import { fetchScheduleForDate, getPickDate } from "@/lib/schedule";
+import { fetchScheduleForDate, getPickDate, sportEmoji } from "@/lib/schedule";
 
 // Use Eastern Time to match the competition page — picks are stored under the ET date,
 // so the home page must use the same timezone or dayPicks lookups fail after 8 PM ET.
@@ -14,7 +14,6 @@ function daysAgo(n: number) {
   return d.toISOString().slice(0, 10);
 }
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆", NFL: "🏈" };
 
 function getStatusBadge(comp: any): { label: string; className: string } {
   const isGroupComp = comp.format === "pool" || comp.format === "survivor";
@@ -310,7 +309,7 @@ export default async function HomePage({
     if (!comp) continue;
     const picker = profileMap.get(pick.picker_id);
     const pickerName = pick.picker_id === user.id ? "You" : (picker?.display_name ?? picker?.email ?? "Opponent");
-    let icon = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏆";
+    let icon = sportEmoji(comp.sport ?? "NHL");
     let resultSuffix = "";
     if (pick.result === "win")  { icon = "✅"; resultSuffix = " — Won!"; }
     if (pick.result === "loss") { icon = "❌"; resultSuffix = " — Lost"; }
@@ -376,7 +375,7 @@ export default async function HomePage({
               const opponentId = comp.creator_id === user.id ? comp.opponent_id : comp.creator_id;
               const opponent = opponentId ? profileMap.get(opponentId) : null;
               const opponentName = opponent?.display_name ?? opponent?.email ?? null;
-              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏆";
+              const emoji = sportEmoji(comp.sport ?? "NHL");
               const badge = getStatusBadge(comp);
               const totalPicks = s.myWins + s.myLosses;
               const diff = s.myWins - s.theirWins;
@@ -477,7 +476,7 @@ export default async function HomePage({
             {(friendComps ?? []).map((comp) => {
               const friend = friendProfileMap.get(comp.creator_id);
               const friendName = friend?.display_name ?? friend?.email ?? "Friend";
-              const emoji = SPORT_EMOJI[comp.sport ?? "NHL"] ?? "🏆";
+              const emoji = sportEmoji(comp.sport ?? "NHL");
               return (
                 <Link
                   key={comp.id}

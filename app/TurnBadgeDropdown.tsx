@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { sportEmoji } from "@/lib/schedule";
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", NFL: "🏈", EPL: "⚽", FIFA: "🏆" };
 
 type FriendRequest = { id: string; name: string };
 
@@ -152,7 +152,7 @@ export default function TurnBadgeDropdown({
                     className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
                   >
                     <span className="text-xl leading-none">
-                      {SPORT_EMOJI[comp.sport] ?? "🏆"}
+                      {sportEmoji(comp.sport)}
                     </span>
                     <span className="text-sm font-medium text-slate-700 leading-snug">
                       {comp.name}

@@ -65,6 +65,27 @@ export const SPORT_CONFIG: Record<SupportedSport, {
   },
 };
 
+// Single source of truth for sport emoji. Previously this map was copy-pasted
+// into half a dozen components, and each new sport had to be added to every
+// copy — NFL was missing from several, so it silently rendered as 🏒.
+// The fallback is deliberately sport-neutral for the same reason.
+export function sportEmoji(sport: string | null | undefined): string {
+  return SPORT_CONFIG[sport as SupportedSport]?.emoji ?? "🏆";
+}
+
+// Full display name, e.g. "English Premier League".
+export function sportLabel(sport: string | null | undefined): string {
+  return SPORT_CONFIG[sport as SupportedSport]?.label ?? "Pick'em";
+}
+
+// Order sports appear in navigation. Anything unknown sorts last.
+export const SPORT_ORDER: SupportedSport[] = ["NFL", "EPL", "NHL", "MLB", "FIFA"];
+
+export function sportSortIndex(sport: string | null | undefined): number {
+  const i = SPORT_ORDER.indexOf(sport as SupportedSport);
+  return i === -1 ? 99 : i;
+}
+
 // Returns the canonical "pick date" for a given sport and calendar date.
 // For NHL/MLB this is the date itself. For EPL it's the Friday that starts
 // the gameweek. For NFL it's the Tuesday that starts the NFL week, so all

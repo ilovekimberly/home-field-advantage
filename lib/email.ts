@@ -2,6 +2,8 @@
 // All emails sent by the app go through sendEmail() so the Resend API
 // call and error handling live in one place.
 
+import { sportEmoji } from "./schedule";
+
 type EmailPayload = {
   to: string;
   subject: string;
@@ -40,9 +42,6 @@ export async function sendEmail({ to, subject, html }: EmailPayload): Promise<bo
 
 // ── Email templates ────────────────────────────────────────────────────────
 
-const SPORT_EMOJI: Record<string, string> = {
-  NHL: "🏒", MLB: "⚾", EPL: "⚽", FIFA: "🏆", NFL: "🏈",
-};
 const SPORT_GAME_WORD: Record<string, string> = {
   NHL: "game", MLB: "game", EPL: "match", FIFA: "match", NFL: "game",
 };
@@ -55,6 +54,7 @@ const SPORT_START_PHRASE: Record<string, string> = {
 };
 
 // Reader-facing sport names — "EPL" and "FIFA" are jargon in a sentence.
+// (Shorter than SPORT_CONFIG's labels, which are things like "NHL Hockey".)
 const SPORT_LABEL: Record<string, string> = {
   NHL: "NHL", MLB: "MLB", NFL: "NFL",
   EPL: "Premier League", FIFA: "World Cup",
@@ -68,7 +68,6 @@ function isWeekly(sport?: string) { return sport === "NFL" || sport === "EPL"; }
 // Fall back to a sport-neutral value rather than a hockey one — an unknown
 // sport shouldn't silently render as 🏒 / "puck drop" (that's how NFL emails
 // ended up with a hockey stick before NFL was added to these maps).
-function sportEmoji(sport?: string) { return SPORT_EMOJI[sport ?? ""] ?? "🏆"; }
 function gameWord(sport?: string) { return SPORT_GAME_WORD[sport ?? ""] ?? "game"; }
 function startPhrase(sport?: string) { return SPORT_START_PHRASE[sport ?? ""] ?? "game time"; }
 

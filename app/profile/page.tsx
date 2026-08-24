@@ -2,9 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import ProfileForm from "./ProfileForm";
-import { durationLabel as formatDuration } from "@/lib/schedule";
+import { durationLabel as formatDuration, sportEmoji } from "@/lib/schedule";
 
-const SPORT_EMOJI: Record<string, string> = { NHL: "🏒", MLB: "⚾", NFL: "🏈", EPL: "⚽", FIFA: "🏆" };
 const PODIUM = ["🥇", "🥈", "🥉"];
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -298,7 +297,7 @@ export default async function ProfilePage() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span>{SPORT_EMOJI[comp.sport] ?? "🏆"}</span>
+                            <span>{sportEmoji(comp.sport)}</span>
                             <span className="font-semibold text-rink truncate">{comp.name}</span>
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">
@@ -326,7 +325,7 @@ export default async function ProfilePage() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span>{SPORT_EMOJI[comp.sport] ?? "🏆"}</span>
+                            <span>{sportEmoji(comp.sport)}</span>
                             <span className="font-semibold text-rink truncate">{comp.name}</span>
                             <span className="text-xs bg-rink/10 text-rink px-1.5 py-0.5 rounded-full font-semibold">Pool</span>
                           </div>
@@ -356,7 +355,7 @@ export default async function ProfilePage() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span>{SPORT_EMOJI[comp.sport] ?? "🏆"}</span>
+                            <span>{sportEmoji(comp.sport)}</span>
                             <span className="font-semibold text-slate-700 truncate">{comp.name}</span>
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">
@@ -390,7 +389,7 @@ export default async function ProfilePage() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span>{SPORT_EMOJI[comp.sport] ?? "🏆"}</span>
+                            <span>{sportEmoji(comp.sport)}</span>
                             <span className="font-semibold text-slate-700 truncate">{comp.name}</span>
                             <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-semibold">Pool</span>
                           </div>
