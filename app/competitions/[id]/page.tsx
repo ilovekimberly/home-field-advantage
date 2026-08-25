@@ -257,10 +257,14 @@ export default async function CompetitionPage({
         return d.toISOString().slice(0, 10);
       })()
     : activeDate;
+  // A week-based slate is pickable until its window has fully passed. That
+  // includes slates that haven't started yet — an upcoming gameweek is exactly
+  // when you want to pick. Individual games still lock at their own kickoff,
+  // so this can't be used to pick a game that's already under way.
   const isViewingToday = (
     activeDate === today ||
     (comp.duration === "daily" && activeDate === comp.start_date) ||
-    (weekWindowDays > 0 && today >= activeDate && today <= activeWeekEnd)
+    (weekWindowDays > 0 && today <= activeWeekEnd)
   ) && todayPickable;
 
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
