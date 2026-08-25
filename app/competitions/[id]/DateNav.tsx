@@ -21,7 +21,10 @@ export default function DateNav({
   weekLabel?: string;
 }) {
   const router = useRouter();
-  const isNFL = sport === "NFL";
+  // NFL weeks and EPL matchweeks both cover a multi-day slate, so they get
+  // week-style labels instead of a single calendar date.
+  const isWeekly = sport === "NFL" || sport === "EPL";
+  const weekNoun = sport === "EPL" ? "Matchweek" : "Wk";
 
   function navigate(date: string) {
     router.push(`/competitions/${competitionId}?date=${date}`);
@@ -39,17 +42,22 @@ export default function DateNav({
   const prevDate = currentIdx > 0 ? allDates[currentIdx - 1] : null;
   const nextDate = currentIdx < allDates.length - 1 ? allDates[currentIdx + 1] : null;
 
-  // Format date label — NFL shows "Wk of [date]", others show "Mon Apr 7"
+  // Week-based sports show "Wk of Aug 25" / "Matchweek of Aug 25" rather than
+  // a bare calendar date, which reads as a single day's slate.
   function fmt(d: string) {
-    const formatted = new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
-      month: "short", day: "numeric", timeZone: "UTC",
-    });
-    return isNFL ? `Wk of ${formatted}` : new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
+    const dt = new Date(d + "T12:00:00Z");
+    if (isWeekly) {
+      const short = dt.toLocaleDateString("en-US", {
+        month: "short", day: "numeric", timeZone: "UTC",
+      });
+      return `${weekNoun} of ${short}`;
+    }
+    return dt.toLocaleDateString("en-US", {
       weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
     });
   }
 
-  const isCurrentWeek = isNFL
+  const isCurrentWeek = isWeekly
     ? activeDate === today || Math.abs(new Date(activeDate).getTime() - new Date(today).getTime()) < 7 * 86400000
     : activeDate === today;
 
@@ -65,9 +73,11 @@ export default function DateNav({
       </button>
 
       <div className="text-center">
-        <div className="font-semibold text-rink">{isNFL && weekLabel ? weekLabel : fmt(activeDate)}</div>
+        {/* weekLabel is the official "Preseason Week 2" / "Matchweek 1" string
+            resolved from the schedule API — use it whenever we have one. */}
+        <div className="font-semibold text-rink">{weekLabel || fmt(activeDate)}</div>
         {isCurrentWeek && (
-          <div className="text-xs text-slate-400">{isNFL ? "This week" : "Tonight"}</div>
+          <div className="text-xs text-slate-400">{isWeekly ? "This week" : "Tonight"}</div>
         )}
       </div>
 

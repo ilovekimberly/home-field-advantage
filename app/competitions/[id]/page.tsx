@@ -338,7 +338,7 @@ export default async function CompetitionPage({
 
   // Schedule for activeDate
   let games: Awaited<ReturnType<typeof fetchScheduleForDate>> = [];
-  let nflWeekLabel: string | undefined;
+  let slateWeekLabel: string | undefined;
   try {
     if (comp.sport === "NFL") {
       // Always resolve the week from the pick-date so the slate shown here is
@@ -346,12 +346,12 @@ export default async function CompetitionPage({
       const { fetchNFLForDate } = await import("@/lib/nfl");
       const { games: nflGames, weekLabel } = await fetchNFLForDate(activeDate);
       games = nflGames;
-      nflWeekLabel = weekLabel;
+      slateWeekLabel = weekLabel;
     } else if (comp.sport === "EPL") {
       const { fetchEPLGameweekWithLabel } = await import("@/lib/epl");
       const { games: eplGames, weekLabel } = await fetchEPLGameweekWithLabel(activeDate);
       games = eplGames;
-      nflWeekLabel = weekLabel;
+      slateWeekLabel = weekLabel;
     } else {
       games = await fetchScheduleForDate(comp.sport ?? "NHL", activeDate);
     }
@@ -599,8 +599,8 @@ export default async function CompetitionPage({
         <div className="flex items-center justify-between mb-1">
           <div>
             <h2 className="text-lg font-bold">
-              {nflWeekLabel
-                ? nflWeekLabel
+              {slateWeekLabel
+                ? slateWeekLabel
                 : new Date(activeDate + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
             </h2>
             {/* Per-date score — 1v1 only, shown once there are scored picks */}
@@ -631,7 +631,7 @@ export default async function CompetitionPage({
             datesWithPicks={datesWithPicks}
             todayPickable={todayPickable}
             sport={comp.sport ?? "NHL"}
-            weekLabel={nflWeekLabel}
+            weekLabel={slateWeekLabel}
           />
         )}
 
