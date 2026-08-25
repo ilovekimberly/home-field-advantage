@@ -15,6 +15,32 @@ export async function GET() {
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
+  // Pending friend requests sent TO the current user. Loaded first and
+  // independently of competitions — a user with no active competitions still
+  // needs to see friend requests. (This used to sit after an early return
+  // that fired when there were no competitions, so the badge never appeared.)
+  const { data: friendRows } = await supabase
+    .from("friendships")
+    .select("id, requester_id")
+    .eq("addressee_id", user.id)
+    .eq("status", "pending");
+
+  const requesterIds = (friendRows ?? []).map((r) => r.requester_id);
+  let friendRequests: { id: string; name: string }[] = [];
+  if (requesterIds.length > 0) {
+    const { data: requesterProfiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", requesterIds);
+    const nameById = new Map(
+      (requesterProfiles ?? []).map((p) => [p.id, p.display_name ?? p.email ?? "Someone"])
+    );
+    friendRequests = (friendRows ?? []).map((r) => ({
+      id: r.id,
+      name: nameById.get(r.requester_id) ?? "Someone",
+    }));
+  }
+
   const { data: comps } = await supabase
     .from("competitions")
     .select("id, name, sport, creator_id, opponent_id")
@@ -25,7 +51,7 @@ export async function GET() {
     .or(`creator_id.eq.${user.id},opponent_id.eq.${user.id}`);
 
   if (!comps || comps.length === 0) {
-    return NextResponse.json({ competitions: [] });
+    return NextResponse.json({ competitions: [], friendRequests });
   }
 
   const compIds = comps.map((c) => c.id);
@@ -64,29 +90,6 @@ export async function GET() {
     if (myPicks.length < theirPicks.length) {
       needsAttention.push({ id: comp.id, name: comp.name, sport: comp.sport ?? "NHL" });
     }
-  }
-
-  // Pending friend requests sent TO the current user.
-  const { data: friendRows } = await supabase
-    .from("friendships")
-    .select("id, requester_id")
-    .eq("addressee_id", user.id)
-    .eq("status", "pending");
-
-  const requesterIds = (friendRows ?? []).map((r) => r.requester_id);
-  let friendRequests: { id: string; name: string }[] = [];
-  if (requesterIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name, email")
-      .in("id", requesterIds);
-    const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
-    friendRequests = (friendRows ?? []).map((r) => ({
-      id: r.id,
-      name: (profileMap.get(r.requester_id)?.display_name as string)
-        ?? (profileMap.get(r.requester_id)?.email as string)
-        ?? "Someone",
-    }));
   }
 
   return NextResponse.json({ competitions: needsAttention, friendRequests });

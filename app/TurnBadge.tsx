@@ -9,6 +9,32 @@ export default async function TurnBadge({ userId }: { userId: string }) {
   const supabase = createSupabaseServerClient();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
+  // Pending friend requests sent TO this user. Loaded first, and independently
+  // of competitions — the bell has to render for a user with no active
+  // competitions, otherwise friend requests are invisible. (This previously
+  // sat after an early `return null` that hid the bell entirely.)
+  const { data: friendRows } = await supabase
+    .from("friendships")
+    .select("id, requester_id")
+    .eq("addressee_id", userId)
+    .eq("status", "pending");
+
+  const requesterIds = (friendRows ?? []).map((r) => r.requester_id);
+  let friendRequests: { id: string; name: string }[] = [];
+  if (requesterIds.length > 0) {
+    const { data: requesterProfiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", requesterIds);
+    const nameById = new Map(
+      (requesterProfiles ?? []).map((p) => [p.id, p.display_name ?? p.email ?? "Someone"])
+    );
+    friendRequests = (friendRows ?? []).map((r) => ({
+      id: r.id,
+      name: (nameById.get(r.requester_id) as string) ?? "Someone",
+    }));
+  }
+
   // Active competitions the user is in, with today in the pick window.
   const { data: comps } = await supabase
     .from("competitions")
@@ -19,7 +45,9 @@ export default async function TurnBadge({ userId }: { userId: string }) {
     .gte("end_date", today)
     .or(`creator_id.eq.${userId},opponent_id.eq.${userId}`);
 
-  if (!comps || comps.length === 0) return null;
+  if (!comps || comps.length === 0) {
+    return <TurnBadgeDropdown competitions={[]} friendRequests={friendRequests} />;
+  }
 
   const compIds = comps.map((c) => c.id);
 
@@ -64,29 +92,6 @@ export default async function TurnBadge({ userId }: { userId: string }) {
     if (myPicks.length < theirPicks.length) {
       needsAttention.push({ id: comp.id, name: comp.name, sport: comp.sport ?? "NHL" });
     }
-  }
-
-  // Pending friend requests sent TO this user.
-  const { data: friendRows } = await supabase
-    .from("friendships")
-    .select("id, requester_id")
-    .eq("addressee_id", userId)
-    .eq("status", "pending");
-
-  const requesterIds = (friendRows ?? []).map((r) => r.requester_id);
-  let friendRequests: { id: string; name: string }[] = [];
-  if (requesterIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name, email")
-      .in("id", requesterIds);
-    const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
-    friendRequests = (friendRows ?? []).map((r) => ({
-      id: r.id,
-      name: (profileMap.get(r.requester_id)?.display_name as string)
-        ?? (profileMap.get(r.requester_id)?.email as string)
-        ?? "Someone",
-    }));
   }
 
   return (
