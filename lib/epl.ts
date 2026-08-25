@@ -162,6 +162,29 @@ async function resolveMatchweek(
   return { dates: weeks[idx], number: idx + 1 };
 }
 
+// Resolves several pick-dates to their matchweek labels in one calendar fetch.
+// Used to label the prev/next buttons in the date navigator, which otherwise
+// can only show a raw date.
+export async function getEPLMatchweekLabels(
+  dates: string[]
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (dates.length === 0) return out;
+
+  const calendar = await fetchEPLCalendarDates().catch(() => [] as string[]);
+  if (calendar.length === 0) return out;
+  const weeks = clusterMatchweeks(calendar);
+
+  for (const date of dates) {
+    const windowEnd = new Date(date + "T00:00:00Z");
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 6);
+    const endStr = windowEnd.toISOString().slice(0, 10);
+    const idx = weeks.findIndex((w) => w.some((d) => d >= date && d <= endStr));
+    if (idx !== -1) out[date] = `Matchweek ${idx + 1}`;
+  }
+  return out;
+}
+
 async function fetchDatesAndDedupe(dates: string[]): Promise<SportGame[]> {
   const results = await Promise.all(dates.map(fetchEPLForSingleDate));
   const seen = new Set<string>();

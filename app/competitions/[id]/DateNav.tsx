@@ -10,6 +10,7 @@ export default function DateNav({
   todayPickable = true,
   sport = "NHL",
   weekLabel,
+  weekLabels = {},
 }: {
   competitionId: string;
   activeDate: string;
@@ -19,6 +20,8 @@ export default function DateNav({
   todayPickable?: boolean;
   sport?: string;
   weekLabel?: string;
+  /** pick-date → official week label, e.g. { "2026-08-28": "Matchweek 2" } */
+  weekLabels?: Record<string, string>;
 }) {
   const router = useRouter();
   // NFL weeks and EPL matchweeks both cover a multi-day slate, so they get
@@ -57,6 +60,11 @@ export default function DateNav({
     });
   }
 
+  // Prefer the real week label ("Matchweek 2") over a date-derived one.
+  function label(d: string) {
+    return weekLabels[d] ?? fmt(d);
+  }
+
   const isCurrentWeek = isWeekly
     ? activeDate === today || Math.abs(new Date(activeDate).getTime() - new Date(today).getTime()) < 7 * 86400000
     : activeDate === today;
@@ -67,15 +75,15 @@ export default function DateNav({
         onClick={() => prevDate && navigate(prevDate)}
         disabled={!prevDate}
         className="btn-ghost text-sm disabled:opacity-30 px-3 py-1"
-        title={prevDate ? fmt(prevDate) : ""}
+        title={prevDate ? label(prevDate) : ""}
       >
-        ← {prevDate ? fmt(prevDate) : ""}
+        ← {prevDate ? label(prevDate) : ""}
       </button>
 
       <div className="text-center">
         {/* weekLabel is the official "Preseason Week 2" / "Matchweek 1" string
             resolved from the schedule API — use it whenever we have one. */}
-        <div className="font-semibold text-rink">{weekLabel || fmt(activeDate)}</div>
+        <div className="font-semibold text-rink">{weekLabel || label(activeDate)}</div>
         {isCurrentWeek && (
           <div className="text-xs text-slate-400">{isWeekly ? "This week" : "Tonight"}</div>
         )}
@@ -85,9 +93,9 @@ export default function DateNav({
         onClick={() => nextDate && navigate(nextDate)}
         disabled={!nextDate}
         className="btn-ghost text-sm disabled:opacity-30 px-3 py-1"
-        title={nextDate ? fmt(nextDate) : ""}
+        title={nextDate ? label(nextDate) : ""}
       >
-        {nextDate ? fmt(nextDate) : ""} →
+        {nextDate ? label(nextDate) : ""} →
       </button>
     </div>
   );

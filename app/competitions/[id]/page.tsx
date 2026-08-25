@@ -365,6 +365,30 @@ export default async function CompetitionPage({
     }
   } catch {}
 
+  // Week labels for the date navigator, so its prev/next buttons read
+  // "Matchweek 2" instead of "Matchweek of Aug 25". Resolved in one calendar
+  // fetch for every slate the navigator can reach.
+  let weekLabels: Record<string, string> = {};
+  if (comp.sport === "NFL" || comp.sport === "EPL") {
+    const navDates = Array.from(new Set(
+      [...datesWithPicks, today, activeDate]
+        .map((d) => getPickDate(comp.sport ?? "NHL", d))
+        .filter((d) => d >= firstSlate && d <= comp.end_date)
+    ));
+    try {
+      if (comp.sport === "NFL") {
+        const { getNFLWeekLabels } = await import("@/lib/nfl");
+        weekLabels = await getNFLWeekLabels(navDates);
+      } else {
+        const { getEPLMatchweekLabels } = await import("@/lib/epl");
+        weekLabels = await getEPLMatchweekLabels(navDates);
+      }
+    } catch {}
+    // The active slate's label is authoritative — it came from the same
+    // calendar lookup that produced the games actually on screen.
+    if (slateWeekLabel) weekLabels[activeDate] = slateWeekLabel;
+  }
+
   // MLB team stats (streak + last 10) — fetched once per page load, cached 1hr
   let mlbTeamStats: MLBTeamStatsMap = {};
   if (comp.sport === "MLB") {
@@ -643,6 +667,7 @@ export default async function CompetitionPage({
             todayPickable={todayPickable}
             sport={comp.sport ?? "NHL"}
             weekLabel={slateWeekLabel}
+            weekLabels={weekLabels}
           />
         )}
 

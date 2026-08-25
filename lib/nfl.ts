@@ -233,6 +233,31 @@ export async function fetchNFLForDate(date: string): Promise<{ games: SportGame[
   return { games, weekLabel: makeWeekLabel(weekInfo) };
 }
 
+// Resolves several pick-dates to their official week labels in one calendar
+// fetch — used to label the prev/next buttons in the date navigator.
+export async function getNFLWeekLabels(
+  dates: string[]
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (dates.length === 0) return out;
+
+  let entries: CalendarEntry[] = [];
+  try { entries = (await fetchNFLCalendar()).entries; } catch { return out; }
+  if (entries.length === 0) return out;
+
+  for (const date of dates) {
+    // Same Tue → Sun probe as fetchNFLForDate, for the same reason.
+    const probe = new Date(date + "T12:00:00Z");
+    probe.setUTCDate(probe.getUTCDate() + 5);
+    const ms = probe.getTime();
+    const match = entries.find(
+      (e) => ms >= new Date(e.start).getTime() && ms <= new Date(e.end).getTime()
+    );
+    if (match) out[date] = match.label;
+  }
+  return out;
+}
+
 // Returns the lock time = 1 hour before the earliest game this week.
 export function getNFLWeekLockTime(games: SportGame[]): string | null {
   if (!games.length) return null;
