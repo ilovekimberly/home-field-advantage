@@ -11,6 +11,7 @@ export default function DateNav({
   sport = "NHL",
   weekLabel,
   weekLabels = {},
+  todayPickDate,
 }: {
   competitionId: string;
   activeDate: string;
@@ -22,6 +23,8 @@ export default function DateNav({
   weekLabel?: string;
   /** pick-date → official week label, e.g. { "2026-08-28": "Matchweek 2" } */
   weekLabels?: Record<string, string>;
+  /** Today snapped to its pick-date (server-computed, sport-aware). */
+  todayPickDate?: string;
 }) {
   const router = useRouter();
   // NFL weeks and EPL matchweeks both cover a multi-day slate, so they get
@@ -36,7 +39,11 @@ export default function DateNav({
   // All dates in the competition window that either have picks or are today
   // (but only include today if previous results are all in).
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const baseDates = todayPickable ? [...datesWithPicks, today] : [...datesWithPicks];
+  // For week-based sports the navigable unit is a gameweek, not a calendar
+  // date — adding a raw "today" would offer a button for a mid-week date that
+  // isn't a slate start (and has no week label).
+  const todaySlate = todayPickDate ?? today;
+  const baseDates = todayPickable ? [...datesWithPicks, todaySlate] : [...datesWithPicks];
   const allDates = Array.from(new Set(baseDates))
     .filter((d) => d >= startDate && d <= endDate)
     .sort();

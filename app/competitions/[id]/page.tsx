@@ -257,14 +257,22 @@ export default async function CompetitionPage({
         return d.toISOString().slice(0, 10);
       })()
     : activeDate;
-  // A week-based slate is pickable until its window has fully passed. That
-  // includes slates that haven't started yet — an upcoming gameweek is exactly
-  // when you want to pick. Individual games still lock at their own kickoff,
-  // so this can't be used to pick a game that's already under way.
+  // The competition's *current* slate: today's gameweek, floored at the
+  // competition's opening one. Before the pool starts this is the opening
+  // gameweek; once a gameweek ends, the mid-week gap snaps forward to the next.
+  const currentSlate = (() => {
+    const t = getPickDate(comp.sport ?? "NHL", today);
+    return t < firstSlate ? firstSlate : t;
+  })();
+
+  // Only the current gameweek is editable. Earlier ones are finished; later
+  // ones aren't open yet — you shouldn't be able to jump ahead and pick a
+  // gameweek that's still weeks away.
   const isViewingToday = (
-    activeDate === today ||
-    (comp.duration === "daily" && activeDate === comp.start_date) ||
-    (weekWindowDays > 0 && today <= activeWeekEnd)
+    weekWindowDays > 0
+      ? activeDate === currentSlate
+      : (activeDate === today ||
+         (comp.duration === "daily" && activeDate === comp.start_date))
   ) && todayPickable;
 
   const todaysPicks = (allPicks ?? []).filter((p) => p.game_date === activeDate);
@@ -375,7 +383,7 @@ export default async function CompetitionPage({
   let weekLabels: Record<string, string> = {};
   if (comp.sport === "NFL" || comp.sport === "EPL") {
     const navDates = Array.from(new Set(
-      [...datesWithPicks, today, activeDate]
+      [...datesWithPicks, currentSlate, activeDate]
         .map((d) => getPickDate(comp.sport ?? "NHL", d))
         .filter((d) => d >= firstSlate && d <= comp.end_date)
     ));
@@ -672,6 +680,7 @@ export default async function CompetitionPage({
             sport={comp.sport ?? "NHL"}
             weekLabel={slateWeekLabel}
             weekLabels={weekLabels}
+            todayPickDate={currentSlate}
           />
         )}
 
