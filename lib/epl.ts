@@ -1,12 +1,27 @@
 import type { SportGame } from "./schedule";
 
-// Returns the ISO date of the Friday on or before the given date.
-// EPL gameweeks typically run Friday → Monday.
+// Returns the ISO date of the Friday that starts the gameweek this date
+// belongs to. EPL gameweeks run Friday → Monday.
+//
+// Fri–Mon are *inside* a gameweek, so they snap BACK to that week's Friday.
+// Tue–Thu fall in the gap between gameweeks: the previous round has already
+// finished, so those dates belong to the gameweek that's coming up, not the
+// one that just ended. They snap FORWARD to the next Friday.
+//
+// This matters for competition start dates — starting a pool on Tuesday means
+// "the upcoming round", not the round that finished two days ago.
 export function getGameweekStartDate(date: string): string {
   const d = new Date(date + "T12:00:00Z");
   const day = d.getUTCDay(); // 0=Sun,1=Mon,...,5=Fri,6=Sat
-  // Days to subtract to reach the previous (or current) Friday.
-  const offset = day === 5 ? 0 : day === 6 ? 1 : day + 3; // Fri=0, Sat=1, Sun=2, Mon=3, Tue=4, Wed=5, Thu=6
+
+  // Tue(2), Wed(3), Thu(4) → forward to the upcoming Friday.
+  if (day >= 2 && day <= 4) {
+    d.setUTCDate(d.getUTCDate() + (5 - day));
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Fri(5)=0, Sat(6)=1, Sun(0)=2, Mon(1)=3 — back to this week's Friday.
+  const offset = day === 5 ? 0 : day === 6 ? 1 : day + 2;
   d.setUTCDate(d.getUTCDate() - offset);
   return d.toISOString().slice(0, 10);
 }

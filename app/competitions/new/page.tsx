@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { SportPhase } from "@/app/api/sport-phase/route";
 import { FriendsInviterSelect } from "@/app/components/FriendsInviter";
+import { getGameweekStartDate } from "@/lib/epl";
 
 type Sport = "NHL" | "MLB" | "EPL" | "FIFA" | "NFL";
 type Duration = "daily" | "weekly" | "season" | "playoff";
@@ -120,8 +121,17 @@ export default function NewCompetitionPage() {
       if (nflWeeks === "season") return seasonEnd();
       return addDays(start, (nflWeeks as number) * 7 - 1);
     }
-    if (dur === "daily") return addDays(start, sport === "EPL" ? 3 : 0);
-    if (dur === "weekly") return addDays(start, sport === "EPL" ? 27 : 6);
+    if (sport === "EPL") {
+      // Measure from the gameweek this start date belongs to, not the raw date.
+      // Starting on a Tue–Thu means the *upcoming* round, so the window has to
+      // reach that round's Monday rather than ending mid-week.
+      const gwStart = getGameweekStartDate(start);
+      if (dur === "daily")  return addDays(gwStart, 3);   // Fri → Mon
+      if (dur === "weekly") return addDays(gwStart, 27);  // 4 gameweeks
+      return seasonEnd();
+    }
+    if (dur === "daily") return addDays(start, 0);
+    if (dur === "weekly") return addDays(start, 6);
     return seasonEnd();
   }
 
