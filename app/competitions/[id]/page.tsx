@@ -229,12 +229,20 @@ export default async function CompetitionPage({
     ? (mostRecentPickDate ?? comp.start_date)
     : rawDefault;
 
-  // For EPL, snap to gameweek start date.
-  const defaultDate = getPickDate(comp.sport ?? "NHL", clampedDefault);
+  // For EPL/NFL, snap to the gameweek start date.
+  // Floor everything at the competition's own first slate: a pool created to
+  // start at Matchweek 2 must never resolve back to Matchweek 1 just because
+  // today's date still snaps into the earlier (already finished) round.
+  const firstSlate = getPickDate(comp.sport ?? "NHL", comp.start_date);
+  const floorToFirstSlate = (d: string) => (d < firstSlate ? firstSlate : d);
+
+  const defaultDate = floorToFirstSlate(
+    getPickDate(comp.sport ?? "NHL", clampedDefault)
+  );
 
   const requestedDate = searchParams.date;
   const activeDate = requestedDate && requestedDate >= comp.start_date && requestedDate <= comp.end_date
-    ? getPickDate(comp.sport ?? "NHL", requestedDate)
+    ? floorToFirstSlate(getPickDate(comp.sport ?? "NHL", requestedDate))
     : defaultDate;
 
   // For week-based sports, activeDate is the snapped start of the week (NFL:
@@ -626,7 +634,10 @@ export default async function CompetitionPage({
           <DateNav
             competitionId={comp.id}
             activeDate={activeDate}
-            startDate={comp.start_date}
+            // Use the first slate, not the raw start date — for week-based
+            // sports the start date can sit mid-gap, and navigating to a date
+            // before the competition's opening gameweek is never valid.
+            startDate={firstSlate < comp.start_date ? firstSlate : comp.start_date}
             endDate={comp.end_date}
             datesWithPicks={datesWithPicks}
             todayPickable={todayPickable}
