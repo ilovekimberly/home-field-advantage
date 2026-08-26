@@ -120,6 +120,20 @@ export async function GET(req: Request) {
 
     let sportSent = 0;
 
+    // Who has already picked in this slate? Members who have are engaged and
+    // don't need a nudge — emailing them every slate is just noise.
+    const pendingPoolIds = pending.map((p) => p.id);
+    const { data: slatePicks } = pendingPoolIds.length > 0
+      ? await supabase
+          .from("picks")
+          .select("competition_id, picker_id")
+          .in("competition_id", pendingPoolIds)
+          .eq("game_date", pickDate)
+      : { data: [] };
+    const hasPicked = new Set(
+      (slatePicks ?? []).map((p: any) => `${p.competition_id}__${p.picker_id}`)
+    );
+
     for (const pool of pending) {
       const members = (memberRows ?? [])
         .filter((r: any) => r.competition_id === pool.id)
@@ -128,6 +142,9 @@ export async function GET(req: Request) {
       const competitionUrl = `${siteUrl}/competitions/${pool.id}`;
 
       for (const memberId of members) {
+        // Skip anyone who's already made a pick for this slate.
+        if (hasPicked.has(`${pool.id}__${memberId}`)) continue;
+
         const profile = profileMap.get(memberId);
         if (!profile?.email) continue;
 

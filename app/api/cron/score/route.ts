@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { fetchScheduleForDate, isFinalGame, scorePick, getPickDate } from "@/lib/schedule";
-import { sendEmail, competitionCancelledEmail, perfectNightEmail, poolPicksOpenEmail } from "@/lib/email";
+import { sendEmail, competitionCancelledEmail, perfectNightEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -252,68 +252,12 @@ export async function GET(req: Request) {
     }
   }
 
-  // ── 4. Pool picks-open reminder emails ────────────────────────────────
-  // On the start date of every active pool competition, email all members
-  // once to let them know picks are open. Uses competition_notifications to dedup.
-  {
-    const { data: poolsStartingToday } = await supabase
-      .from("competitions")
-      .select("id, name, sport, start_date, invite_token")
-      .eq("format", "pool")
-      .eq("status", "active")
-      .eq("start_date", today);
+  // ── 4. Pool picks-open reminders ──────────────────────────────────────
+  // Handled by the dedicated notify-pools cron, which knows the sport's
+  // pick-date and only nudges members who haven't picked yet. This route
+  // used to send its own copy on the start date, which double-emailed
+  // week-based pools whose pick-date differs from the calendar date.
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
-
-    for (const comp of poolsStartingToday ?? []) {
-      const notifType = "picks_open"; // must match notify-pools cron's dedup key
-
-      // Check if we already sent this notification today.
-      const { data: alreadySent } = await supabase
-        .from("competition_notifications")
-        .select("competition_id")
-        .eq("competition_id", comp.id)
-        .eq("notification_date", today)
-        .eq("notification_type", notifType)
-        .maybeSingle();
-      if (alreadySent) continue;
-
-      // Load all member emails — admin client bypasses self-referential RLS.
-      const { data: members } = await supabase  // supabase is already admin in this cron
-        .from("competition_members")
-        .select("user_id")
-        .eq("competition_id", comp.id);
-
-      const memberIds = (members ?? []).map((m: any) => m.user_id);
-      if (memberIds.length === 0) continue;
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, email, display_name")
-        .in("id", memberIds);
-
-      const compUrl = `${siteUrl}/competitions/${comp.id}`;
-
-      for (const profile of profiles ?? []) {
-        if (!profile.email) continue;
-        const { subject, html } = poolPicksOpenEmail({
-          toName: profile.display_name ?? profile.email,
-          competitionName: comp.name,
-          competitionUrl: compUrl,
-          sport: comp.sport ?? "NHL",
-          startDate: comp.start_date,
-        });
-        sendEmail({ to: profile.email, subject, html }).catch(console.error);
-      }
-
-      // Record so we don't send again.
-      await supabase.from("competition_notifications").upsert({
-        competition_id: comp.id,
-        notification_date: today,
-        notification_type: notifType,
-      }, { onConflict: "competition_id,notification_date,notification_type" });
-    }
-  }
 
   // ── 6. Mark competitions as complete ──────────────────────────────────
   const yesterday = new Date();
