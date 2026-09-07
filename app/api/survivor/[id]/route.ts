@@ -244,15 +244,29 @@ export async function POST(
     return NextResponse.json({ error: "You have been eliminated" }, { status: 403 });
   }
 
-  // Check lock time
+  // Check lock time. Also capture the season year — survivor picks are scoped
+  // to a season (a team can only be used once per season), and the row requires
+  // it. ESPN reports it alongside the week info.
+  let seasonYear: number | null = null;
   try {
-    const { games } = await fetchNFLScoreboard();
+    const { games, weekInfo } = await fetchNFLScoreboard();
+    seasonYear = weekInfo.season;
     const lockTime = getNFLWeekLockTime(games);
     if (lockTime && new Date() >= new Date(lockTime)) {
       return NextResponse.json({ error: "Picks are locked for this week" }, { status: 403 });
     }
   } catch {
     // If schedule fetch fails, allow the pick (don't block on infra issues)
+  }
+
+  // Fallback if the schedule API was unreachable: the NFL season year is the
+  // calendar year it kicked off in, so Jan/Feb playoff games belong to the
+  // previous year's season.
+  if (seasonYear == null) {
+    const now = new Date();
+    seasonYear = now.getUTCMonth() + 1 >= 3
+      ? now.getUTCFullYear()
+      : now.getUTCFullYear() - 1;
   }
 
   // Verify the team hasn't been used in a previous week
@@ -276,6 +290,7 @@ export async function POST(
       {
         competition_id:     competitionId,
         user_id:            user.id,
+        season_year:        seasonYear,
         week_number:        weekNumber,
         picked_team_abbrev: teamAbbrev,
         picked_team_name:   teamName,

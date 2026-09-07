@@ -14,6 +14,9 @@ create table if not exists public.survivor_picks (
   id uuid primary key default gen_random_uuid(),
   competition_id uuid not null references public.competitions(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
+  -- Calendar year the NFL season kicked off in. Jan/Feb playoff games belong
+  -- to the previous year's season.
+  season_year int not null,
   -- NFL week number as reported by the schedule API.
   week_number int not null,
   picked_team_abbrev text not null,
@@ -28,6 +31,7 @@ create table if not exists public.survivor_picks (
 alter table public.survivor_picks
   add column if not exists competition_id uuid references public.competitions(id) on delete cascade,
   add column if not exists user_id uuid references public.profiles(id) on delete cascade,
+  add column if not exists season_year int,
   add column if not exists week_number int,
   add column if not exists picked_team_abbrev text,
   add column if not exists picked_team_name text,
