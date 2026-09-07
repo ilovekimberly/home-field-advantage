@@ -79,7 +79,7 @@ export async function GET(
 
   const { data: allPicks } = await admin
     .from("survivor_picks")
-    .select("user_id, week_number, picked_team_abbrev, picked_team_name, result")
+    .select("user_id, week_number, team_abbrev, team_name, result")
     .eq("competition_id", competitionId);
 
   // Load all members
@@ -108,7 +108,7 @@ export async function GET(
   // All teams I've used in previous weeks
   const myUsedTeams = (allPicks ?? [])
     .filter((p: any) => p.user_id === user.id && p.week_number < weekInfo.week)
-    .map((p: any) => p.picked_team_abbrev as string);
+    .map((p: any) => p.team_abbrev as string);
 
   // Build member list
   const members: SurvivorMember[] = (memberRows ?? []).map((row: any) => {
@@ -120,8 +120,8 @@ export async function GET(
       .filter((p: any) => p.week_number < weekInfo.week)
       .map((p: any) => ({
         week:        p.week_number as number,
-        teamAbbrev:  p.picked_team_abbrev as string,
-        teamName:    p.picked_team_name as string,
+        teamAbbrev:  p.team_abbrev as string,
+        teamName:    p.team_name as string,
         result:      p.result as string,
       }))
       .sort((a: any, b: any) => a.week - b.week);
@@ -134,8 +134,8 @@ export async function GET(
     if (currentWeekPickRaw) {
       if (isLocked || userId === user.id) {
         thisPick = {
-          teamAbbrev: currentWeekPickRaw.picked_team_abbrev as string,
-          teamName:   currentWeekPickRaw.picked_team_name as string,
+          teamAbbrev: currentWeekPickRaw.team_abbrev as string,
+          teamName:   currentWeekPickRaw.team_name as string,
           result:     currentWeekPickRaw.result as string,
         };
       } else {
@@ -178,8 +178,8 @@ export async function GET(
     isLocked,
     myPick: myCurrentPick
       ? {
-          teamAbbrev: myCurrentPick.picked_team_abbrev as string,
-          teamName:   myCurrentPick.picked_team_name as string,
+          teamAbbrev: myCurrentPick.team_abbrev as string,
+          teamName:   myCurrentPick.team_name as string,
           result:     myCurrentPick.result as string,
           weekNumber: myCurrentPick.week_number as number,
         }
@@ -248,9 +248,31 @@ export async function POST(
   // to a season (a team can only be used once per season), and the row requires
   // it. ESPN reports it alongside the week info.
   let seasonYear: number | null = null;
+  // survivor_picks.game_id is NOT NULL — resolve the game this team plays in.
+  let pickedGameId: string | null = null;
+  let pickedMoneyline: number | null = null;
   try {
     const { games, weekInfo } = await fetchNFLScoreboard();
     seasonYear = weekInfo.season;
+
+    const game = games.find(
+      (g) => g.homeTeam.abbrev === teamAbbrev || g.awayTeam.abbrev === teamAbbrev
+    );
+    if (game) {
+      pickedGameId = String(game.id);
+      // Record the moneyline at pick time, if we have one stored for this game.
+      const { data: lineRow } = await supabase
+        .from("game_lines")
+        .select("home_ml, away_ml")
+        .eq("game_id", String(game.id))
+        .maybeSingle();
+      if (lineRow) {
+        pickedMoneyline = game.homeTeam.abbrev === teamAbbrev
+          ? lineRow.home_ml ?? null
+          : lineRow.away_ml ?? null;
+      }
+    }
+
     const lockTime = getNFLWeekLockTime(games);
     if (lockTime && new Date() >= new Date(lockTime)) {
       return NextResponse.json({ error: "Picks are locked for this week" }, { status: 403 });
@@ -273,14 +295,23 @@ export async function POST(
   const admin = createSupabaseAdminClient();
   const { data: previousPicks } = await admin
     .from("survivor_picks")
-    .select("week_number, picked_team_abbrev")
+    .select("week_number, team_abbrev")
     .eq("competition_id", competitionId)
     .eq("user_id", user.id)
     .lt("week_number", weekNumber);
 
-  const usedAbbrevs = new Set((previousPicks ?? []).map((p: any) => p.picked_team_abbrev as string));
+  const usedAbbrevs = new Set((previousPicks ?? []).map((p: any) => p.team_abbrev as string));
   if (usedAbbrevs.has(teamAbbrev)) {
     return NextResponse.json({ error: "You already used that team in a previous week" }, { status: 400 });
+  }
+
+  // game_id is NOT NULL. If the schedule lookup failed we can't satisfy that,
+  // so reject rather than letting the insert fail with a database error.
+  if (!pickedGameId) {
+    return NextResponse.json(
+      { error: "Couldn't find that team's game this week — try again in a moment." },
+      { status: 400 }
+    );
   }
 
   // Upsert the pick
@@ -288,14 +319,16 @@ export async function POST(
     .from("survivor_picks")
     .upsert(
       {
-        competition_id:     competitionId,
-        user_id:            user.id,
-        season_year:        seasonYear,
-        week_number:        weekNumber,
-        picked_team_abbrev: teamAbbrev,
-        picked_team_name:   teamName,
-        result:             "pending",
-        updated_at:         new Date().toISOString(),
+        competition_id: competitionId,
+        user_id:        user.id,
+        season_year:    seasonYear,
+        week_number:    weekNumber,
+        game_id:        pickedGameId,
+        team_abbrev:    teamAbbrev,
+        team_name:      teamName,
+        moneyline:      pickedMoneyline,
+        result:         "pending",
+        updated_at:     new Date().toISOString(),
       },
       { onConflict: "competition_id,user_id,week_number" }
     );
