@@ -481,8 +481,9 @@ export default function SurvivorPickRoom({
       <div className="card">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">{competition.name}</h1>
-            <p className="text-sm text-slate-500 mt-1">
+            {/* Title lives in the page header above (where the creator's
+                rename control is), so it isn't repeated here. */}
+            <p className="text-sm text-slate-500">
               🏈 NFL Survivor · {weekInfo.label}
               {competition.tiebreaker && (
                 <span className="ml-2 text-slate-400">
