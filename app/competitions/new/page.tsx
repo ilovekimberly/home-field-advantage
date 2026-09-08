@@ -156,7 +156,26 @@ export default function NewCompetitionPage() {
     setBusy(true); setError(null);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError("You must be signed in."); setBusy(false); return; }
-    const end = endDateFor(startDate, duration);
+
+    // Week-based sports: roll the start date forward to the first slate that
+    // still has games. A pick-date snaps backward to the start of its week, so
+    // a late-in-the-week start could otherwise open the pool on a week whose
+    // games are already over (an NFL Friday start landing in the preseason
+    // window, for example).
+    let resolvedStart = startDate;
+    if (sport === "NFL" || sport === "EPL") {
+      try {
+        const res = await fetch(`/api/first-slate?sport=${sport}&date=${startDate}`);
+        if (res.ok) {
+          const j = await res.json();
+          if (j.startDate) resolvedStart = j.startDate;
+        }
+      } catch {
+        // Non-fatal — fall back to the date the user chose.
+      }
+    }
+
+    const end = endDateFor(resolvedStart, duration);
     // Store "playoff" when the sport is currently in playoffs and user picked "season".
     const storedDuration: Duration =
       duration === "season" && phaseInfo?.phase === "playoffs" ? "playoff" : duration;
@@ -172,7 +191,7 @@ export default function NewCompetitionPage() {
         enable_over_under: (sport === "NHL" || sport === "MLB") && !isSurvivor ? enableOverUnder : false,
         enable_spread: (sport === "NHL" || sport === "MLB") && !isSurvivor ? enableSpread : false,
         visibility,
-        start_date: startDate,
+        start_date: resolvedStart,
         end_date: end,
         creator_id: user.id,
         max_members: isPool && maxMembers ? parseInt(maxMembers) : null,

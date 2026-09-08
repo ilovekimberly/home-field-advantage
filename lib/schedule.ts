@@ -155,6 +155,44 @@ export async function fetchScheduleForDate(sport: string, date: string, noCache 
   }
 }
 
+// Resolves the first slate a competition should actually open on.
+//
+// Week-based pick-dates snap BACKWARD to the start of the week (NFL: Tuesday,
+// EPL: Friday). When a competition starts late in a week — or inside one of
+// ESPN's long preseason windows — that snapped date can land on a slate whose
+// games have already been played, so the pool opens on a dead week.
+//
+// Walks forward a week at a time until it finds a slate with at least one game
+// on or after `startDate`. Returns the pick-date to store as start_date, so
+// everything downstream resolves to the right week with no further guessing.
+export async function resolveFirstSlate(
+  sport: string,
+  startDate: string
+): Promise<string> {
+  if (sport !== "NFL" && sport !== "EPL") return startDate;
+
+  let pickDate = getPickDate(sport, startDate);
+
+  // Cap the search — a handful of weeks is plenty, and this stops a schedule
+  // outage from looping.
+  for (let i = 0; i < 5; i++) {
+    let games: SportGame[];
+    try {
+      games = await fetchScheduleForDate(sport, pickDate, true);
+    } catch {
+      return pickDate; // can't verify — fall back to the plain snap
+    }
+
+    const hasUnplayed = games.some((g) => g.startTimeUTC.slice(0, 10) >= startDate);
+    if (hasUnplayed) return pickDate;
+
+    const next = new Date(pickDate + "T00:00:00Z");
+    next.setUTCDate(next.getUTCDate() + 7);
+    pickDate = getPickDate(sport, next.toISOString().slice(0, 10));
+  }
+  return pickDate;
+}
+
 export function isFinalGame(g: SportGame): boolean {
   return g.gameState === "FINAL" || g.gameState === "OFF";
 }
