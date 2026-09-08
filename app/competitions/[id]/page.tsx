@@ -88,6 +88,18 @@ export default async function CompetitionPage({
 
     return (
       <div className="space-y-6">
+        {/* Header — survivor renders its own layout, so it needs its own
+            title block to get the creator rename control. */}
+        <div className="card">
+          <CompetitionName
+            competitionId={comp.id}
+            name={comp.name}
+            canEdit={isCreator}
+          />
+          <p className="text-sm text-slate-500">
+            Survivor · {comp.start_date} → {comp.end_date}
+          </p>
+        </div>
         <SurvivorPickRoom competitionId={comp.id} userId={user.id} />
         {/* Invite panel — secondary action, so it sits below the picks and
             starts collapsed. */}
