@@ -15,6 +15,7 @@ import DateNav from "./DateNav";
 import NightlyRecap from "./NightlyRecap";
 import LiveStandings from "./LiveStandings";
 import CancelButton from "./CancelButton";
+import CompetitionName from "./CompetitionName";
 import NightByNight, { type NightEntry } from "./NightByNight";
 
 // Use Eastern Time so the date doesn't flip at midnight UTC while US games
@@ -502,7 +503,11 @@ export default async function CompetitionPage({
       <div className="card">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-bold">{comp.name}</h1>
+            <CompetitionName
+              competitionId={comp.id}
+              name={comp.name}
+              canEdit={isCreator}
+            />
             <p className="text-sm text-slate-500">
               {durationLabel(comp.duration, comp.sport)} · {comp.start_date} → {comp.end_date}
               {isPool && (
