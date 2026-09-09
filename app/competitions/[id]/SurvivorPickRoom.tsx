@@ -266,6 +266,53 @@ function SurvivorBoard({
         {alive.length} survivor{alive.length !== 1 ? "s" : ""} remaining
       </h2>
 
+      {/* Roster — before the week locks there's nothing else listing who's in
+          the pool (picks are hidden until lock, and the history table needs a
+          completed week). Shows who has picked without revealing the team. */}
+      {!isLocked && (
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+            <span className="text-sm font-semibold text-slate-700">
+              Players ({members.length})
+            </span>
+            <span className="text-xs text-slate-400">Picks reveal at lock</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {[...alive, ...eliminated].map((m) => (
+              <div
+                key={m.userId}
+                className={`flex items-center justify-between px-4 py-3 ${
+                  m.status === "eliminated" ? "opacity-50" : ""
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      m.status === "alive" ? "bg-green-400" : "bg-red-300"
+                    }`}
+                  />
+                  <span className="text-sm font-medium">{m.name}</span>
+                  {m.status === "eliminated" && (
+                    <span className="text-xs text-slate-400">
+                      (out Wk {m.eliminatedWeek})
+                    </span>
+                  )}
+                </div>
+                {m.status === "alive" && (
+                  m.thisPick ? (
+                    <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                      Picked
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">No pick yet</span>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Current week picks (revealed after lock) */}
       {isLocked && (
         <div className="rounded-xl border border-slate-200 overflow-hidden">
