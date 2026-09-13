@@ -25,7 +25,7 @@ type SurvivorMember = {
 //   weekInfo, games, lock time, user's pick, all members + their picks
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   const supabase = createSupabaseServerClient();
@@ -58,21 +58,43 @@ export async function GET(
     return NextResponse.json({ error: "Not a member" }, { status: 403 });
   }
 
-  // Fetch current NFL week
+  // Fetch the current NFL week, then optionally a different week if the client
+  // asked for one (?week=N) so users can look ahead and plan future weeks.
   let weekInfo;
   let games;
+  let currentWeek: number;
   try {
     const result = await fetchNFLScoreboard();
     weekInfo = result.weekInfo;
     games = result.games;
+    currentWeek = result.weekInfo.week;
+
+    const requested = Number(new URL(req.url).searchParams.get("week"));
+    if (Number.isInteger(requested) && requested >= 1 && requested <= 18 && requested !== currentWeek) {
+      const other = await fetchNFLScoreboard({
+        week: requested,
+        season: weekInfo.season,
+        seasonType: 2,
+      });
+      weekInfo = other.weekInfo;
+      games = other.games;
+    }
   } catch (e) {
     console.error("survivor GET: NFL schedule fetch failed", e);
     return NextResponse.json({ error: "Could not fetch NFL schedule" }, { status: 503 });
   }
 
+  // Only the current week can be picked for real. Future weeks are always
+  // "locked" for picking — you plan them instead.
+  const isFutureWeek = weekInfo.week > currentWeek;
+  const isPastWeek = weekInfo.week < currentWeek;
   const lockTime = getNFLWeekLockTime(games);
   const now = new Date();
-  const isLocked = lockTime ? now >= new Date(lockTime) : false;
+  const isLocked = isFutureWeek
+    ? true
+    : isPastWeek
+    ? true
+    : lockTime ? now >= new Date(lockTime) : false;
 
   // Load all survivor picks for this competition
   const admin = createSupabaseAdminClient();
@@ -106,6 +128,15 @@ export async function GET(
     ) ?? null;
 
   // All teams I've used in previous weeks
+  // The caller's plan for the week on screen (private to them).
+  const { data: myPlanRow } = await admin
+    .from("survivor_plans")
+    .select("team_abbrev, auto_submit")
+    .eq("competition_id", competitionId)
+    .eq("user_id", user.id)
+    .eq("week_number", weekInfo.week)
+    .maybeSingle();
+
   const myUsedTeams = (allPicks ?? [])
     .filter((p: any) => p.user_id === user.id && p.week_number < weekInfo.week)
     .map((p: any) => p.team_abbrev as string);
@@ -188,6 +219,16 @@ export async function GET(
     myStatus:         (membership?.survivor_status as "alive" | "eliminated") ?? "alive",
     myEliminatedWeek: membership?.survivor_eliminated_week as number | null,
     members,
+    // Week navigation context so the client knows whether the week on screen
+    // is pickable (current) or plan-only (future).
+    currentWeek,
+    isFutureWeek,
+    isPastWeek,
+    // The caller's plan for the week being viewed, so the grid and the pick
+    // page stay in sync in both directions.
+    myPlan: myPlanRow
+      ? { teamAbbrev: myPlanRow.team_abbrev as string, autoSubmit: myPlanRow.auto_submit as boolean }
+      : null,
   });
 }
 

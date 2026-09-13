@@ -200,12 +200,16 @@ export default function SurvivorGrid({
                   }`}
                 >
                   Wk {p.week_number}: <span className="font-semibold">{p.team_abbrev}</span>
-                  {p.auto_submit && <span className="ml-1">⚡</span>}
+                  <span className={`ml-1.5 ${p.auto_submit ? "text-white/80" : "text-slate-400"}`}>
+                    {p.auto_submit ? "· auto" : "· manual"}
+                  </span>
                 </button>
               ))}
           </div>
           <p className="text-[11px] text-slate-400 mt-2">
-            ⚡ = auto-submit at lock. Click a chip to toggle.
+            Click a chip to switch it between <strong>manual</strong> (you confirm
+            the pick yourself that week) and <strong>auto</strong> (it&apos;s
+            submitted for you at lock if you haven&apos;t picked).
           </p>
         </div>
       )}

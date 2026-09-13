@@ -58,6 +58,12 @@ type SurvivorData = {
   myStatus: "alive" | "eliminated";
   myEliminatedWeek: number | null;
   members: Member[];
+  // Week navigation: which week is "now", and where the viewed week sits
+  // relative to it. Future weeks are plan-only.
+  currentWeek: number;
+  isFutureWeek: boolean;
+  isPastWeek: boolean;
+  myPlan: { teamAbbrev: string; autoSubmit: boolean } | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -159,6 +165,8 @@ function GameCard({
   isLocked,
   onPick,
   busy,
+  planMode,
+  plannedTeam,
 }: {
   game: Game;
   myPick: Pick | null;
@@ -167,13 +175,23 @@ function GameCard({
   isLocked: boolean;
   onPick: (abbrev: string, name: string) => void;
   busy: boolean;
+  // Plan mode: a future week, where clicking saves to the private plan rather
+  // than committing a pick. The week is "locked" for real picks but still
+  // interactive.
+  planMode?: boolean;
+  plannedTeam?: string | null;
 }) {
   const winner = gameWinner(game);
-  const isPicking = myStatus === "alive" && !isLocked && !myPick;
+  const isPicking = planMode
+    ? myStatus === "alive"
+    : myStatus === "alive" && !isLocked && !myPick;
 
   function TeamButton({ team }: { team: Team }) {
     const used      = myUsedTeams.includes(team.abbrev);
-    const isPicked  = myPick?.teamAbbrev === team.abbrev;
+    // In plan mode the "selected" team is the planned one, not a committed pick.
+    const isPicked  = planMode
+      ? plannedTeam === team.abbrev
+      : myPick?.teamAbbrev === team.abbrev;
     const isWinner  = winner === team.abbrev;
     const isLoser   = winner != null && winner !== team.abbrev;
     const canClick  = isPicking && !used;
@@ -206,7 +224,7 @@ function GameCard({
         {/* Status overlays */}
         {isPicked && (
           <span className="absolute -top-2 -right-2 bg-rink text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-            MY PICK
+            {planMode ? "PLANNED" : "MY PICK"}
           </span>
         )}
         {used && !isPicked && (
@@ -446,10 +464,13 @@ export default function SurvivorPickRoom({
   // "pick" = this week's matchups, "grid" = full-season planning grid.
   const [view, setView]   = useState<"pick" | "grid">("pick");
   const [pickError, setPickError] = useState<string | null>(null);
+  // Which week the pick page is showing. null = whatever week is current.
+  const [viewWeek, setViewWeek] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/survivor/${competitionId}`);
+      const qs = viewWeek != null ? `?week=${viewWeek}` : "";
+      const res = await fetch(`/api/survivor/${competitionId}${qs}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         setError(j.error ?? "Failed to load survivor data");
@@ -461,7 +482,7 @@ export default function SurvivorPickRoom({
     } finally {
       setLoading(false);
     }
-  }, [competitionId]);
+  }, [competitionId, viewWeek]);
 
   useEffect(() => {
     load();
@@ -470,26 +491,65 @@ export default function SurvivorPickRoom({
     return () => clearInterval(id);
   }, [load]);
 
+  // On the current week this commits a real pick. On a future week there's
+  // nothing to commit yet, so the same click saves it to your plan instead —
+  // the exact rows the season grid reads and writes.
   async function submitPick(teamAbbrev: string, teamName: string) {
     if (!data) return;
     setBusy(true);
     setPickError(null);
-    const res = await fetch(`/api/survivor/${competitionId}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        teamAbbrev,
-        teamName,
-        weekNumber: data.weekInfo.week,
-      }),
-    });
+
+    const planning = data.isFutureWeek === true;
+    const clearing = planning && data.myPlan?.teamAbbrev === teamAbbrev;
+
+    const res = planning
+      ? await fetch(`/api/survivor/${competitionId}/plan`, {
+          method: clearing ? "DELETE" : "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(
+            clearing
+              ? { weekNumber: data.weekInfo.week }
+              : {
+                  weekNumber: data.weekInfo.week,
+                  teamAbbrev,
+                  autoSubmit: data.myPlan?.autoSubmit ?? false,
+                }
+          ),
+        })
+      : await fetch(`/api/survivor/${competitionId}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            teamAbbrev,
+            teamName,
+            weekNumber: data.weekInfo.week,
+          }),
+        });
+
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setPickError(j.error ?? "Failed to save pick");
+      setPickError(j.error ?? (planning ? "Failed to save plan" : "Failed to save pick"));
     } else {
       await load();
-      router.refresh();
+      if (!planning) router.refresh();
     }
+    setBusy(false);
+  }
+
+  // Toggle auto-submit on the plan for the week being viewed.
+  async function toggleAutoSubmit() {
+    if (!data?.myPlan) return;
+    setBusy(true);
+    await fetch(`/api/survivor/${competitionId}/plan`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        weekNumber: data.weekInfo.week,
+        teamAbbrev: data.myPlan.teamAbbrev,
+        autoSubmit: !data.myPlan.autoSubmit,
+      }),
+    });
+    await load();
     setBusy(false);
   }
 
@@ -624,9 +684,70 @@ export default function SurvivorPickRoom({
       </div>
 
       {view === "grid" ? (
-        <SurvivorGrid competitionId={competitionId} currentWeek={weekInfo.week} />
+        <SurvivorGrid competitionId={competitionId} currentWeek={data.currentWeek ?? weekInfo.week} />
       ) : (
       <>
+      {/* Week navigator — look ahead to plan future weeks without leaving
+          the pick page. Only the current week can be picked for real. */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => setViewWeek(Math.max(1, weekInfo.week - 1))}
+          disabled={weekInfo.week <= 1 || busy}
+          className="btn-ghost text-sm px-3 py-1 disabled:opacity-30"
+        >
+          ← Week {weekInfo.week - 1}
+        </button>
+        <div className="text-center">
+          <div className="font-semibold text-rink">{weekInfo.label}</div>
+          {data.isFutureWeek ? (
+            <div className="text-xs text-slate-400">Planning ahead</div>
+          ) : data.isPastWeek ? (
+            <div className="text-xs text-slate-400">Past week</div>
+          ) : (
+            <div className="text-xs text-slate-400">This week</div>
+          )}
+        </div>
+        <button
+          onClick={() => setViewWeek(Math.min(18, weekInfo.week + 1))}
+          disabled={weekInfo.week >= 18 || busy}
+          className="btn-ghost text-sm px-3 py-1 disabled:opacity-30"
+        >
+          Week {weekInfo.week + 1} →
+        </button>
+      </div>
+
+      {/* Plan banner for a future week */}
+      {data.isFutureWeek && (
+        <div className="rounded-lg bg-ice border border-rink/20 px-4 py-3 text-sm">
+          {data.myPlan ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-slate-700">
+                Planned for {weekInfo.label}:{" "}
+                <strong className="text-rink">{data.myPlan.teamAbbrev}</strong>
+              </span>
+              <button
+                onClick={toggleAutoSubmit}
+                disabled={busy}
+                className={`text-xs rounded-full px-3 py-1 border transition-colors ${
+                  data.myPlan.autoSubmit
+                    ? "bg-rink text-white border-rink"
+                    : "bg-white text-slate-600 border-slate-300 hover:border-slate-400"
+                }`}
+              >
+                {data.myPlan.autoSubmit
+                  ? "Auto-submit ON — will pick this at lock"
+                  : "Auto-submit OFF — turn on"}
+              </button>
+            </div>
+          ) : (
+            <span className="text-slate-600">
+              This is a future week. Choosing a team here saves it to your{" "}
+              <strong>private plan</strong> — it isn&apos;t submitted as a pick.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Game matchup cards */}
       {games.length > 0 ? (
         <div>
@@ -646,6 +767,8 @@ export default function SurvivorPickRoom({
                   isLocked={isLocked}
                   onPick={submitPick}
                   busy={busy}
+                  planMode={data.isFutureWeek === true}
+                  plannedTeam={data.myPlan?.teamAbbrev ?? null}
                 />
               ))}
           </div>
