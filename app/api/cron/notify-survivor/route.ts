@@ -48,10 +48,24 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: true, reason: "No NFL games this week" });
   }
 
-  // Check if lock time has passed
   const lockTime = getNFLWeekLockTime(games);
+
+  // ── Auto-submit planned picks ─────────────────────────────────────────
+  // Runs in the hour before lock (and on any run after it, in case the cron
+  // missed that window). Turns a plan entry flagged auto_submit into a real
+  // pick for anyone who's alive and hasn't picked this week.
+  let autoSubmitted = 0;
+  if (lockTime && Date.now() >= new Date(lockTime).getTime() - 60 * 60 * 1000) {
+    autoSubmitted = await autoSubmitPlannedPicks(supabase, weekInfo, games);
+  }
+
+  // Check if lock time has passed
   if (!lockTime || new Date() < new Date(lockTime)) {
-    return NextResponse.json({ skipped: true, reason: "Picks not locked yet" });
+    return NextResponse.json({
+      skipped: true,
+      reason: "Picks not locked yet",
+      autoSubmitted,
+    });
   }
 
   // Find active survivor competitions
@@ -112,7 +126,7 @@ export async function GET(req: Request) {
     // Load this week's picks for the reveal
     const { data: weekPicks } = await supabase
       .from("survivor_picks")
-      .select("user_id, picked_team_abbrev, picked_team_name, result")
+      .select("user_id, team_abbrev, team_name, result")
       .eq("competition_id", comp.id)
       .eq("week_number", weekInfo.week);
 
@@ -127,8 +141,8 @@ export async function GET(req: Request) {
       return {
         userId,
         name:       (profileMap.get(userId)?.display_name as string) ?? "Member",
-        teamAbbrev: pick?.picked_team_abbrev as string ?? "–",
-        teamName:   pick?.picked_team_name as string  ?? "No pick",
+        teamAbbrev: pick?.team_abbrev as string ?? "–",
+        teamName:   pick?.team_name as string  ?? "No pick",
         status:     (row.survivor_status as "alive" | "eliminated") ?? "alive",
       };
     });
@@ -172,5 +186,105 @@ export async function GET(req: Request) {
     console.log(`notify-survivor [${comp.id}]: sent ${sent} kickoff reveal emails for ${weekInfo.label}`);
   }
 
-  return NextResponse.json({ totalSent, week: weekInfo.week, results });
+  return NextResponse.json({ totalSent, autoSubmitted, week: weekInfo.week, results });
+}
+
+// Converts auto_submit plan entries into real survivor picks.
+//
+// Only fires for members who are alive and have no pick for the week, and
+// skips any team they've already used. Deliberately conservative: an
+// auto-submit should never overwrite a deliberate pick or burn a team twice.
+async function autoSubmitPlannedPicks(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  weekInfo: { week: number; season: number },
+  games: { id: string | number; homeTeam: { abbrev: string; name: string }; awayTeam: { abbrev: string; name: string } }[]
+): Promise<number> {
+  const { data: comps } = await supabase
+    .from("competitions")
+    .select("id")
+    .eq("format", "survivor")
+    .eq("status", "active");
+  if (!comps || comps.length === 0) return 0;
+
+  const compIds = comps.map((c) => c.id);
+
+  const [{ data: plans }, { data: existingPicks }, { data: members }, { data: allPicks }] =
+    await Promise.all([
+      supabase
+        .from("survivor_plans")
+        .select("competition_id, user_id, team_abbrev")
+        .in("competition_id", compIds)
+        .eq("week_number", weekInfo.week)
+        .eq("auto_submit", true),
+      supabase
+        .from("survivor_picks")
+        .select("competition_id, user_id")
+        .in("competition_id", compIds)
+        .eq("week_number", weekInfo.week),
+      supabase
+        .from("competition_members")
+        .select("competition_id, user_id, survivor_status")
+        .in("competition_id", compIds),
+      supabase
+        .from("survivor_picks")
+        .select("competition_id, user_id, team_abbrev")
+        .in("competition_id", compIds),
+    ]);
+
+  if (!plans || plans.length === 0) return 0;
+
+  const alreadyPicked = new Set(
+    (existingPicks ?? []).map((p: any) => `${p.competition_id}__${p.user_id}`)
+  );
+  const alive = new Set(
+    (members ?? [])
+      .filter((m: any) => m.survivor_status === "alive")
+      .map((m: any) => `${m.competition_id}__${m.user_id}`)
+  );
+  const usedTeams = new Set(
+    (allPicks ?? []).map((p: any) => `${p.competition_id}__${p.user_id}__${p.team_abbrev}`)
+  );
+
+  // team abbrev → the game it plays in this week
+  const gameByTeam = new Map<string, { id: string; name: string }>();
+  for (const g of games) {
+    gameByTeam.set(g.homeTeam.abbrev, { id: String(g.id), name: g.homeTeam.name });
+    gameByTeam.set(g.awayTeam.abbrev, { id: String(g.id), name: g.awayTeam.name });
+  }
+
+  let submitted = 0;
+  for (const plan of plans as any[]) {
+    const memberKey = `${plan.competition_id}__${plan.user_id}`;
+    if (alreadyPicked.has(memberKey)) continue;
+    if (!alive.has(memberKey)) continue;
+    if (usedTeams.has(`${memberKey}__${plan.team_abbrev}`)) continue;
+
+    const game = gameByTeam.get(plan.team_abbrev);
+    if (!game) continue; // bye week or team not playing — nothing to submit
+
+    const { error } = await supabase.from("survivor_picks").upsert(
+      {
+        competition_id: plan.competition_id,
+        user_id:        plan.user_id,
+        season_year:    weekInfo.season,
+        week_number:    weekInfo.week,
+        game_id:        game.id,
+        team_abbrev:    plan.team_abbrev,
+        team_name:      game.name,
+        result:         "pending",
+        updated_at:     new Date().toISOString(),
+      },
+      { onConflict: "competition_id,user_id,week_number" }
+    );
+
+    if (!error) {
+      submitted++;
+      console.log(
+        `notify-survivor: auto-submitted ${plan.team_abbrev} for user ${plan.user_id} ` +
+        `in ${plan.competition_id} (week ${weekInfo.week})`
+      );
+    }
+  }
+
+  return submitted;
 }

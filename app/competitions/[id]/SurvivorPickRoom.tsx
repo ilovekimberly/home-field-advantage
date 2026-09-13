@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import SurvivorGrid from "./SurvivorGrid";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -442,6 +443,8 @@ export default function SurvivorPickRoom({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy]   = useState(false);
+  // "pick" = this week's matchups, "grid" = full-season planning grid.
+  const [view, setView]   = useState<"pick" | "grid">("pick");
   const [pickError, setPickError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -600,6 +603,30 @@ export default function SurvivorPickRoom({
         <p className="text-red-600 text-sm">{pickError}</p>
       )}
 
+      {/* View switcher: this week's picks vs the season planning grid */}
+      <div className="flex gap-1 border-b border-slate-200">
+        {([
+          { key: "pick" as const, label: "This week" },
+          { key: "grid" as const, label: "Season grid" },
+        ]).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              view === t.key
+                ? "border-rink text-rink"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === "grid" ? (
+        <SurvivorGrid competitionId={competitionId} currentWeek={weekInfo.week} />
+      ) : (
+      <>
       {/* Game matchup cards */}
       {games.length > 0 ? (
         <div>
@@ -636,6 +663,8 @@ export default function SurvivorPickRoom({
           weekInfo={weekInfo}
           isLocked={isLocked}
         />
+      )}
+      </>
       )}
     </div>
   );

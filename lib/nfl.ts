@@ -258,6 +258,102 @@ export async function getNFLWeekLabels(
   return out;
 }
 
+// ── Season grid ────────────────────────────────────────────────────────────
+// Team × week matrix for survivor planning, in the shape survivorgrid uses:
+// one row per team, one column per regular-season week, each cell naming the
+// opponent (with @ for away) or BYE.
+
+export type GridCell = {
+  week: number;
+  opponent: string;      // opponent abbreviation
+  isHome: boolean;
+  gameId: string;
+  startTimeUTC: string;
+  final: boolean;
+  won: boolean | null;   // null until the game is final
+};
+
+export type SeasonGrid = {
+  season: number;
+  weeks: number[];
+  // team abbrev → week number → cell. A missing week is a BYE.
+  teams: Record<string, Record<number, GridCell>>;
+  teamNames: Record<string, string>;
+};
+
+const REGULAR_SEASON_WEEKS = 18;
+
+// Fetches the full regular season, one request per week. Cached for an hour —
+// the schedule barely moves, and this is 18 upstream calls.
+export async function fetchNFLSeasonGrid(season?: number): Promise<SeasonGrid> {
+  // Resolve the season year from ESPN unless the caller pinned one.
+  let year = season;
+  if (year == null) {
+    try {
+      const probe = await fetchNFLScoreboard();
+      year = probe.weekInfo.season;
+    } catch {
+      const now = new Date();
+      year = now.getUTCMonth() + 1 >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+    }
+  }
+
+  const weekNumbers = Array.from({ length: REGULAR_SEASON_WEEKS }, (_, i) => i + 1);
+
+  const perWeek = await Promise.all(
+    weekNumbers.map(async (week) => {
+      try {
+        const { games } = await fetchNFLScoreboard({
+          week, season: year, seasonType: 2,
+        });
+        return { week, games };
+      } catch {
+        return { week, games: [] as SportGame[] };
+      }
+    })
+  );
+
+  const teams: SeasonGrid["teams"] = {};
+  const teamNames: SeasonGrid["teamNames"] = {};
+
+  function record(
+    team: { abbrev: string; name: string },
+    opponent: { abbrev: string },
+    isHome: boolean,
+    g: SportGame,
+    week: number
+  ) {
+    if (!teams[team.abbrev]) teams[team.abbrev] = {};
+    teamNames[team.abbrev] = team.name;
+
+    const final = g.gameState === "FINAL" || g.gameState === "OFF";
+    let won: boolean | null = null;
+    if (final && g.homeScore != null && g.awayScore != null && g.homeScore !== g.awayScore) {
+      const homeWon = g.homeScore > g.awayScore;
+      won = isHome ? homeWon : !homeWon;
+    }
+
+    teams[team.abbrev][week] = {
+      week,
+      opponent: opponent.abbrev,
+      isHome,
+      gameId: String(g.id),
+      startTimeUTC: g.startTimeUTC,
+      final,
+      won,
+    };
+  }
+
+  for (const { week, games } of perWeek) {
+    for (const g of games) {
+      record(g.homeTeam, g.awayTeam, true, g, week);
+      record(g.awayTeam, g.homeTeam, false, g, week);
+    }
+  }
+
+  return { season: year, weeks: weekNumbers, teams, teamNames };
+}
+
 // Returns the lock time = 1 hour before the earliest game this week.
 export function getNFLWeekLockTime(games: SportGame[]): string | null {
   if (!games.length) return null;
