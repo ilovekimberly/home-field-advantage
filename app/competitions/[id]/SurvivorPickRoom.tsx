@@ -633,10 +633,19 @@ export default function SurvivorPickRoom({
         </div>
       )}
 
-      {myStatus === "alive" && !myPick && isLocked && (
+      {/* Missed-deadline warning. Only meaningful for the CURRENT week: other
+          weeks report isLocked purely because they aren't pickable, which would
+          otherwise make every future week look like an elimination. */}
+      {myStatus === "alive" && !myPick && isLocked
+        && !data.isFutureWeek && !data.isPastWeek && (
         <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3">
           <p className="text-sm font-semibold text-red-800">
-            ⚠️ You didn't make a pick before the deadline and have been auto-eliminated.
+            ⚠️ No pick made before the {weekInfo.label} deadline.
+          </p>
+          <p className="text-xs text-red-700 mt-1">
+            You&apos;ll be eliminated when this week is scored. Set a pick in
+            advance next week — the season grid lets you plan ahead and
+            auto-submit.
           </p>
         </div>
       )}
