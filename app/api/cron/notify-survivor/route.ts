@@ -87,12 +87,20 @@ export async function GET(req: Request) {
     const competitionUrl = `${siteUrl}/competitions/${comp.id}`;
 
     // Check if already sent for this week
+    // NOTE: select "competition_id", not "id" — competition_notifications has
+    // no id column, and selecting one makes the query error out. That returned
+    // null here, so the guard below never tripped and the reveal re-sent on
+    // every cron run.
     const { data: alreadySent } = await supabase
       .from("competition_notifications")
-      .select("id")
+      .select("competition_id")
       .eq("competition_id", comp.id)
-      .eq("notification_date", today)
+      // Deliberately NOT filtered by notification_date: the key already names
+      // the week, and the reveal should go out once per week. Including the
+      // date made the lookup miss every new day, so the cron re-sent the same
+      // week's reveal daily until the week rolled over.
       .eq("notification_type", notificationKey)
+      .limit(1)
       .maybeSingle();
 
     if (alreadySent) {
