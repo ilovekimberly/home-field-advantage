@@ -69,6 +69,31 @@ export async function GET(
     games = result.games;
     currentWeek = result.weekInfo.week;
 
+    // ESPN's week window runs Tue→Tue, so after Monday night football the
+    // finished week is still "current" for another day. Once every game in it
+    // is final there's nothing left to do there — roll forward so the pick
+    // page opens on the week people can actually act on.
+    const allFinal =
+      result.games.length > 0 &&
+      result.games.every((g) => g.gameState === "FINAL" || g.gameState === "OFF");
+
+    if (allFinal && currentWeek < 18) {
+      try {
+        const next = await fetchNFLScoreboard({
+          week: currentWeek + 1,
+          season: weekInfo.season,
+          seasonType: 2,
+        });
+        if (next.games.length > 0) {
+          currentWeek = currentWeek + 1;
+          weekInfo = next.weekInfo;
+          games = next.games;
+        }
+      } catch {
+        // Keep the completed week rather than failing the page.
+      }
+    }
+
     const requested = Number(new URL(req.url).searchParams.get("week"));
     if (Number.isInteger(requested) && requested >= 1 && requested <= 18 && requested !== currentWeek) {
       const other = await fetchNFLScoreboard({
@@ -293,8 +318,20 @@ export async function POST(
   let pickedGameId: string | null = null;
   let pickedMoneyline: number | null = null;
   try {
-    const { games, weekInfo } = await fetchNFLScoreboard();
-    seasonYear = weekInfo.season;
+    // Resolve the week being picked, not ESPN's "current" week. After Monday
+    // night the finished week is still current for a day, and the pick page
+    // rolls forward — so the team's game and the lock time both have to come
+    // from the week the client actually submitted.
+    const probe = await fetchNFLScoreboard();
+    seasonYear = probe.weekInfo.season;
+
+    const { games } = weekNumber === probe.weekInfo.week
+      ? probe
+      : await fetchNFLScoreboard({
+          week: weekNumber,
+          season: probe.weekInfo.season,
+          seasonType: 2,
+        });
 
     const game = games.find(
       (g) => g.homeTeam.abbrev === teamAbbrev || g.awayTeam.abbrev === teamAbbrev
