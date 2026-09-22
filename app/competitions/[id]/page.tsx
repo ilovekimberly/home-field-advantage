@@ -735,6 +735,32 @@ export default async function CompetitionPage({
           );
         })()}
 
+        {/* Break notice — during an international break or bye stretch the
+            next slate can be weeks out. Say so, rather than showing a distant
+            matchweek with no explanation for why nothing is imminent. */}
+        {games.length > 0 && (() => {
+          const firstKickoff = new Date(
+            Math.min(...games.map((g) => new Date(g.startTimeUTC).getTime()))
+          );
+          const daysAway = Math.floor(
+            (firstKickoff.getTime() - now.getTime()) / 86400000
+          );
+          if (daysAway < 4) return null;
+          return (
+            <div className="mb-4 rounded-lg bg-blue-50 border border-blue-100 px-4 py-3 text-sm text-blue-800">
+              📅 No fixtures this week{comp.sport === "EPL" ? " — international break" : ""}.
+              Next up:{" "}
+              <strong>
+                {firstKickoff.toLocaleDateString("en-US", {
+                  weekday: "long", month: "long", day: "numeric",
+                  timeZone: "America/New_York",
+                })}
+              </strong>{" "}
+              ({daysAway} days). You can pick ahead now — picks still lock at kickoff.
+            </div>
+          );
+        })()}
+
         {isPool ? (
           <p className="text-sm text-slate-500 mb-4">
             {games.length} game{games.length !== 1 ? "s" : ""} · Pick all independently
