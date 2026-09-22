@@ -150,13 +150,14 @@ async function resolveMatchweek(
   const weeks = clusterMatchweeks(calendar);
 
   // The pick date is snapped back to Friday, but a matchweek can start on a
-  // Saturday or midweek. Accept the first matchweek that has any fixture in
-  // the 7 days beginning at `date`.
-  const windowEnd = new Date(date + "T00:00:00Z");
-  windowEnd.setUTCDate(windowEnd.getUTCDate() + 6);
-  const endStr = windowEnd.toISOString().slice(0, 10);
-
-  const idx = weeks.findIndex((w) => w.some((d) => d >= date && d <= endStr));
+  // Saturday or midweek. Take the first matchweek that hasn't finished yet —
+  // i.e. whose last fixture is on or after `date`.
+  //
+  // This deliberately does NOT cap the search at 7 days. The Premier League
+  // pauses for international breaks (2026-27 runs Sep 20 → Oct 10), and a
+  // 7-day window found nothing across those gaps, leaving the slate empty
+  // with "no games to pick" for weeks at a time.
+  const idx = weeks.findIndex((w) => w[w.length - 1] >= date);
   if (idx === -1) return null;
 
   return { dates: weeks[idx], number: idx + 1 };
@@ -176,10 +177,9 @@ export async function getEPLMatchweekLabels(
   const weeks = clusterMatchweeks(calendar);
 
   for (const date of dates) {
-    const windowEnd = new Date(date + "T00:00:00Z");
-    windowEnd.setUTCDate(windowEnd.getUTCDate() + 6);
-    const endStr = windowEnd.toISOString().slice(0, 10);
-    const idx = weeks.findIndex((w) => w.some((d) => d >= date && d <= endStr));
+    // Same rule as resolveMatchweek — first unfinished matchweek, with no
+    // 7-day cap so international breaks don't produce unlabelled weeks.
+    const idx = weeks.findIndex((w) => w[w.length - 1] >= date);
     if (idx !== -1) out[date] = `Matchweek ${idx + 1}`;
   }
   return out;
