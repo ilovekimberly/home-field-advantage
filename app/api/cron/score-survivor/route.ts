@@ -33,33 +33,64 @@ export async function GET(req: Request) {
   const supabase = createSupabaseAdminClient();
   const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myhomefield.team";
 
-  // Fetch current NFL week games
-  let weekInfo;
-  let games;
+  // Resolve the current NFL week.
+  let currentWeek: number;
+  let seasonYear: number;
   try {
-    const result = await fetchNFLScoreboard();
-    weekInfo = result.weekInfo;
-    games    = result.games;
+    const probe = await fetchNFLScoreboard();
+    currentWeek = probe.weekInfo.week;
+    seasonYear  = probe.weekInfo.season;
   } catch (e) {
     console.error("score-survivor: NFL fetch failed", e);
     return NextResponse.json({ error: "NFL schedule fetch failed" }, { status: 503 });
   }
 
-  // Build a map: teamAbbrev → did they win this week?
-  const teamResults = new Map<string, "win" | "loss">();
-  for (const g of games) {
-    if (g.gameState !== "FINAL") continue;
-    if (g.homeScore == null || g.awayScore == null) continue;
-    if (g.homeScore === g.awayScore) continue; // shouldn't happen in NFL but be safe
-    const homeWon = g.homeScore > g.awayScore;
-    teamResults.set(g.homeTeam.abbrev, homeWon ? "win" : "loss");
-    teamResults.set(g.awayTeam.abbrev, homeWon ? "loss" : "win");
-  }
+  // Load every regular-season week up to now, not just the current one.
+  //
+  // This route previously scored only ESPN's *current* week, which left two
+  // holes: picks from a week that had already rolled over were never scored,
+  // and team results were looked up against the wrong week's games. Loading
+  // each week separately keeps every pick matched to its own game.
+  const weekNumbers = Array.from({ length: currentWeek }, (_, i) => i + 1);
+  const weekData = new Map<number, {
+    results: Map<string, "win" | "loss" | "tie">;
+    complete: boolean;
+    lastDate: string | null;
+  }>();
+
+  await Promise.all(weekNumbers.map(async (wk) => {
+    try {
+      const { games } = await fetchNFLScoreboard({
+        week: wk, season: seasonYear, seasonType: 2,
+      });
+      const results = new Map<string, "win" | "loss" | "tie">();
+      let complete = games.length > 0;
+      let lastDate: string | null = null;
+
+      for (const g of games) {
+        if (g.startTimeUTC > (lastDate ?? "")) lastDate = g.startTimeUTC;
+        const final = g.gameState === "FINAL" || g.gameState === "OFF";
+        if (!final) { complete = false; continue; }
+        if (g.homeScore == null || g.awayScore == null) { complete = false; continue; }
+        if (g.homeScore === g.awayScore) {
+          results.set(g.homeTeam.abbrev, "tie");
+          results.set(g.awayTeam.abbrev, "tie");
+          continue;
+        }
+        const homeWon = g.homeScore > g.awayScore;
+        results.set(g.homeTeam.abbrev, homeWon ? "win" : "loss");
+        results.set(g.awayTeam.abbrev, homeWon ? "loss" : "win");
+      }
+      weekData.set(wk, { results, complete, lastDate });
+    } catch {
+      // Leave the week absent — picks in it simply stay pending this run.
+    }
+  }));
 
   // Find all active survivor competitions
   const { data: survivorComps } = await supabase
     .from("competitions")
-    .select("id, name")
+    .select("id, name, start_date")
     .eq("format", "survivor")
     .eq("status", "active");
 
@@ -72,41 +103,42 @@ export async function GET(req: Request) {
   for (const comp of survivorComps) {
     const competitionUrl = `${siteUrl}/competitions/${comp.id}`;
 
-    // Get pending picks for this week
-    const { data: pendingPicks } = await supabase
+    // Every pick in this competition, all weeks — needed both for scoring and
+    // to tell who missed a deadline.
+    const { data: allPicks } = await supabase
       .from("survivor_picks")
-      .select("id, user_id, week_number, picked_team_abbrev, picked_team_name, result")
-      .eq("competition_id", comp.id)
-      .eq("week_number", weekInfo.week)
-      .eq("result", "pending");
+      .select("id, user_id, week_number, team_abbrev, team_name, result")
+      .eq("competition_id", comp.id);
 
-    if (!pendingPicks || pendingPicks.length === 0) {
-      results[comp.id] = { skipped: true, reason: "No pending picks this week" };
-      continue;
-    }
+    const pendingPicks = (allPicks ?? []).filter((p: any) => p.result === "pending");
 
     let scored = 0;
     let eliminated = 0;
     const eliminatedUserIds: string[] = [];
 
+    // ── Score pending picks against their OWN week ──────────────────────
     for (const pick of pendingPicks) {
-      const teamResult = teamResults.get(pick.picked_team_abbrev);
+      const wk = weekData.get(pick.week_number as number);
+      if (!wk) continue;
+      const teamResult = wk.results.get(pick.team_abbrev as string);
       if (!teamResult) continue; // game not final yet
 
-      // Score the pick
+      // A tie is not a loss. Mark it unscored so it doesn't hang as pending
+      // forever, and let the member survive the week.
+      const stored = teamResult === "tie" ? "unscored" : teamResult;
+
       await supabase
         .from("survivor_picks")
-        .update({ result: teamResult, updated_at: new Date().toISOString() })
+        .update({ result: stored, updated_at: new Date().toISOString() })
         .eq("id", pick.id);
 
       scored++;
 
       if (teamResult === "loss") {
-        // Eliminate this member
         await supabase
           .from("competition_members")
           .update({
-            survivor_status:         "eliminated",
+            survivor_status:          "eliminated",
             survivor_eliminated_week: pick.week_number,
           })
           .eq("competition_id", comp.id)
@@ -117,36 +149,47 @@ export async function GET(req: Request) {
       }
     }
 
-    // Also auto-eliminate members with NO pick this week (missed deadline)
-    const { data: allMembers } = await supabase
+    // ── Eliminate anyone who missed a completed week ────────────────────
+    //
+    // This used to sit behind an early `continue` that fired whenever there
+    // were no pending picks — so in a pool where someone simply never picked,
+    // they were never eliminated and the competition stayed open forever.
+    // It now runs on its own, for every completed week since the pool started.
+    const { data: aliveMembers } = await supabase
       .from("competition_members")
-      .select("user_id, survivor_status")
+      .select("user_id")
       .eq("competition_id", comp.id)
       .eq("survivor_status", "alive");
 
-    const { data: thisWeekPicks } = await supabase
-      .from("survivor_picks")
-      .select("user_id")
-      .eq("competition_id", comp.id)
-      .eq("week_number", weekInfo.week);
+    for (const wk of weekNumbers) {
+      const info = weekData.get(wk);
+      if (!info || !info.complete) continue;
+      // Skip weeks that finished before this competition began.
+      if (info.lastDate && info.lastDate.slice(0, 10) < comp.start_date) continue;
 
-    const pickedUserIds = new Set((thisWeekPicks ?? []).map((p: any) => p.user_id as string));
-    const noPick = (allMembers ?? []).filter(
-      (m: any) => !pickedUserIds.has(m.user_id as string)
-    );
+      const pickedThatWeek = new Set(
+        (allPicks ?? [])
+          .filter((p: any) => p.week_number === wk)
+          .map((p: any) => p.user_id as string)
+      );
 
-    for (const m of noPick) {
-      await supabase
-        .from("competition_members")
-        .update({
-          survivor_status:          "eliminated",
-          survivor_eliminated_week: weekInfo.week,
-        })
-        .eq("competition_id", comp.id)
-        .eq("user_id", m.user_id);
+      for (const m of aliveMembers ?? []) {
+        const uid = m.user_id as string;
+        if (pickedThatWeek.has(uid)) continue;
+        if (eliminatedUserIds.includes(uid)) continue;
 
-      eliminated++;
-      eliminatedUserIds.push(m.user_id as string);
+        await supabase
+          .from("competition_members")
+          .update({
+            survivor_status:          "eliminated",
+            survivor_eliminated_week: wk,
+          })
+          .eq("competition_id", comp.id)
+          .eq("user_id", uid);
+
+        eliminated++;
+        eliminatedUserIds.push(uid);
+      }
     }
 
     // ── Send elimination emails ────────────────────────────────────────────
@@ -169,17 +212,18 @@ export async function GET(req: Request) {
       for (const p of eliminatedProfiles ?? []) {
         if (!p.email) continue;
 
-        // Find the team name for this person's pick
-        const theirPick = (pendingPicks ?? []).find(
-          (pk: any) => pk.user_id === p.id
-        );
-        const teamName = theirPick?.picked_team_name ?? "your team";
+        // Team they went out on. Someone eliminated for missing a deadline has
+        // no pick, so the email says so rather than naming a team.
+        const theirPick = (allPicks ?? [])
+          .filter((pk: any) => pk.user_id === p.id && pk.result === "loss")
+          .sort((a: any, b: any) => b.week_number - a.week_number)[0];
+        const teamName = theirPick?.team_name ?? "no pick";
 
         const { subject, html } = survivorEliminationEmail({
           toName:          p.display_name ?? p.email,
           competitionName: comp.name,
           competitionUrl,
-          weekLabel:       weekInfo.label,
+          weekLabel:       `Week ${currentWeek}`,
           teamName,
           survivorsLeft:   survivorsLeftCount,
         });
@@ -227,7 +271,7 @@ export async function GET(req: Request) {
     }
 
     results[comp.id] = {
-      weekNumber: weekInfo.week,
+      weekNumber: currentWeek,
       scored,
       eliminated,
       survivorsLeft: survivorsLeftCount,
