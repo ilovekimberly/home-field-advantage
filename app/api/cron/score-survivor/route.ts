@@ -90,7 +90,7 @@ export async function GET(req: Request) {
   // Find all active survivor competitions
   const { data: survivorComps } = await supabase
     .from("competitions")
-    .select("id, name, start_date")
+    .select("id, name, start_date, wipeout_rule")
     .eq("format", "survivor")
     .eq("status", "active");
 
@@ -232,6 +232,51 @@ export async function GET(req: Request) {
       }
     }
 
+    // ── Wipeout: everyone knocked out in the same week ─────────────────────
+    //
+    // Without a rule this just ended with nobody winning. The creator picks
+    // the behaviour when setting the pool up (competitions.wipeout_rule).
+    let wipeoutWinnerIds: string[] = [];
+    if (survivorsLeftCount === 0 && eliminatedUserIds.length > 0) {
+      const rule = (comp as any).wipeout_rule ?? "co_winners";
+
+      // The week that wiped everyone out.
+      const { data: lastOut } = await supabase
+        .from("competition_members")
+        .select("user_id, survivor_eliminated_week")
+        .eq("competition_id", comp.id)
+        .order("survivor_eliminated_week", { ascending: false })
+        .limit(1);
+      const finalWeek = lastOut?.[0]?.survivor_eliminated_week as number | undefined;
+
+      if (rule === "revive" && finalWeek != null) {
+        // Undo that week's eliminations and let the pool continue.
+        await supabase
+          .from("competition_members")
+          .update({ survivor_status: "alive", survivor_eliminated_week: null })
+          .eq("competition_id", comp.id)
+          .eq("survivor_eliminated_week", finalWeek);
+
+        console.log(`score-survivor [${comp.id}]: wipeout in week ${finalWeek} — revived all`);
+        results[comp.id] = {
+          weekNumber: currentWeek, scored, eliminated,
+          survivorsLeft: 0, wipeout: "revived",
+        };
+        continue; // pool stays active
+      }
+
+      if (rule === "co_winners" && finalWeek != null) {
+        // Everyone who went out in the final week shares the win.
+        const { data: coWinners } = await supabase
+          .from("competition_members")
+          .select("user_id")
+          .eq("competition_id", comp.id)
+          .eq("survivor_eliminated_week", finalWeek);
+        wipeoutWinnerIds = (coWinners ?? []).map((m: any) => m.user_id as string);
+      }
+      // rule === "no_winner" falls through with an empty winner list.
+    }
+
     // ── Check for winner ───────────────────────────────────────────────────
 
     if (survivorsLeftCount <= 1) {
@@ -241,9 +286,13 @@ export async function GET(req: Request) {
         .update({ status: "complete" })
         .eq("id", comp.id);
 
-      // Send winner email(s)
-      if (survivorsLeftCount >= 1) {
-        const winnerIds = (survivorsLeft ?? []).map((s: any) => s.user_id as string);
+      // Send winner email(s). Normally the last survivor(s); on a wipeout it's
+      // whoever the wipeout rule crowned.
+      const winnerIds = survivorsLeftCount >= 1
+        ? (survivorsLeft ?? []).map((s: any) => s.user_id as string)
+        : wipeoutWinnerIds;
+
+      if (winnerIds.length > 0) {
         const { data: winnerProfiles } = await supabase
           .from("profiles")
           .select("id, display_name, email")

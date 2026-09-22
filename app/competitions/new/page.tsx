@@ -12,6 +12,7 @@ type Duration = "daily" | "weekly" | "season" | "playoff";
 type DraftStyle = "standard" | "balanced";
 type Format = "1v1" | "pool" | "survivor";
 type Tiebreaker = "split" | "riskiest" | "playoffs" | "overtime";
+type WipeoutRule = "co_winners" | "revive" | "no_winner";
 
 const SPORTS: { value: Sport; label: string; emoji: string }[] = [
   { value: "NHL", label: "NHL Hockey", emoji: "🏒" },
@@ -54,6 +55,7 @@ export default function NewCompetitionPage() {
   const [enableSpread, setEnableSpread] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "friends">("private");
   const [tiebreaker, setTiebreaker] = useState<Tiebreaker>("split");
+  const [wipeoutRule, setWipeoutRule] = useState<WipeoutRule>("co_winners");
   const [inviteEmail, setInviteEmail] = useState("");
   const [poolInviteEmails, setPoolInviteEmails] = useState<string[]>([""]);
   const [selectedFriendEmails, setSelectedFriendEmails] = useState<Set<string>>(new Set());
@@ -196,6 +198,7 @@ export default function NewCompetitionPage() {
         creator_id: user.id,
         max_members: isPool && maxMembers ? parseInt(maxMembers) : null,
         tiebreaker: isSurvivor ? tiebreaker : null,
+        wipeout_rule: isSurvivor ? wipeoutRule : null,
       })
       .select()
       .single();
@@ -444,6 +447,37 @@ export default function NewCompetitionPage() {
                   }`}
                 >
                   <span className={`text-sm font-semibold ${tiebreaker === t.value ? "text-rink" : "text-slate-700"}`}>
+                    {t.label}
+                  </span>
+                  <span className="text-xs text-slate-400 leading-snug">{t.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Wipeout rule — survivor only. The mirror of the tiebreaker above:
+            what to do when nobody is left standing. */}
+        {isSurvivor && (
+          <div>
+            <span className="block text-sm font-medium mb-2">
+              If everyone is eliminated in the same week
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: "co_winners" as WipeoutRule, label: "Share the win", desc: "Everyone knocked out that week is declared a co-winner." },
+                { value: "revive" as WipeoutRule, label: "Everyone survives", desc: "Undo that week's eliminations and keep playing the next week." },
+                { value: "no_winner" as WipeoutRule, label: "No winner", desc: "The pool ends with nobody winning." },
+              ]).map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setWipeoutRule(t.value)}
+                  className={`flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                    wipeoutRule === t.value ? "border-rink bg-ice" : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className={`text-sm font-semibold ${wipeoutRule === t.value ? "text-rink" : "text-slate-700"}`}>
                     {t.label}
                   </span>
                   <span className="text-xs text-slate-400 leading-snug">{t.desc}</span>
