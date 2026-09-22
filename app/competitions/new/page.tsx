@@ -465,7 +465,7 @@ export default function NewCompetitionPage() {
             </span>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { value: "co_winners" as WipeoutRule, label: "Share the win", desc: "Everyone knocked out that week is declared a co-winner." },
+                { value: "co_winners" as WipeoutRule, label: "Share the win", desc: "Everyone who picked that week shares the win. Anyone who didn't pick is out — no pick is a loss." },
                 { value: "revive" as WipeoutRule, label: "Everyone survives", desc: "Undo that week's eliminations and keep playing the next week." },
                 { value: "no_winner" as WipeoutRule, label: "No winner", desc: "The pool ends with nobody winning." },
               ]).map((t) => (

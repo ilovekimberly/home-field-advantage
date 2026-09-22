@@ -266,13 +266,29 @@ export async function GET(req: Request) {
       }
 
       if (rule === "co_winners" && finalWeek != null) {
-        // Everyone who went out in the final week shares the win.
         const { data: coWinners } = await supabase
           .from("competition_members")
           .select("user_id")
           .eq("competition_id", comp.id)
           .eq("survivor_eliminated_week", finalWeek);
-        wipeoutWinnerIds = (coWinners ?? []).map((m: any) => m.user_id as string);
+
+        // Not picking is a loss, so a no-show can't share the win. Only
+        // members who actually made a pick that week are eligible — someone
+        // who picked and lost outlasts someone who never showed up.
+        const pickedFinalWeek = new Set(
+          (allPicks ?? [])
+            .filter((p: any) => p.week_number === finalWeek)
+            .map((p: any) => p.user_id as string)
+        );
+
+        wipeoutWinnerIds = (coWinners ?? [])
+          .map((m: any) => m.user_id as string)
+          .filter((uid) => pickedFinalWeek.has(uid));
+
+        // If nobody picked, nobody wins.
+        if (wipeoutWinnerIds.length === 0) {
+          console.log(`score-survivor [${comp.id}]: wipeout week ${finalWeek} — no eligible winners (no picks)`);
+        }
       }
       // rule === "no_winner" falls through with an empty winner list.
     }
